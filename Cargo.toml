@@ -3,18 +3,14 @@ name = "processus_viewer"
 version = "0.0.1"
 authors = []
 
-[dependencies.rgtk]
-git = "https://github.com/jeremyletang/rgtk.git"
+[dependencies.gtk]
+git = "https://github.com/rust-gnome/gtk.git"
+
+[dependencies.glib]
+git = "https://github.com/rust-gnome/glib.git"
 
 [dependencies.sysinfo]
 git = "https://github.com/guillaumegomez/sysinfo.git"
-
-[features]
-GTK_3_14 = ["rgtk/GTK_3_14"]
-GTK_3_12 = ["rgtk/GTK_3_12"]
-GTK_3_10 = ["rgtk/GTK_3_10"]
-GTK_3_8 = ["rgtk/GTK_3_8"]
-GTK_3_6 = ["rgtk/GTK_3_6"]
 
 [[bin]]
 name = "processus_viewer"

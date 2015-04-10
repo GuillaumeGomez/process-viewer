@@ -2,12 +2,12 @@
 
 #![feature(convert)]
 
-extern crate rgtk;
+extern crate gtk;
+extern crate glib;
 extern crate sysinfo;
 
-use rgtk::*;
-use rgtk::gtk::signals::DeleteEvent;
-use rgtk::glib::Type;
+use gtk::*;
+use glib::Type;
 use sysinfo::*;
 
 fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>) {
@@ -41,7 +41,7 @@ fn main() {
     window.set_title("TreeView Sample");
     window.set_window_position(gtk::WindowPosition::Center);
 
-    Connect::connect(&window, DeleteEvent::new(&mut |_| {
+    gtk::Connect::connect(&window, gtk::signals::DeleteEvent::new(&mut |_| {
         gtk::main_quit();
         true
     }));
