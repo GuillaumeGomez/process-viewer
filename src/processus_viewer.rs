@@ -1,14 +1,19 @@
 #![crate_type = "bin"]
-
-#![feature(convert)]
+#![feature(collections)]
 
 extern crate gtk;
 extern crate glib;
 extern crate sysinfo;
 
-use gtk::*;
-use glib::Type;
+use gtk::{WindowTrait, ContainerTrait, WidgetTrait};
+use gtk::signals::DeleteEvent;
+use gtk::Connect;
+use glib::{Type, timeout};
 use sysinfo::*;
+use gtk::signal::Inhibit;
+use gtk::signal::WidgetSignals;
+use std::collections::VecMap;
+use std::str::FromStr;
 
 fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>) {
     let l = v.len();
@@ -32,6 +37,43 @@ fn create_and_fill_model(tree_store: &mut gtk::TreeStore, pid: i64, name: &str, 
     tree_store.set_string(&top_level, 3, &format!("{}", memory));
 }
 
+fn update_window(w: &mut (&mut gtk::TreeStore, &mut sysinfo::System)) -> i32 {
+    let mut model = w.0.get_model().unwrap();
+    let mut iter = gtk::TreeIter::new().unwrap();
+
+    model.get_iter_first(&mut iter);
+    w.1.refresh();
+    let mut entries : VecMap<Processus> = (*w.1.get_processus_list()).clone();
+
+    loop {
+        let pid : i64 = i64::from_str(&model.get_value(&iter, 0).get_string().unwrap()).unwrap();
+        let mut to_delete = false;
+
+        match entries.get(&(pid as usize)) {
+            Some(p) => {
+                w.0.set_string(&iter, 1, &p.name);
+                w.0.set_string(&iter, 2, &format!("{}", p.cpu_usage));
+                w.0.set_string(&iter, 3, &format!("{}", p.memory));
+                to_delete = true;
+            }
+            None => {
+                w.0.remove(&iter);
+                model.iter_previous(&mut iter);
+            }
+        }
+        if to_delete {
+            entries.remove(&(pid as usize));
+        }
+        if !model.iter_next(&mut iter) {
+            break;
+        }
+    }
+    for (_, pro) in entries {
+        create_and_fill_model(&mut w.0, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
+    }
+    1
+}
+
 fn main() {
     gtk::init();
 
@@ -41,10 +83,10 @@ fn main() {
     window.set_title("TreeView Sample");
     window.set_window_position(gtk::WindowPosition::Center);
 
-    gtk::Connect::connect(&window, gtk::signals::DeleteEvent::new(&mut |_| {
+    window.connect_delete_event(|_, _| {
         gtk::main_quit();
-        true
-    }));
+        Inhibit(true)
+    });
 
     let mut left_tree = gtk::TreeView::new().unwrap();
     let mut scroll = gtk::ScrolledWindow::new(None, None).unwrap();
@@ -85,6 +127,8 @@ fn main() {
 
     //split_pane.set_size_request(-1, -1);
     //split_pane.add(&left_tree);
+
+    timeout::add(1500, update_window, &mut (&mut tree_store, &mut sys));
 
     window.add(&scroll);
     window.show_all();
