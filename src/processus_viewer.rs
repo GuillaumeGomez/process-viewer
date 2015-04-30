@@ -42,18 +42,17 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, 
 
 fn update_window(w: &mut (&mut gtk::ListStore, &mut sysinfo::System, &mut gtk::TreeView)) -> i32 {
     println!("in !");
-    let mut model = w.2.get_model().unwrap().clone();
+    let mut model = w.0.get_model().unwrap().clone();
     let mut iter = gtk::TreeIter::new().unwrap();
 
     w.1.refresh();
-    if !model.get_iter_first(&mut iter) {
+    /*if !model.get_iter_first(&mut iter) {
         return 1;
-    }
-    let useless = model.clone();
+    }*/
     let mut entries : VecMap<Processus> = (*w.1.get_processus_list()).clone();
     //w.2.remove_model();
 
-    loop {
+    /*loop {
         let pid : i64 = i64::from_str(&model.get_value(&iter, 0).get_string().unwrap()).unwrap();
         let mut to_delete = false;
 
@@ -73,6 +72,34 @@ fn update_window(w: &mut (&mut gtk::ListStore, &mut sysinfo::System, &mut gtk::T
         }
         if !model.iter_next(&mut iter) {
             break;
+        }
+    }*/
+    let mut nb = model.iter_n_children(None);
+    let mut i = 0;
+
+    while i < nb {
+        if model.iter_nth_child(&mut iter, None, i) {
+            let pid : i64 = i64::from_str(&model.get_value(&iter, 0).get_string().unwrap()).unwrap();
+            let mut to_delete = false;
+
+            match entries.get(&(pid as usize)) {
+                Some(p) => {
+                    //w.0.set_string(&iter, 1, &p.name);
+                    w.0.set_string(&iter, 2, &format!("{}", p.cpu_usage));
+                    w.0.set_string(&iter, 3, &format!("{}", p.memory));
+                    to_delete = true;
+                }
+                None => {
+                    w.0.remove(&iter);
+                }
+            }
+            if to_delete {
+                entries.remove(&(pid as usize));
+                nb = model.iter_n_children(None);
+                i += 1;
+            }
+        } else {
+            i += 1;
         }
     }
     for (_, pro) in entries {
