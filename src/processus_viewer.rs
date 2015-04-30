@@ -63,11 +63,9 @@ fn update_window(w: &mut (&mut gtk::ListStore, &mut sysinfo::System, &mut gtk::T
                 w.0.set_string(&iter, 2, &format!("{}", p.cpu_usage));
                 w.0.set_string(&iter, 3, &format!("{}", p.memory));
                 to_delete = true;
-                return 1;
             }
             None => {
                 w.0.remove(&iter);
-                return 1;
             }
         }
         if to_delete {
@@ -79,7 +77,6 @@ fn update_window(w: &mut (&mut gtk::ListStore, &mut sysinfo::System, &mut gtk::T
     }
     for (_, pro) in entries {
         create_and_fill_model(&mut w.0, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
-        return 1;
     }
     //w.2.set_model(&model);
     1
