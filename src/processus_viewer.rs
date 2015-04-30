@@ -27,23 +27,31 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>) {
     tmp.add_attribute(&renderer, "text", l as i32);
 }
 
-fn create_and_fill_model(tree_store: &mut gtk::TreeStore, pid: i64, name: &str, cpu: f32, memory: u64) {
+fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, cpu: f32, memory: u64) {
+    if name.len() < 1 {
+        return;
+    }
     let mut top_level = gtk::TreeIter::new().unwrap();
 
-    tree_store.append(&mut top_level, None);
-    tree_store.set_string(&top_level, 0, &format!("{}", pid));
-    tree_store.set_string(&top_level, 1, name);
-    tree_store.set_string(&top_level, 2, &format!("{}", cpu));
-    tree_store.set_string(&top_level, 3, &format!("{}", memory));
+    list_store.append(&mut top_level);
+    list_store.set_string(&top_level, 0, &format!("{}", pid));
+    list_store.set_string(&top_level, 1, name);
+    list_store.set_string(&top_level, 2, &format!("{}", cpu));
+    list_store.set_string(&top_level, 3, &format!("{}", memory));
 }
 
-fn update_window(w: &mut (&mut gtk::TreeStore, &mut sysinfo::System)) -> i32 {
-    let mut model = w.0.get_model().unwrap();
+fn update_window(w: &mut (&mut gtk::ListStore, &mut sysinfo::System, &mut gtk::TreeView)) -> i32 {
+    println!("in !");
+    let mut model = w.2.get_model().unwrap().clone();
     let mut iter = gtk::TreeIter::new().unwrap();
 
-    model.get_iter_first(&mut iter);
     w.1.refresh();
+    if !model.get_iter_first(&mut iter) {
+        return 1;
+    }
+    let useless = model.clone();
     let mut entries : VecMap<Processus> = (*w.1.get_processus_list()).clone();
+    //w.2.remove_model();
 
     loop {
         let pid : i64 = i64::from_str(&model.get_value(&iter, 0).get_string().unwrap()).unwrap();
@@ -51,14 +59,15 @@ fn update_window(w: &mut (&mut gtk::TreeStore, &mut sysinfo::System)) -> i32 {
 
         match entries.get(&(pid as usize)) {
             Some(p) => {
-                w.0.set_string(&iter, 1, &p.name);
+                //w.0.set_string(&iter, 1, &p.name);
                 w.0.set_string(&iter, 2, &format!("{}", p.cpu_usage));
                 w.0.set_string(&iter, 3, &format!("{}", p.memory));
                 to_delete = true;
+                return 1;
             }
             None => {
                 w.0.remove(&iter);
-                model.iter_previous(&mut iter);
+                return 1;
             }
         }
         if to_delete {
@@ -70,7 +79,9 @@ fn update_window(w: &mut (&mut gtk::TreeStore, &mut sysinfo::System)) -> i32 {
     }
     for (_, pro) in entries {
         create_and_fill_model(&mut w.0, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
+        return 1;
     }
+    //w.2.set_model(&model);
     1
 }
 
@@ -105,13 +116,13 @@ fn main() {
         left_tree.append_column(&i);
     }
 
-    let mut tree_store = gtk::TreeStore::new(&[Type::String, Type::String, Type::String, Type::String]).unwrap();
+    let mut list_store = gtk::ListStore::new(&[Type::String, Type::String, Type::String, Type::String]).unwrap();
     sys.refresh();
     for (_, pro) in sys.get_processus_list() {
-        create_and_fill_model(&mut tree_store, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
+        create_and_fill_model(&mut list_store, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
     }
 
-    left_tree.set_model(&tree_store.get_model().unwrap());
+    left_tree.set_model(&list_store.get_model().unwrap());
     left_tree.set_headers_visible(true);
     scroll.add(&left_tree);
 
@@ -128,7 +139,7 @@ fn main() {
     //split_pane.set_size_request(-1, -1);
     //split_pane.add(&left_tree);
 
-    timeout::add(1500, update_window, &mut (&mut tree_store, &mut sys));
+    timeout::add(1000, update_window, &mut (&mut list_store, &mut sys, &mut left_tree));
 
     window.add(&scroll);
     window.show_all();
