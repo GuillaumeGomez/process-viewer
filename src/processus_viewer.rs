@@ -84,7 +84,7 @@ fn main() {
     let mut window = gtk::Window::new(gtk::WindowType::TopLevel).unwrap();
     let mut sys = sysinfo::System::new();
 
-    window.set_title("TreeView Sample");
+    window.set_title("Processus viewer");
     window.set_window_position(gtk::WindowPosition::Center);
 
     window.connect_delete_event(|_, _| {
@@ -118,23 +118,15 @@ fn main() {
     left_tree.set_model(&list_store.get_model().unwrap());
     left_tree.set_headers_visible(true);
     scroll.add(&left_tree);
+    let mut vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0).unwrap();
+    let mut kill_button = gtk::Button::new_with_label("End task").unwrap();
 
-    /*for _ in 0..10 {
-        let mut iter = gtk::TreeIter::new().unwrap();
-        left_store.append(&mut iter);
-        left_store.set_string(&iter, 0, "I'm in a list");
-    }*/
-
-    // display the panes
-
-    //let mut split_pane = gtk::Box::new(gtk::Orientation::Horizontal, 10).unwrap();
-
-    //split_pane.set_size_request(-1, -1);
-    //split_pane.add(&left_tree);
-
+    kill_button.set_sensitive(false);
     timeout::add(1500, update_window, &mut (&mut list_store, &mut sys));
 
-    window.add(&scroll);
+    vertical_layout.add(&scroll);
+    vertical_layout.add(&kill_button);
+    window.add(&vertical_layout);
     window.show_all();
     gtk::main();
 }
