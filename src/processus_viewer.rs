@@ -6,8 +6,6 @@ extern crate glib;
 extern crate sysinfo;
 
 use gtk::{WindowTrait, ContainerTrait, WidgetTrait};
-use gtk::signals::DeleteEvent;
-use gtk::Connect;
 use glib::{Type, timeout};
 use sysinfo::*;
 use gtk::signal::Inhibit;
@@ -31,7 +29,7 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, 
     if name.len() < 1 {
         return;
     }
-    let mut top_level = gtk::TreeIter::new().unwrap();
+    let mut top_level = gtk::TreeIter::new();
 
     list_store.append(&mut top_level);
     list_store.set_string(&top_level, 0, &format!("{}", pid));
@@ -40,40 +38,12 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, 
     list_store.set_string(&top_level, 3, &format!("{}", memory));
 }
 
-fn update_window(w: &mut (&mut gtk::ListStore, &mut sysinfo::System, &mut gtk::TreeView)) -> i32 {
-    println!("in !");
-    let mut model = w.0.get_model().unwrap().clone();
-    let mut iter = gtk::TreeIter::new().unwrap();
+fn update_window(w: &mut (&mut gtk::ListStore, &mut sysinfo::System)) -> i32 {
+    let mut model = w.0.get_model().unwrap();
+    let mut iter = gtk::TreeIter::new();
 
     w.1.refresh();
-    /*if !model.get_iter_first(&mut iter) {
-        return 1;
-    }*/
     let mut entries : VecMap<Processus> = (*w.1.get_processus_list()).clone();
-    //w.2.remove_model();
-
-    /*loop {
-        let pid : i64 = i64::from_str(&model.get_value(&iter, 0).get_string().unwrap()).unwrap();
-        let mut to_delete = false;
-
-        match entries.get(&(pid as usize)) {
-            Some(p) => {
-                //w.0.set_string(&iter, 1, &p.name);
-                w.0.set_string(&iter, 2, &format!("{}", p.cpu_usage));
-                w.0.set_string(&iter, 3, &format!("{}", p.memory));
-                to_delete = true;
-            }
-            None => {
-                w.0.remove(&iter);
-            }
-        }
-        if to_delete {
-            entries.remove(&(pid as usize));
-        }
-        if !model.iter_next(&mut iter) {
-            break;
-        }
-    }*/
     let mut nb = model.iter_n_children(None);
     let mut i = 0;
 
@@ -105,7 +75,6 @@ fn update_window(w: &mut (&mut gtk::ListStore, &mut sysinfo::System, &mut gtk::T
     for (_, pro) in entries {
         create_and_fill_model(&mut w.0, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
     }
-    //w.2.set_model(&model);
     1
 }
 
@@ -163,7 +132,7 @@ fn main() {
     //split_pane.set_size_request(-1, -1);
     //split_pane.add(&left_tree);
 
-    timeout::add(1000, update_window, &mut (&mut list_store, &mut sys, &mut left_tree));
+    timeout::add(1500, update_window, &mut (&mut list_store, &mut sys));
 
     window.add(&scroll);
     window.show_all();
