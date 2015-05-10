@@ -122,7 +122,7 @@ fn main() {
     let mut vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0).unwrap();
     let mut kill_button = gtk::Button::new_with_label("End task").unwrap();
 
-    left_tree.connect_cursor_changed(|tree_view| {
+    left_tree.connect_cursor_changed(move |tree_view| {
         /*let mut path = gtk::TreePath::new().unwrap();
         tree_view.get_cursor(Some(&mut path), None);
         let mut iter = gtk::TreeIter::new();
