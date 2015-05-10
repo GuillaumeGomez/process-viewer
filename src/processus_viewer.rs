@@ -12,6 +12,9 @@ use gtk::signal::Inhibit;
 use gtk::signal::{WidgetSignals, TreeViewSignals};
 use std::collections::VecMap;
 use std::str::FromStr;
+use std::rc::Rc;
+use std::cell::{RefCell, RefMut};
+use std::ops::DerefMut;
 
 fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>) {
     let l = v.len();
@@ -94,7 +97,8 @@ fn main() {
 
     let mut left_tree = gtk::TreeView::new().unwrap();
     let mut scroll = gtk::ScrolledWindow::new(None, None).unwrap();
-    let mut current_pid : Option<String> = None;
+    let mut current_pid : Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+    let mut current_pid1 = current_pid.clone();
 
     scroll.set_min_content_height(800);
     scroll.set_min_content_width(600);
@@ -123,14 +127,15 @@ fn main() {
     let mut kill_button = gtk::Button::new_with_label("End task").unwrap();
 
     left_tree.connect_cursor_changed(move |tree_view| {
-        /*let mut path = gtk::TreePath::new().unwrap();
+        let mut path = gtk::TreePath::new().unwrap();
         tree_view.get_cursor(Some(&mut path), None);
         let mut iter = gtk::TreeIter::new();
         let model = tree_view.get_model().unwrap();
 
         if model.get_iter(&mut iter, &path) {
-            current_pid = Some(model.get_value(&iter, 0).get_string().unwrap());
-        }*/
+            let mut tmp = current_pid1.borrow_mut();
+            *tmp = Some(model.get_value(&iter, 0).get_string().unwrap());
+        }
         println!("current pid : {:?}", current_pid);
     });
     kill_button.set_sensitive(false);
