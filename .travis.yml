@@ -1,5 +1,8 @@
 language: rust
 sudo: true
+env:
+  global:
+    - LD_LIBRARY_PATH=/usr/local/lib
 before_install:
   - yes | sudo add-apt-repository ppa:ricotz/testing
   - sudo apt-get update
