@@ -7,7 +7,6 @@ extern crate sysinfo;
 
 use gtk::{WindowTrait, ContainerTrait, WidgetTrait, ButtonSignals, BoxTrait};
 use gtk::{IconSize, Orientation, ReliefStyle};
-use glib::{Type, timeout};
 use sysinfo::*;
 use gtk::signal::Inhibit;
 use gtk::signal::{WidgetSignals, TreeViewSignals};
@@ -81,7 +80,7 @@ impl Procs {
             left_tree.append_column(&i);
         }
 
-        let mut list_store = gtk::ListStore::new(&[Type::String, Type::String, Type::String, Type::String]).unwrap();
+        let mut list_store = gtk::ListStore::new(&[glib::Type::String, glib::Type::String, glib::Type::String, glib::Type::String]).unwrap();
         for (_, pro) in proc_list {
             create_and_fill_model(&mut list_store, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
         }
@@ -210,6 +209,7 @@ fn main() {
     let mut procs = Procs::new((*sys.borrow()).get_processus_list());
     let mut current_pid2 = procs.current_pid.clone();
     let mut sys1 = sys.clone();
+    let mut sys2 = sys.clone();
 
     window.set_title("Processus viewer");
     window.set_window_position(gtk::WindowPosition::Center);
@@ -236,19 +236,31 @@ fn main() {
     let mut vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0).unwrap();
     //let mut i = 0;
 
+    vertical_layout.set_spacing(5);
     let mut v = Vec::new();
+    let mut i = 1;
     for pro in (*sys1.borrow()).get_process_list() {
         v.push(gtk::ProgressBar::new().unwrap());
         let p : &gtk::ProgressBar = &v[v.len() - 1];
+        let l = gtk::Label::new(&format!("{}", i)).unwrap();
+        let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0).unwrap();
 
         p.set_text(&format!("{:.2} %", pro.get_cpu_usage() * 100.));
         p.set_show_text(true);
         p.set_fraction(pro.get_cpu_usage() as f64);
-        vertical_layout.add(p);
+        horizontal_layout.pack_start(&l, false, false, 5);
+        horizontal_layout.pack_start(p, true, true, 5);
+        vertical_layout.add(&horizontal_layout);
+        i += 1;
     }
+    vertical_layout.pack_start(&gtk::Label::new("Memory").unwrap(), false, false, 15);
+    vertical_layout.add(&gtk::Label::new(&format!("Total memory: {} kB", (*sys2.borrow()).get_total_memory())).unwrap());
+    vertical_layout.add(&gtk::Label::new(&format!("Free memory: {} kB", (*sys2.borrow()).get_free_memory())).unwrap());
+    vertical_layout.add(&gtk::Label::new(&format!("Total swap: {} kB", (*sys2.borrow()).get_total_swap())).unwrap());
+    vertical_layout.add(&gtk::Label::new(&format!("Free swap: {} kB", (*sys2.borrow()).get_free_swap())).unwrap());
     let mut v_procs = Rc::new(RefCell::new(v));
 
-    timeout::add(1500, update_window, &mut (&mut procs.list_store, sys1.clone(), v_procs.clone()));
+    glib::timeout::add(1500, update_window, &mut (&mut procs.list_store, sys1.clone(), v_procs.clone()));
     //window.add(&vertical_layout);
     note.create_tab("Processus list", &procs.vertical_layout);
     //let t = gtk::Button::new_with_label("test").unwrap();
