@@ -149,22 +149,17 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, 
     list_store.set_string(&top_level, 3, &format!("{}", memory));
 }
 
-fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<RefCell<Vec<gtk::ProgressBar>>>)) -> i32 {
+fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<RefCell<DisplaySysInfo>>)) -> i32 {
     let mut model = w.0.get_model().unwrap();
     let mut iter = gtk::TreeIter::new();
 
     (*w.1.borrow_mut()).refresh();
     let mut entries : VecMap<Processus> = ((*w.1.borrow()).get_processus_list()).clone();
     let mut nb = model.iter_n_children(None);
-    let mut i = 0;
 
-    let v = &*w.2.borrow_mut();
-    for pro in (*w.1.borrow()).get_process_list() {
-        v[i].set_text(&format!("{:.2} %", pro.get_cpu_usage() * 100.));
-        v[i].set_show_text(true);
-        v[i].set_fraction(pro.get_cpu_usage() as f64);
-        i += 1;
-    }
+    let sys = w.1.clone();
+    (*w.2.borrow_mut()).update_ram_display(sys.clone());
+    (*w.2.borrow_mut()).update_process_display(sys);
 
     let mut i = 0;
     while i < nb {
@@ -198,12 +193,113 @@ fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<
     1
 }
 
+struct DisplaySysInfo {
+    procs : Rc<RefCell<Vec<gtk::ProgressBar>>>,
+    ram : Rc<RefCell<gtk::ProgressBar>>,
+    swap : Rc<RefCell<gtk::ProgressBar>>,
+    vertical_layout : gtk::Box
+}
+
+impl DisplaySysInfo {
+    pub fn new(sys1: Rc<RefCell<sysinfo::System>>) -> DisplaySysInfo {
+        let mut tmp = DisplaySysInfo {
+            procs: Rc::new(RefCell::new(Vec::new())),
+            ram: Rc::new(RefCell::new(gtk::ProgressBar::new().unwrap())),
+            swap: Rc::new(RefCell::new(gtk::ProgressBar::new().unwrap())),
+            vertical_layout: gtk::Box::new(gtk::Orientation::Vertical, 0).unwrap()
+        };
+
+        let sys2 = sys1.clone();
+        let mut v = tmp.procs.clone();
+
+        (*tmp.ram.borrow_mut()).set_show_text(true);
+        (*tmp.swap.borrow_mut()).set_show_text(true);
+
+        tmp.vertical_layout.set_spacing(5);
+        let mut i = 1;
+        let mut total = false;
+
+        tmp.vertical_layout.pack_start(&gtk::Label::new("Memory usage").unwrap(), false, false, 15);
+        tmp.vertical_layout.add(&(*tmp.ram.borrow()));
+        tmp.vertical_layout.pack_start(&gtk::Label::new("Swap usage").unwrap(), false, false, 15);
+        tmp.vertical_layout.add(&(*tmp.swap.borrow()));
+        tmp.vertical_layout.pack_start(&gtk::Label::new("Process usage").unwrap(), false, false, 15);
+        for pro in (*sys1.borrow()).get_process_list() {
+            if total {
+                (*v.borrow_mut()).push(gtk::ProgressBar::new().unwrap());
+                let p : &gtk::ProgressBar = &(*v.borrow())[i - 1];
+                let l = gtk::Label::new(&format!("{}", i)).unwrap();
+                let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0).unwrap();
+
+                p.set_text(&format!("{:.2} %", pro.get_cpu_usage() * 100.));
+                p.set_show_text(true);
+                p.set_fraction(pro.get_cpu_usage() as f64);
+                horizontal_layout.pack_start(&l, false, false, 5);
+                horizontal_layout.pack_start(p, true, true, 5);
+                tmp.vertical_layout.add(&horizontal_layout);
+                i += 1;
+            } else {
+                total = true;
+            }
+        }
+        tmp.update_ram_display(sys2);
+        tmp
+    }
+
+    pub fn update_ram_display(&mut self, sys: Rc<RefCell<sysinfo::System>>) {
+        let total = (*sys.borrow()).get_total_memory();
+        let used = (*sys.borrow()).get_free_memory();
+        let disp = if total < 100000 {
+            format!("{} / {}B", used, total)
+        } else if total < 10000000 {
+            format!("{} / {}KB", used / 1000, total / 1000)
+        } else if total < 10000000000 {
+            format!("{} / {}MB", used / 1000000, total / 1000000)
+        } else {
+            format!("{} / {}GB", used / 1000000000, total / 1000000000)
+        };
+
+        (*self.ram.borrow_mut()).set_text(&disp);
+        (*self.ram.borrow_mut()).set_fraction(used as f64 / total as f64);
+
+        let total = (*sys.borrow()).get_total_swap();
+        let used = total - (*sys.borrow()).get_free_swap();
+        let disp = if total < 100000 {
+            format!("{} / {}B", used, total)
+        } else if total < 10000000 {
+            format!("{} / {}KB", used / 1000, total / 1000)
+        } else if total < 10000000000 {
+            format!("{} / {}MB", used / 1000000, total / 1000000)
+        } else {
+            format!("{} / {}GB", used / 1000000000, total / 1000000000)
+        };
+
+        (*self.swap.borrow_mut()).set_text(&disp);
+        (*self.swap.borrow_mut()).set_fraction(used as f64 / total as f64);
+    }
+
+    pub fn update_process_display(&mut self, sys: Rc<RefCell<sysinfo::System>>) {
+        let v = &*self.procs.borrow_mut();
+        let mut total = false;
+        let mut i = 0;
+        for pro in (*sys.borrow()).get_process_list() {
+            if total {
+                v[i].set_text(&format!("{:.1} %", pro.get_cpu_usage() * 100.));
+                v[i].set_show_text(true);
+                v[i].set_fraction(pro.get_cpu_usage() as f64);
+                i += 1;
+            } else {
+                total = true;
+            }
+        }
+    }
+}
+
 fn main() {
     gtk::init();
 
     let mut window = gtk::Window::new(gtk::WindowType::TopLevel).unwrap();
     let mut sys : Rc<RefCell<sysinfo::System>> = Rc::new(RefCell::new(sysinfo::System::new()));
-    let mut sys1 = sys.clone();
     let mut note = NoteBook::new();
     (*sys.borrow_mut()).refresh();
     let mut procs = Procs::new((*sys.borrow()).get_processus_list());
@@ -233,38 +329,13 @@ fn main() {
         }
     });
 
-    let mut vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0).unwrap();
-    //let mut i = 0;
+    let mut display_tab = Rc::new(RefCell::new(DisplaySysInfo::new(sys2)));
 
-    vertical_layout.set_spacing(5);
-    let mut v = Vec::new();
-    let mut i = 1;
-    for pro in (*sys1.borrow()).get_process_list() {
-        v.push(gtk::ProgressBar::new().unwrap());
-        let p : &gtk::ProgressBar = &v[v.len() - 1];
-        let l = gtk::Label::new(&format!("{}", i)).unwrap();
-        let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0).unwrap();
-
-        p.set_text(&format!("{:.2} %", pro.get_cpu_usage() * 100.));
-        p.set_show_text(true);
-        p.set_fraction(pro.get_cpu_usage() as f64);
-        horizontal_layout.pack_start(&l, false, false, 5);
-        horizontal_layout.pack_start(p, true, true, 5);
-        vertical_layout.add(&horizontal_layout);
-        i += 1;
-    }
-    vertical_layout.pack_start(&gtk::Label::new("Memory").unwrap(), false, false, 15);
-    vertical_layout.add(&gtk::Label::new(&format!("Total memory: {} kB", (*sys2.borrow()).get_total_memory())).unwrap());
-    vertical_layout.add(&gtk::Label::new(&format!("Free memory: {} kB", (*sys2.borrow()).get_free_memory())).unwrap());
-    vertical_layout.add(&gtk::Label::new(&format!("Total swap: {} kB", (*sys2.borrow()).get_total_swap())).unwrap());
-    vertical_layout.add(&gtk::Label::new(&format!("Free swap: {} kB", (*sys2.borrow()).get_free_swap())).unwrap());
-    let mut v_procs = Rc::new(RefCell::new(v));
-
-    glib::timeout::add(1500, update_window, &mut (&mut procs.list_store, sys1.clone(), v_procs.clone()));
+    glib::timeout::add(1500, update_window, &mut (&mut procs.list_store, sys1.clone(), display_tab.clone()));
     //window.add(&vertical_layout);
     note.create_tab("Processus list", &procs.vertical_layout);
     //let t = gtk::Button::new_with_label("test").unwrap();
-    note.create_tab("System usage", &vertical_layout);
+    note.create_tab("System usage", &(*display_tab.borrow()).vertical_layout);
     window.add(&note.notebook);
     window.show_all();
     gtk::main();
