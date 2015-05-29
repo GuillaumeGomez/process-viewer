@@ -216,18 +216,18 @@ impl DisplaySysInfo {
         (*tmp.swap.borrow_mut()).set_show_text(true);
 
         tmp.vertical_layout.set_spacing(5);
-        let mut i = 1;
+        let mut i = 0;
         let mut total = false;
 
         tmp.vertical_layout.pack_start(&gtk::Label::new("Memory usage").unwrap(), false, false, 15);
         tmp.vertical_layout.add(&(*tmp.ram.borrow()));
         tmp.vertical_layout.pack_start(&gtk::Label::new("Swap usage").unwrap(), false, false, 15);
         tmp.vertical_layout.add(&(*tmp.swap.borrow()));
-        tmp.vertical_layout.pack_start(&gtk::Label::new("Process usage").unwrap(), false, false, 15);
+        tmp.vertical_layout.pack_start(&gtk::Label::new("Total CPU usage").unwrap(), false, false, 15);
         for pro in (*sys1.borrow()).get_process_list() {
             if total {
                 (*v.borrow_mut()).push(gtk::ProgressBar::new().unwrap());
-                let p : &gtk::ProgressBar = &(*v.borrow())[i - 1];
+                let p : &gtk::ProgressBar = &(*v.borrow())[i];
                 let l = gtk::Label::new(&format!("{}", i)).unwrap();
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0).unwrap();
 
@@ -237,10 +237,19 @@ impl DisplaySysInfo {
                 horizontal_layout.pack_start(&l, false, false, 5);
                 horizontal_layout.pack_start(p, true, true, 5);
                 tmp.vertical_layout.add(&horizontal_layout);
-                i += 1;
             } else {
+                (*v.borrow_mut()).push(gtk::ProgressBar::new().unwrap());
+                let p : &gtk::ProgressBar = &(*v.borrow())[i];
+
+                p.set_text(&format!("{:.2} %", pro.get_cpu_usage() * 100.));
+                p.set_show_text(true);
+                p.set_fraction(pro.get_cpu_usage() as f64);
+
+                tmp.vertical_layout.add(p);
+                tmp.vertical_layout.pack_start(&gtk::Label::new("Process usage").unwrap(), false, false, 15);
                 total = true;
             }
+            i += 1;
         }
         tmp.update_ram_display(sys2);
         tmp
@@ -283,14 +292,10 @@ impl DisplaySysInfo {
         let mut total = false;
         let mut i = 0;
         for pro in (*sys.borrow()).get_process_list() {
-            if total {
-                v[i].set_text(&format!("{:.1} %", pro.get_cpu_usage() * 100.));
-                v[i].set_show_text(true);
-                v[i].set_fraction(pro.get_cpu_usage() as f64);
-                i += 1;
-            } else {
-                total = true;
-            }
+            v[i].set_text(&format!("{:.1} %", pro.get_cpu_usage() * 100.));
+            v[i].set_show_text(true);
+            v[i].set_fraction(pro.get_cpu_usage() as f64);
+            i += 1;
         }
     }
 }
