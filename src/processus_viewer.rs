@@ -6,15 +6,14 @@ extern crate glib;
 extern crate sysinfo;
 
 use gtk::{WindowTrait, ContainerTrait, WidgetTrait, ButtonSignals, BoxTrait};
-use gtk::{IconSize, Orientation, ReliefStyle};
+use gtk::{Orientation};
 use sysinfo::*;
 use gtk::signal::Inhibit;
 use gtk::signal::{WidgetSignals, TreeViewSignals};
 use std::collections::VecMap;
 use std::str::FromStr;
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
-use std::ops::DerefMut;
+use std::cell::{RefCell};
 
 struct NoteBook {
     notebook: gtk::NoteBook,
@@ -58,13 +57,13 @@ struct Procs {
 
 impl Procs {
     pub fn new<'a>(proc_list: &VecMap<Processus>) -> Procs {
-        let mut left_tree = gtk::TreeView::new().unwrap();
-        let mut scroll = gtk::ScrolledWindow::new(None, None).unwrap();
-        let mut current_pid = Rc::new(RefCell::new(None));
-        let mut kill_button = Rc::new(RefCell::new(gtk::Button::new_with_label("End task").unwrap()));
-        let mut current_pid1 = current_pid.clone();
-        let mut current_pid2 = current_pid.clone();
-        let mut kill_button1 = kill_button.clone();
+        let left_tree = gtk::TreeView::new().unwrap();
+        let scroll = gtk::ScrolledWindow::new(None, None).unwrap();
+        let current_pid = Rc::new(RefCell::new(None));
+        let kill_button = Rc::new(RefCell::new(gtk::Button::new_with_label("End task").unwrap()));
+        let current_pid1 = current_pid.clone();
+        let current_pid2 = current_pid.clone();
+        let kill_button1 = kill_button.clone();
 
         scroll.set_min_content_height(800);
         scroll.set_min_content_width(600);
@@ -88,7 +87,7 @@ impl Procs {
         left_tree.set_model(&list_store.get_model().unwrap());
         left_tree.set_headers_visible(true);
         scroll.add(&left_tree);
-        let mut vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0).unwrap();
+        let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0).unwrap();
 
         left_tree.connect_cursor_changed(move |tree_view| {
             match tree_view.get_selection() {
@@ -150,7 +149,7 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, 
 }
 
 fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<RefCell<DisplaySysInfo>>)) -> i32 {
-    let mut model = w.0.get_model().unwrap();
+    let model = w.0.get_model().unwrap();
     let mut iter = gtk::TreeIter::new();
 
     (*w.1.borrow_mut()).refresh();
@@ -210,7 +209,7 @@ impl DisplaySysInfo {
         };
 
         let sys2 = sys1.clone();
-        let mut v = tmp.procs.clone();
+        let v = tmp.procs.clone();
 
         (*tmp.ram.borrow_mut()).set_show_text(true);
         (*tmp.swap.borrow_mut()).set_show_text(true);
@@ -289,8 +288,8 @@ impl DisplaySysInfo {
 
     pub fn update_process_display(&mut self, sys: Rc<RefCell<sysinfo::System>>) {
         let v = &*self.procs.borrow_mut();
-        let mut total = false;
         let mut i = 0;
+
         for pro in (*sys.borrow()).get_process_list() {
             v[i].set_text(&format!("{:.1} %", pro.get_cpu_usage() * 100.));
             v[i].set_show_text(true);
@@ -303,14 +302,14 @@ impl DisplaySysInfo {
 fn main() {
     gtk::init();
 
-    let mut window = gtk::Window::new(gtk::WindowType::TopLevel).unwrap();
-    let mut sys : Rc<RefCell<sysinfo::System>> = Rc::new(RefCell::new(sysinfo::System::new()));
+    let window = gtk::Window::new(gtk::WindowType::TopLevel).unwrap();
+    let sys : Rc<RefCell<sysinfo::System>> = Rc::new(RefCell::new(sysinfo::System::new()));
     let mut note = NoteBook::new();
     (*sys.borrow_mut()).refresh();
     let mut procs = Procs::new((*sys.borrow()).get_processus_list());
-    let mut current_pid2 = procs.current_pid.clone();
-    let mut sys1 = sys.clone();
-    let mut sys2 = sys.clone();
+    let current_pid2 = procs.current_pid.clone();
+    let sys1 = sys.clone();
+    let sys2 = sys.clone();
 
     window.set_title("Processus viewer");
     window.set_window_position(gtk::WindowPosition::Center);
@@ -334,7 +333,7 @@ fn main() {
         }
     });
 
-    let mut display_tab = Rc::new(RefCell::new(DisplaySysInfo::new(sys2)));
+    let display_tab = Rc::new(RefCell::new(DisplaySysInfo::new(sys2)));
 
     glib::timeout::add(1500, update_window, &mut (&mut procs.list_store, sys1.clone(), display_tab.clone()));
     //window.add(&vertical_layout);
