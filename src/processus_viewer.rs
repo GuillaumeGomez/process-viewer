@@ -256,7 +256,7 @@ impl DisplaySysInfo {
 
     pub fn update_ram_display(&mut self, sys: Rc<RefCell<sysinfo::System>>) {
         let total = (*sys.borrow()).get_total_memory();
-        let used = (*sys.borrow()).get_free_memory();
+        let used = (*sys.borrow()).get_used_memory();
         let disp = if total < 100000 {
             format!("{} / {}B", used, total)
         } else if total < 10000000 {
@@ -271,7 +271,7 @@ impl DisplaySysInfo {
         (*self.ram.borrow_mut()).set_fraction(used as f64 / total as f64);
 
         let total = (*sys.borrow()).get_total_swap();
-        let used = total - (*sys.borrow()).get_free_swap();
+        let used = total - (*sys.borrow()).get_used_swap();
         let disp = if total < 100000 {
             format!("{} / {}B", used, total)
         } else if total < 10000000 {
