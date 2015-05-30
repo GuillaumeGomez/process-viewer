@@ -144,7 +144,7 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, 
     list_store.append(&mut top_level);
     list_store.set_string(&top_level, 0, &format!("{}", pid));
     list_store.set_string(&top_level, 1, name);
-    list_store.set_string(&top_level, 2, &format!("{}", cpu));
+    list_store.set_string(&top_level, 2, &format!("{:.1}", cpu));
     list_store.set_string(&top_level, 3, &format!("{}", memory));
 }
 
@@ -168,8 +168,7 @@ fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<
 
             match entries.get(&(pid as usize)) {
                 Some(p) => {
-                    //w.0.set_string(&iter, 1, &p.name);
-                    w.0.set_string(&iter, 2, &format!("{}", p.cpu_usage));
+                    w.0.set_string(&iter, 2, &format!("{:.1}", p.cpu_usage));
                     w.0.set_string(&iter, 3, &format!("{}", p.memory));
                     to_delete = true;
                 }
@@ -258,13 +257,13 @@ impl DisplaySysInfo {
         let total = (*sys.borrow()).get_total_memory();
         let used = (*sys.borrow()).get_used_memory();
         let disp = if total < 100000 {
-            format!("{} / {}B", used, total)
+            format!("{} / {}KB", used, total)
         } else if total < 10000000 {
-            format!("{} / {}KB", used / 1000, total / 1000)
+            format!("{} / {}MB", used / 1000, total / 1000)
         } else if total < 10000000000 {
-            format!("{} / {}MB", used / 1000000, total / 1000000)
+            format!("{} / {}GB", used / 1000000, total / 1000000)
         } else {
-            format!("{} / {}GB", used / 1000000000, total / 1000000000)
+            format!("{} / {}TB", used / 1000000000, total / 1000000000)
         };
 
         (*self.ram.borrow_mut()).set_text(&disp);
@@ -273,13 +272,13 @@ impl DisplaySysInfo {
         let total = (*sys.borrow()).get_total_swap();
         let used = total - (*sys.borrow()).get_used_swap();
         let disp = if total < 100000 {
-            format!("{} / {}B", used, total)
+            format!("{} / {}KB", used, total)
         } else if total < 10000000 {
-            format!("{} / {}KB", used / 1000, total / 1000)
+            format!("{} / {}MB", used / 1000, total / 1000)
         } else if total < 10000000000 {
-            format!("{} / {}MB", used / 1000000, total / 1000000)
+            format!("{} / {}GB", used / 1000000, total / 1000000)
         } else {
-            format!("{} / {}GB", used / 1000000000, total / 1000000000)
+            format!("{} / {}TB", used / 1000000000, total / 1000000000)
         };
 
         (*self.swap.borrow_mut()).set_text(&disp);
