@@ -11,4 +11,4 @@ glib = "*"
 git = "https://github.com/guillaumegomez/sysinfo.git"
 
 [[bin]]
-name = "processus_viewer"
+name = "process_viewer"

@@ -73,7 +73,7 @@ impl Procs {
         append_column("pid", &mut columns);
         append_column("process name", &mut columns);
         append_column("cpu usage", &mut columns);
-        append_column("memory usage", &mut columns);
+        append_column("memory usage (in KB)", &mut columns);
 
         for i in columns {
             left_tree.append_column(&i);
@@ -304,7 +304,6 @@ fn main() {
     let window = gtk::Window::new(gtk::WindowType::TopLevel).unwrap();
     let sys : Rc<RefCell<sysinfo::System>> = Rc::new(RefCell::new(sysinfo::System::new()));
     let mut note = NoteBook::new();
-    (*sys.borrow_mut()).refresh_all();
     let mut procs = Procs::new((*sys.borrow()).get_process_list());
     let current_pid2 = procs.current_pid.clone();
     let sys1 = sys.clone();
@@ -318,6 +317,7 @@ fn main() {
         Inhibit(true)
     });
 
+    (*sys.borrow_mut()).refresh_all();
     (*procs.kill_button.borrow_mut()).connect_clicked(move |_| {
         let tmp = (*current_pid2.borrow_mut()).is_some() ;
 
