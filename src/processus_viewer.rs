@@ -56,7 +56,7 @@ struct Procs {
 }
 
 impl Procs {
-    pub fn new<'a>(proc_list: &VecMap<Processus>) -> Procs {
+    pub fn new<'a>(proc_list: &VecMap<Process>) -> Procs {
         let left_tree = gtk::TreeView::new().unwrap();
         let scroll = gtk::ScrolledWindow::new(None, None).unwrap();
         let current_pid = Rc::new(RefCell::new(None));
@@ -152,8 +152,8 @@ fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<
     let model = w.0.get_model().unwrap();
     let mut iter = gtk::TreeIter::new();
 
-    (*w.1.borrow_mut()).refresh();
-    let mut entries : VecMap<Processus> = ((*w.1.borrow()).get_processus_list()).clone();
+    (*w.1.borrow_mut()).refresh_all();
+    let mut entries : VecMap<Process> = ((*w.1.borrow()).get_process_list()).clone();
     let mut nb = model.iter_n_children(None);
 
     let sys = w.1.clone();
@@ -222,7 +222,7 @@ impl DisplaySysInfo {
         tmp.vertical_layout.pack_start(&gtk::Label::new("Swap usage").unwrap(), false, false, 15);
         tmp.vertical_layout.add(&(*tmp.swap.borrow()));
         tmp.vertical_layout.pack_start(&gtk::Label::new("Total CPU usage").unwrap(), false, false, 15);
-        for pro in (*sys1.borrow()).get_process_list() {
+        for pro in (*sys1.borrow()).get_processor_list() {
             if total {
                 (*v.borrow_mut()).push(gtk::ProgressBar::new().unwrap());
                 let p : &gtk::ProgressBar = &(*v.borrow())[i];
@@ -289,7 +289,7 @@ impl DisplaySysInfo {
         let v = &*self.procs.borrow_mut();
         let mut i = 0;
 
-        for pro in (*sys.borrow()).get_process_list() {
+        for pro in (*sys.borrow()).get_processor_list() {
             v[i].set_text(&format!("{:.1} %", pro.get_cpu_usage() * 100.));
             v[i].set_show_text(true);
             v[i].set_fraction(pro.get_cpu_usage() as f64);
@@ -304,13 +304,13 @@ fn main() {
     let window = gtk::Window::new(gtk::WindowType::TopLevel).unwrap();
     let sys : Rc<RefCell<sysinfo::System>> = Rc::new(RefCell::new(sysinfo::System::new()));
     let mut note = NoteBook::new();
-    (*sys.borrow_mut()).refresh();
-    let mut procs = Procs::new((*sys.borrow()).get_processus_list());
+    (*sys.borrow_mut()).refresh_all();
+    let mut procs = Procs::new((*sys.borrow()).get_process_list());
     let current_pid2 = procs.current_pid.clone();
     let sys1 = sys.clone();
     let sys2 = sys.clone();
 
-    window.set_title("Processus viewer");
+    window.set_title("Process viewer");
     window.set_window_position(gtk::WindowPosition::Center);
 
     window.connect_delete_event(|_, _| {
@@ -323,7 +323,7 @@ fn main() {
 
         if tmp {
             let s = (*current_pid2.borrow()).clone();
-            match (*sys.borrow_mut()).get_processus(i64::from_str(&s.unwrap()).unwrap()) {
+            match (*sys.borrow_mut()).get_process(i64::from_str(&s.unwrap()).unwrap()) {
                 Some(p) => {
                     p.kill(Signal::Kill);
                 },
@@ -336,7 +336,7 @@ fn main() {
 
     glib::timeout::add(1500, update_window, &mut (&mut procs.list_store, sys1.clone(), display_tab.clone()));
     //window.add(&vertical_layout);
-    note.create_tab("Processus list", &procs.vertical_layout);
+    note.create_tab("Process list", &procs.vertical_layout);
     //let t = gtk::Button::new_with_label("test").unwrap();
     note.create_tab("System usage", &(*display_tab.borrow()).vertical_layout);
     window.add(&note.notebook);

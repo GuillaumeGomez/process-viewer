@@ -1,5 +1,5 @@
 [package]
-name = "processus_viewer"
+name = "process_viewer"
 version = "0.0.1"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 
