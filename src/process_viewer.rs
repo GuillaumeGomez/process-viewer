@@ -49,7 +49,7 @@ impl NoteBook {
 struct Procs {
     left_tree: gtk::TreeView,
     scroll: gtk::ScrolledWindow,
-    current_pid: Rc<RefCell<Option<String>>>,
+    current_pid: Rc<RefCell<Option<i64>>>,
     kill_button: Rc<RefCell<gtk::Button>>,
     vertical_layout: gtk::Box,
     list_store: gtk::ListStore
@@ -79,7 +79,7 @@ impl Procs {
             left_tree.append_column(&i);
         }
 
-        let mut list_store = gtk::ListStore::new(&[glib::Type::String, glib::Type::String, glib::Type::String, glib::Type::String]).unwrap();
+        let mut list_store = gtk::ListStore::new(&[glib::Type::ISize, glib::Type::String, glib::Type::String, glib::Type::USize]).unwrap();
         for (_, pro) in proc_list {
             create_and_fill_model(&mut list_store, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
         }
@@ -96,7 +96,7 @@ impl Procs {
                     let mut iter = gtk::TreeIter::new();
 
                     if selection.get_selected(&model, &mut iter) {
-                        let pid = model.get_value(&iter, 0).get_string();
+                        let pid = Some(model.get_value(&iter, 0).get_long());
                         let mut tmp = current_pid1.borrow_mut();
                         *tmp = pid;
                     }
@@ -141,11 +141,17 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, 
     }
     let mut top_level = gtk::TreeIter::new();
 
+    let mut val1 = glib::Value::new();
+    val1.init(glib::Type::ISize);
+    val1.set_long(pid);
+    let mut val2 = glib::Value::new();
+    val2.init(glib::Type::USize);
+    val2.set_ulong(memory);
     list_store.append(&mut top_level);
-    list_store.set_string(&top_level, 0, &format!("{}", pid));
+    list_store.set_value(&top_level, 0, &val1);
     list_store.set_string(&top_level, 1, name);
     list_store.set_string(&top_level, 2, &format!("{:.1}", cpu));
-    list_store.set_string(&top_level, 3, &format!("{}", memory));
+    list_store.set_value(&top_level, 3, &val2);
 }
 
 fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<RefCell<DisplaySysInfo>>)) -> i32 {
@@ -163,13 +169,16 @@ fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<
     let mut i = 0;
     while i < nb {
         if model.iter_nth_child(&mut iter, None, i) {
-            let pid : i64 = i64::from_str(&model.get_value(&iter, 0).get_string().unwrap()).unwrap();
+            let pid : i64 = model.get_value(&iter, 0).get_long();
             let mut to_delete = false;
 
             match entries.get(&(pid as usize)) {
                 Some(p) => {
+                    let mut val2 = glib::Value::new();
+                    val2.init(glib::Type::USize);
+                    val2.set_ulong(p.memory);
                     w.0.set_string(&iter, 2, &format!("{:.1}", p.cpu_usage));
-                    w.0.set_string(&iter, 3, &format!("{}", p.memory));
+                    w.0.set_value(&iter, 3, &val2);
                     to_delete = true;
                 }
                 None => {
@@ -323,7 +332,7 @@ fn main() {
 
         if tmp {
             let s = (*current_pid2.borrow()).clone();
-            match (*sys.borrow_mut()).get_process(i64::from_str(&s.unwrap()).unwrap()) {
+            match (*sys.borrow_mut()).get_process(s.unwrap()) {
                 Some(p) => {
                     p.kill(Signal::Kill);
                 },
