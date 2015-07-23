@@ -1,5 +1,4 @@
 #![crate_type = "bin"]
-#![feature(collections)]
 
 extern crate gtk;
 extern crate glib;
@@ -10,8 +9,7 @@ use gtk::{Orientation};
 use sysinfo::*;
 use gtk::signal::Inhibit;
 use gtk::signal::{WidgetSignals, TreeViewSignals};
-use std::collections::VecMap;
-use std::str::FromStr;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::cell::{RefCell};
 
@@ -56,7 +54,7 @@ struct Procs {
 }
 
 impl Procs {
-    pub fn new<'a>(proc_list: &VecMap<Process>) -> Procs {
+    pub fn new<'a>(proc_list: &HashMap<usize, Process>) -> Procs {
         let left_tree = gtk::TreeView::new().unwrap();
         let scroll = gtk::ScrolledWindow::new(None, None).unwrap();
         let current_pid = Rc::new(RefCell::new(None));
@@ -154,17 +152,17 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, 
     list_store.set_value(&top_level, 3, &val2);
 }
 
-fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<RefCell<DisplaySysInfo>>)) -> i32 {
-    let model = w.0.get_model().unwrap();
+fn update_window(list: &mut gtk::ListStore, system: Rc<RefCell<sysinfo::System>>, info: Rc<RefCell<DisplaySysInfo>>) {
+    let model = list.get_model().unwrap();
     let mut iter = gtk::TreeIter::new();
 
-    (*w.1.borrow_mut()).refresh_all();
-    let mut entries : VecMap<Process> = ((*w.1.borrow()).get_process_list()).clone();
+    (*system.borrow_mut()).refresh_all();
+    let mut entries : HashMap<usize, Process> = ((*system.borrow()).get_process_list()).clone();
     let mut nb = model.iter_n_children(None);
 
-    let sys = w.1.clone();
-    (*w.2.borrow_mut()).update_ram_display(sys.clone());
-    (*w.2.borrow_mut()).update_process_display(sys);
+    let sys = system.clone();
+    (*info.borrow_mut()).update_ram_display(sys.clone());
+    (*info.borrow_mut()).update_process_display(sys);
 
     let mut i = 0;
     while i < nb {
@@ -177,12 +175,12 @@ fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<
                     let mut val2 = glib::Value::new();
                     val2.init(glib::Type::USize);
                     val2.set_ulong(p.memory);
-                    w.0.set_string(&iter, 2, &format!("{:.1}", p.cpu_usage));
-                    w.0.set_value(&iter, 3, &val2);
+                    list.set_string(&iter, 2, &format!("{:.1}", p.cpu_usage));
+                    list.set_value(&iter, 3, &val2);
                     to_delete = true;
                 }
                 None => {
-                    w.0.remove(&iter);
+                    list.remove(&iter);
                 }
             }
             if to_delete {
@@ -195,9 +193,8 @@ fn update_window(w: &mut (&mut gtk::ListStore, Rc<RefCell<sysinfo::System>>, Rc<
         }
     }
     for (_, pro) in entries {
-        create_and_fill_model(&mut w.0, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
+        create_and_fill_model(list, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
     }
-    1
 }
 
 struct DisplaySysInfo {
@@ -343,11 +340,16 @@ fn main() {
 
     let display_tab = Rc::new(RefCell::new(DisplaySysInfo::new(sys2)));
 
-    glib::timeout::add(1500, update_window, &mut (&mut procs.list_store, sys1.clone(), display_tab.clone()));
     //window.add(&vertical_layout);
     note.create_tab("Process list", &procs.vertical_layout);
     //let t = gtk::Button::new_with_label("test").unwrap();
     note.create_tab("System usage", &(*display_tab.borrow()).vertical_layout);
+
+    glib::timeout_add(1500, move || {
+        update_window(&mut procs.list_store, sys1.clone(), display_tab.clone());
+        glib::Continue(true)
+    });
+
     window.add(&note.notebook);
     window.show_all();
     gtk::main();
