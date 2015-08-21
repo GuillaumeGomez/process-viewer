@@ -71,7 +71,7 @@ impl Procs {
         append_column("pid", &mut columns);
         append_column("process name", &mut columns);
         append_column("cpu usage", &mut columns);
-        append_column("memory usage (in KB)", &mut columns);
+        append_column("memory usage (in kB)", &mut columns);
 
         for i in columns {
             left_tree.append_column(&i);
@@ -79,7 +79,7 @@ impl Procs {
 
         let mut list_store = gtk::ListStore::new(&[glib::Type::ISize, glib::Type::String, glib::Type::String, glib::Type::USize]).unwrap();
         for (_, pro) in proc_list {
-            create_and_fill_model(&mut list_store, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
+            create_and_fill_model(&mut list_store, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage, pro.memory);
         }
 
         left_tree.set_model(&list_store.get_model().unwrap());
@@ -129,12 +129,13 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>) {
     let tmp = v.get_mut(l).unwrap();
 
     tmp.set_title(title);
+    tmp.set_resizable(true);
     tmp.pack_start(&renderer, true);
     tmp.add_attribute(&renderer, "text", l as i32);
 }
 
-fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, name: &str, cpu: f32, memory: u64) {
-    if name.len() < 1 {
+fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &str, name: &str, cpu: f32, memory: u64) {
+    if cmdline.len() < 1 {
         return;
     }
     let mut top_level = gtk::TreeIter::new();
@@ -193,7 +194,7 @@ fn update_window(list: &mut gtk::ListStore, system: Rc<RefCell<sysinfo::System>>
         }
     }
     for (_, pro) in entries {
-        create_and_fill_model(list, pro.pid, &pro.name, pro.cpu_usage, pro.memory);
+        create_and_fill_model(list, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage, pro.memory);
     }
 }
 

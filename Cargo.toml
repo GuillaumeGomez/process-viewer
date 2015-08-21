@@ -6,9 +6,7 @@ authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 [dependencies]
 gtk = "*"
 glib = "*"
-
-[dependencies.sysinfo]
-git = "https://github.com/guillaumegomez/sysinfo.git"
+sysinfo = "*"
 
 [[bin]]
 name = "process_viewer"
