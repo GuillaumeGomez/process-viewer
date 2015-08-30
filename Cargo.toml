@@ -4,8 +4,8 @@ version = "0.0.1"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 
 [dependencies]
-gtk = "*"
-glib = "*"
+gtk = { git = "https://github.com/rust-gnome/gtk" }
+glib = { git = "https://github.com/rust-gnome/glib" }
 sysinfo = "*"
 
 [[bin]]

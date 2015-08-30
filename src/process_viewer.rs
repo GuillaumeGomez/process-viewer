@@ -4,7 +4,7 @@ extern crate gtk;
 extern crate glib;
 extern crate sysinfo;
 
-use gtk::{WindowTrait, ContainerTrait, WidgetTrait, ButtonSignals, BoxTrait};
+use gtk::{WindowTrait, ContainerTrait, WidgetTrait, TreeSortableTrait, ButtonSignals, BoxTrait};
 use gtk::{Orientation};
 use sysinfo::*;
 use gtk::signal::Inhibit;
@@ -12,6 +12,9 @@ use gtk::signal::{WidgetSignals, TreeViewSignals};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::cell::{RefCell};
+
+use std::cmp::{Ord, Ordering};
+use std::str::FromStr;
 
 struct NoteBook {
     notebook: gtk::NoteBook,
@@ -110,6 +113,50 @@ impl Procs {
 
         vertical_layout.add(&scroll);
         vertical_layout.add(&(*kill_button.borrow_mut()));
+        let sort = left_tree.get_model().unwrap().get_tree_sortable();
+
+        sort.set_sort_func(0, Box::new(|model, iter1, iter2| {
+            println!("sort pids");
+            (model.get_value(iter1, 0).get_long() - model.get_value(iter2, 0).get_long()) as i32
+        }));
+        sort.set_sort_func(1, Box::new(|model, iter1, iter2| {
+            println!("sort names");
+            match (model.get_value(iter1, 1).get_string(), model.get_value(iter2, 1).get_string()) {
+                (Some(s1), Some(s2)) => {
+                    match s1.cmp(&s2) {
+                        Ordering::Less => -1,
+                        Ordering::Greater => 1,
+                        _ => 0
+                    }
+                }
+                (_, _) => 0
+            }
+        }));
+        sort.set_sort_func(2, Box::new(|model, iter1, iter2| {
+            println!("sort %");
+            match (model.get_value(iter1, 2).get_string(), model.get_value(iter2, 2).get_string()) {
+                (Some(s1), Some(s2)) => {
+                    let pourcent_1 = f64::from_str(&s1).unwrap();
+                    let pourcent_2 = f64::from_str(&s2).unwrap();
+
+                    if pourcent_1 > pourcent_2 {
+                        1
+                    } else if pourcent_1 < pourcent_2 {
+                        -1
+                    } else {
+                        0
+                    }
+                }
+                (_, _) => {
+                    0
+                }
+            }
+        }));
+        sort.set_sort_func(3, Box::new(|model, iter1, iter2| {
+            println!("sort memory");
+            (model.get_value(iter1, 3).get_long() - model.get_value(iter2, 3).get_long()) as i32
+        }));
+        sort.set_sort_column_id(1, gtk::SortType::Ascending);
         Procs {
             left_tree: left_tree,
             scroll: scroll,
@@ -264,7 +311,7 @@ impl DisplaySysInfo {
         let total = (*sys.borrow()).get_total_memory();
         let used = (*sys.borrow()).get_used_memory();
         let disp = if total < 100000 {
-            format!("{} / {}KB", used, total)
+            format!("{} / {}kB", used, total)
         } else if total < 10000000 {
             format!("{} / {}MB", used / 1000, total / 1000)
         } else if total < 10000000000 {
@@ -279,7 +326,7 @@ impl DisplaySysInfo {
         let total = (*sys.borrow()).get_total_swap();
         let used = total - (*sys.borrow()).get_used_swap();
         let disp = if total < 100000 {
-            format!("{} / {}KB", used, total)
+            format!("{} / {}kB", used, total)
         } else if total < 10000000 {
             format!("{} / {}MB", used / 1000, total / 1000)
         } else if total < 10000000000 {
