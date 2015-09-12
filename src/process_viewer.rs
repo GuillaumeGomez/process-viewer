@@ -308,7 +308,7 @@ impl DisplaySysInfo {
 fn main() {
     gtk::init();
 
-    let window = gtk::Window::new(gtk::WindowType::TopLevel).unwrap();
+    let window = gtk::Window::new(gtk::WindowType::Toplevel).unwrap();
     let sys : Rc<RefCell<sysinfo::System>> = Rc::new(RefCell::new(sysinfo::System::new()));
     let mut note = NoteBook::new();
     let mut procs = Procs::new((*sys.borrow()).get_process_list());
