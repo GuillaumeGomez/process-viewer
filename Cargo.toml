@@ -6,7 +6,7 @@ authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 [dependencies]
 gtk = "*"
 glib = "*"
-sysinfo = { path = "../sysinfo" }
+sysinfo = "~0.1"
 
 [[bin]]
 name = "process_viewer"
