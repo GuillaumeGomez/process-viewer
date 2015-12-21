@@ -90,10 +90,7 @@ impl Procs {
         left_tree.connect_cursor_changed(move |tree_view| {
             match tree_view.get_selection() {
                 Some(selection) => {
-                    let model = tree_view.get_model().unwrap();
-                    let mut iter = gtk::TreeIter::new();
-
-                    if selection.get_selected(&model, &mut iter) {
+                    if let Some((model, iter)) = selection.get_selected() {
                         let pid = Some(model.get_value(&iter, 0).get_long());
                         let mut tmp = current_pid1.borrow_mut();
                         *tmp = pid;
@@ -138,7 +135,6 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
     if cmdline.len() < 1 {
         return;
     }
-    let mut top_level = gtk::TreeIter::new();
 
     let mut val1 = glib::Value::new();
     val1.init(glib::Type::ISize);
@@ -146,7 +142,7 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
     let mut val2 = glib::Value::new();
     val2.init(glib::Type::USize);
     val2.set_ulong(memory);
-    list_store.append(&mut top_level);
+    let top_level = list_store.append();
     list_store.set_value(&top_level, 0, &val1);
     list_store.set_string(&top_level, 1, name);
     list_store.set_string(&top_level, 2, &format!("{:.1}", cpu));
@@ -155,7 +151,6 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
 
 fn update_window(list: &mut gtk::ListStore, system: Rc<RefCell<sysinfo::System>>, info: Rc<RefCell<DisplaySysInfo>>) {
     let model = list.get_model().unwrap();
-    let mut iter = gtk::TreeIter::new();
 
     (*system.borrow_mut()).refresh_all();
     let mut entries : HashMap<usize, Process> = ((*system.borrow()).get_process_list()).clone();
@@ -167,7 +162,7 @@ fn update_window(list: &mut gtk::ListStore, system: Rc<RefCell<sysinfo::System>>
 
     let mut i = 0;
     while i < nb {
-        if model.iter_nth_child(&mut iter, None, i) {
+        if let Some(mut iter) = model.iter_nth_child(None, i) {
             let pid : i64 = model.get_value(&iter, 0).get_long();
             let mut to_delete = false;
 
@@ -181,7 +176,7 @@ fn update_window(list: &mut gtk::ListStore, system: Rc<RefCell<sysinfo::System>>
                     to_delete = true;
                 }
                 None => {
-                    list.remove(&iter);
+                    list.remove(&mut iter);
                 }
             }
             if to_delete {
