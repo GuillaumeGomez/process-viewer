@@ -3,10 +3,19 @@ name = "process_viewer"
 version = "0.0.1"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 
+description = "A process viewer GUI"
+repository = "https://github.com/GuillaumeGomez/process-viewer"
+license = "MIT"
+homepage = "https://github.com/GuillaumeGomez/process-viewer"
+
+readme = "README.md"
+
+keywords = ["GUI", "process", "viewer", "gtk"]
+
 [dependencies]
-gtk = "*"
-glib = "*"
-sysinfo = "~0.1"
+gtk = "0.0.6"
+glib = "0.0.7"
+sysinfo = "0.1.3"
 
 [[bin]]
 name = "process_viewer"
