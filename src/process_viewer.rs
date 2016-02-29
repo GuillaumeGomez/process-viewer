@@ -77,9 +77,11 @@ impl Procs {
             left_tree.append_column(&i);
         }
 
-        let mut list_store = gtk::ListStore::new(&[glib::Type::ISize, glib::Type::String, glib::Type::String, glib::Type::USize]);
+        let mut list_store = gtk::ListStore::new(&[glib::Type::I32, glib::Type::String,
+                                                   glib::Type::String, glib::Type::U32]);
         for (_, pro) in proc_list {
-            create_and_fill_model(&mut list_store, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage, pro.memory);
+            create_and_fill_model(&mut list_store, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage,
+                                  pro.memory);
         }
 
         left_tree.set_model(Some(&list_store));
@@ -91,7 +93,7 @@ impl Procs {
             match tree_view.get_selection() {
                 Some(selection) => {
                     if let Some((model, iter)) = selection.get_selected() {
-                        let pid = unsafe { Some(model.get_value(&iter, 0).get_long()) };
+                        let pid = Some(model.get_value(&iter, 0).get().unwrap());
                         let mut tmp = current_pid1.borrow_mut();
                         *tmp = pid;
                     }
@@ -134,27 +136,25 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>) {
     tmp.add_attribute(&renderer, "text", l as i32);
 }
 
-fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &str, name: &str, cpu: f32, memory: u64) {
+fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &str, name: &str,
+                         cpu: f32, memory: u64) {
     if cmdline.len() < 1 {
         return;
     }
 
     unsafe {
-        let mut val1 = glib::Value::new();
-        val1.init(glib::Type::ISize);
-        val1.set_long(pid);
-        let mut val2 = glib::Value::new();
-        val2.init(glib::Type::USize);
-        val2.set_ulong(memory);
+        let mut val1 = pid.to_value();
+        let mut val2 = memory.to_value();
         let top_level = list_store.append();
         list_store.set_value(&top_level, 0, &val1);
-        list_store.set_string(&top_level, 1, name);
-        list_store.set_string(&top_level, 2, &format!("{:.1}", cpu));
+        list_store.set_value(&top_level, 1, &name.to_value());
+        list_store.set_value(&top_level, 2, &format!("{:.1}", cpu).to_value());
         list_store.set_value(&top_level, 3, &val2);
     }
 }
 
-fn update_window(list: &mut gtk::ListStore, system: Arc<Mutex<sysinfo::System>>, info: Arc<Mutex<DisplaySysInfo>>) {
+fn update_window(list: &mut gtk::ListStore, system: Arc<Mutex<sysinfo::System>>,
+                 info: Arc<Mutex<DisplaySysInfo>>) {
     let system = &mut system.lock().unwrap();
     let info = &mut info.lock().unwrap();
 
@@ -168,15 +168,18 @@ fn update_window(list: &mut gtk::ListStore, system: Arc<Mutex<sysinfo::System>>,
     let mut i = 0;
     while i < nb {
         if let Some(mut iter) = list.iter_nth_child(None, i) {
-            let pid : i64 = unsafe { list.get_value(&iter, 0).get_long() };
+            let pid : Option<i64> = list.get_value(&iter, 0).get();
+            if pid.is_none() {
+                i += 1;
+                continue;
+            }
+            let pid = pid.unwrap();
             let mut to_delete = false;
 
             match entries.get(&(pid as usize)) {
                 Some(p) => {
-                    let mut val2 = unsafe { glib::Value::new() };
-                    val2.init(glib::Type::USize);
-                    unsafe { val2.set_ulong(p.memory) };
-                    list.set_string(&iter, 2, &format!("{:.1}", p.cpu_usage));
+                    let mut val2 = p.memory.to_value();
+                    list.set_value(&iter, 2, &format!("{:.1}", p.cpu_usage).to_value());
                     list.set_value(&iter, 3, &val2);
                     to_delete = true;
                 }
@@ -250,7 +253,8 @@ impl DisplaySysInfo {
                 p.set_fraction(pro.get_cpu_usage() as f64);
 
                 vertical_layout.add(p);
-                vertical_layout.pack_start(&gtk::Label::new(Some("Process usage")), false, false, 15);
+                vertical_layout.pack_start(&gtk::Label::new(Some("Process usage")), false,
+                                           false, 15);
                 total = true;
             }
             i += 1;
@@ -327,7 +331,7 @@ fn main() {
     let sys2 = sys.clone();
 
     window.set_title("Process viewer");
-    window.set_window_position(gtk::WindowPosition::Center);
+    window.set_position(gtk::WindowPosition::Center);
 
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
