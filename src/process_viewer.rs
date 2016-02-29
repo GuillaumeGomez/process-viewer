@@ -42,6 +42,7 @@ impl NoteBook {
     }
 }
 
+#[allow(dead_code)]
 struct Procs {
     left_tree: gtk::TreeView,
     scroll: gtk::ScrolledWindow,
@@ -77,7 +78,7 @@ impl Procs {
             left_tree.append_column(&i);
         }
 
-        let mut list_store = gtk::ListStore::new(&[glib::Type::I32, glib::Type::String,
+        let mut list_store = gtk::ListStore::new(&[glib::Type::I64, glib::Type::String,
                                                    glib::Type::String, glib::Type::U32]);
         for (_, pro) in proc_list {
             create_and_fill_model(&mut list_store, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage,
@@ -142,15 +143,13 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
         return;
     }
 
-    unsafe {
-        let mut val1 = pid.to_value();
-        let mut val2 = memory.to_value();
-        let top_level = list_store.append();
-        list_store.set_value(&top_level, 0, &val1);
-        list_store.set_value(&top_level, 1, &name.to_value());
-        list_store.set_value(&top_level, 2, &format!("{:.1}", cpu).to_value());
-        list_store.set_value(&top_level, 3, &val2);
-    }
+    let val1 = pid.to_value();
+    let val2 = memory.to_value();
+    let top_level = list_store.append();
+    list_store.set_value(&top_level, 0, &val1);
+    list_store.set_value(&top_level, 1, &name.to_value());
+    list_store.set_value(&top_level, 2, &format!("{:.1}", cpu).to_value());
+    list_store.set_value(&top_level, 3, &val2);
 }
 
 fn update_window(list: &mut gtk::ListStore, system: Arc<Mutex<sysinfo::System>>,
@@ -178,7 +177,7 @@ fn update_window(list: &mut gtk::ListStore, system: Arc<Mutex<sysinfo::System>>,
 
             match entries.get(&(pid as usize)) {
                 Some(p) => {
-                    let mut val2 = p.memory.to_value();
+                    let val2 = p.memory.to_value();
                     list.set_value(&iter, 2, &format!("{:.1}", p.cpu_usage).to_value());
                     list.set_value(&iter, 3, &val2);
                     to_delete = true;
@@ -201,14 +200,13 @@ fn update_window(list: &mut gtk::ListStore, system: Arc<Mutex<sysinfo::System>>,
     }
 }
 
+#[allow(dead_code)]
 struct DisplaySysInfo {
     procs : Rc<RefCell<Vec<gtk::ProgressBar>>>,
     ram : Rc<RefCell<gtk::ProgressBar>>,
     swap : Rc<RefCell<gtk::ProgressBar>>,
     vertical_layout : Rc<RefCell<gtk::Box>>,
 }
-
-unsafe impl Send for DisplaySysInfo {}
 
 impl DisplaySysInfo {
     pub fn new(sys1: Arc<Mutex<sysinfo::System>>, note: &mut NoteBook) -> DisplaySysInfo {
@@ -320,7 +318,7 @@ impl DisplaySysInfo {
 }
 
 fn main() {
-    gtk::init();
+    gtk::init().expect("GTK couldn't start normally");
 
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     let sys : Arc<Mutex<sysinfo::System>> = Arc::new(Mutex::new(sysinfo::System::new()));
@@ -356,7 +354,7 @@ fn main() {
     let display_tab = DisplaySysInfo::new(sys2, &mut note);
     let m_display_tab = Arc::new(Mutex::new(display_tab));
 
-    glib::timeout_add(1500, move || {
+    gtk::timeout_add(1500, move || {
         update_window(&mut procs.list_store, sys1.clone(), m_display_tab.clone());
         glib::Continue(true)
     });
