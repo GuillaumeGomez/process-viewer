@@ -4,7 +4,7 @@ extern crate gtk;
 extern crate glib;
 extern crate sysinfo;
 
-use gtk::{Orientation, SortType, Widget};
+use gtk::{Orientation, SortColumn, SortType, TreeModel, TreeSortable, Widget};
 use gtk::prelude::*;
 
 use sysinfo::*;
@@ -13,6 +13,14 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+
+macro_rules! set_sort {
+    ($id:expr, $columns:expr) => {
+        $columns.get($id).unwrap().connect_clicked(|model| {
+            model.set_sort_column_id($id);
+        });
+    }
+}
 
 struct NoteBook {
     notebook: gtk::Notebook,
@@ -69,18 +77,14 @@ impl Procs {
 
         let mut columns : Vec<gtk::TreeViewColumn> = Vec::new();
 
-        append_column("pid", &mut columns);
-        append_column("process name", &mut columns);
-        append_column("cpu usage", &mut columns);
-        append_column("memory usage (in kB)", &mut columns);
-
-        for i in columns.iter() {
-            left_tree.append_column(&i);
-            i.connect_clicked(|model| {
-                //let model = model.downcast::<gtk::TreeSortable>().unwrap();
-                model.set_sort_column_id(0);
-            });
-        }
+        append_column("pid", &mut columns, &left_tree);
+        set_sort!(0, columns);
+        append_column("process name", &mut columns, &left_tree);
+        set_sort!(1, columns);
+        append_column("cpu usage", &mut columns, &left_tree);
+        set_sort!(2, columns);
+        append_column("memory usage (in kB)", &mut columns, &left_tree);
+        set_sort!(3, columns);
 
         let mut list_store = gtk::ListStore::new(&[glib::Type::I64, glib::Type::String,
                                                    glib::Type::String, glib::Type::U32]);
@@ -128,10 +132,11 @@ impl Procs {
     }
 }
 
-fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>) {
+fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk::TreeView) {
     let l = v.len();
     let renderer = gtk::CellRendererText::new();
 
+    //let len = v.len();
     v.push(gtk::TreeViewColumn::new());
     let tmp = v.get_mut(l).unwrap();
 
@@ -140,6 +145,16 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>) {
     tmp.pack_start(&renderer, true);
     tmp.add_attribute(&renderer, "text", l as i32);
     tmp.set_clickable(true);
+    left_tree.append_column(&tmp);
+    /*if len < 1 {
+        left_tree.get_model().unwrap()
+                 .downcast::<TreeSortable>().unwrap()
+                 .set_sort_func(SortColumn::Index(0), |m, it1, it2| {
+                     let it1 : String = m.upcast::<TreeModel>().get_value(it1, 0).get().unwrap();
+                     let it2 : String = m.upcast::<TreeModel>().get_value(it2, 0).get().unwrap();
+                     it1.cmp(&it2)
+                 });
+    }*/
 }
 
 fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &str, name: &str,
