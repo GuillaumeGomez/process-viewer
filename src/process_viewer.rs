@@ -4,8 +4,8 @@ extern crate gtk;
 extern crate glib;
 extern crate sysinfo;
 
+use gtk::{Orientation, SortType, Widget};
 use gtk::prelude::*;
-use gtk::{Orientation, Widget};
 
 use sysinfo::*;
 
@@ -16,14 +16,14 @@ use std::sync::{Arc, Mutex};
 
 struct NoteBook {
     notebook: gtk::Notebook,
-    tabs: Vec<gtk::Box>
+    tabs: Vec<gtk::Box>,
 }
 
 impl NoteBook {
     fn new() -> NoteBook {
         NoteBook {
             notebook: gtk::Notebook::new(),
-            tabs: Vec::new()
+            tabs: Vec::new(),
         }
     }
 
@@ -49,7 +49,7 @@ struct Procs {
     current_pid: Rc<RefCell<Option<i64>>>,
     kill_button: Rc<RefCell<gtk::Button>>,
     vertical_layout: gtk::Box,
-    list_store: gtk::ListStore
+    list_store: gtk::ListStore,
 }
 
 unsafe impl Send for Procs {}
@@ -74,8 +74,12 @@ impl Procs {
         append_column("cpu usage", &mut columns);
         append_column("memory usage (in kB)", &mut columns);
 
-        for i in columns {
+        for i in columns.iter() {
             left_tree.append_column(&i);
+            i.connect_clicked(|model| {
+                //let model = model.downcast::<gtk::TreeSortable>().unwrap();
+                model.set_sort_column_id(0);
+            });
         }
 
         let mut list_store = gtk::ListStore::new(&[glib::Type::I64, glib::Type::String,
@@ -135,6 +139,7 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>) {
     tmp.set_resizable(true);
     tmp.pack_start(&renderer, true);
     tmp.add_attribute(&renderer, "text", l as i32);
+    tmp.set_clickable(true);
 }
 
 fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &str, name: &str,
