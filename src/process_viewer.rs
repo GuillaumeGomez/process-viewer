@@ -13,13 +13,76 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::cmp::Ordering;
+
+fn get_sort(model: &TreeSortable, id: u32) -> SortType {
+    match model.get_sort_column_id() {
+        Some((SortColumn::Index(x), sort_type)) => {
+            if x != id || sort_type == SortType::Descending {
+                SortType::Ascending
+            } else {
+                SortType::Descending
+            }
+        }
+        _ => SortType::Ascending,
+    }
+}
 
 macro_rules! set_sort {
-    ($id:expr, $columns:expr) => {
-        $columns.get($id).unwrap().connect_clicked(|model| {
-            model.set_sort_column_id($id);
+    ($id:expr, $left_tree:expr, $val:ty, $columns:expr) => {{
+        let model = $left_tree.get_model().unwrap()
+                              .downcast::<TreeSortable>().unwrap();
+        model.set_sort_func(SortColumn::Index($id), |m, it1, it2| {
+            let it1 : $val = m.clone().upcast::<TreeModel>().get_value(it1, $id).get().unwrap();
+            let it2 : $val = m.clone().upcast::<TreeModel>().get_value(it2, $id).get().unwrap();
+            it1.cmp(&it2)
         });
-    }
+        $columns.get($id).unwrap().connect_clicked(move |_| {
+            model.set_sort_column_id(SortColumn::Index($id), get_sort(&model, $id));
+        })
+    }};
+    // super ugly
+    ($id:expr, $left_tree:expr, $val:ty, $columns:expr, $fill:expr) => {{
+        let model = $left_tree.get_model().unwrap()
+                              .downcast::<TreeSortable>().unwrap();
+        model.set_sort_func(SortColumn::Index($id), |m, it1, it2| {
+            let it1 : $val = m.clone().upcast::<TreeModel>().get_value(it1, $id).get().unwrap();
+            let it2 : $val = m.clone().upcast::<TreeModel>().get_value(it2, $id).get().unwrap();
+            it1.to_uppercase().cmp(&it2.to_uppercase())
+        });
+        $columns.get($id).unwrap().connect_clicked(move |_| {
+            model.set_sort_column_id(SortColumn::Index($id), get_sort(&model, $id));
+        })
+    }};
+    // ultra super ugly
+    ($id:expr, $left_tree:expr, $val:ty, $columns:expr, $fill:expr, $fill2:expr) => {{
+        let model = $left_tree.get_model().unwrap()
+                              .downcast::<TreeSortable>().unwrap();
+        model.set_sort_func(SortColumn::Index($id), |m, it1, it2| {
+            // sometimes it returns None, don't know why for the moment
+            let it1 : Option<$val> = m.clone().upcast::<TreeModel>().get_value(it1, $id).get();
+            let it2 : Option<$val> = m.clone().upcast::<TreeModel>().get_value(it2, $id).get();
+            match (it1, it2) {
+                (Some(it1), Some(it2)) => {
+                    let it1 : f32 = it1.parse().unwrap();
+                    let it2 : f32 = it2.parse().unwrap();
+                    if it1.lt(&it2) {
+                        Ordering::Less
+                    } else if it1.gt(&it2) {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                }
+                (Some(_), None) => Ordering::Greater,
+                (None, Some(_)) => Ordering::Less,
+                _ => Ordering::Equal,
+            }
+        });
+        $columns.get($id).unwrap().connect_clicked(move |_| {
+            model.set_sort_column_id(SortColumn::Index($id), get_sort(&model, $id));
+        })
+    }};
 }
 
 struct NoteBook {
@@ -78,13 +141,9 @@ impl Procs {
         let mut columns : Vec<gtk::TreeViewColumn> = Vec::new();
 
         append_column("pid", &mut columns, &left_tree);
-        set_sort!(0, columns);
         append_column("process name", &mut columns, &left_tree);
-        set_sort!(1, columns);
         append_column("cpu usage", &mut columns, &left_tree);
-        set_sort!(2, columns);
         append_column("memory usage (in kB)", &mut columns, &left_tree);
-        set_sort!(3, columns);
 
         let mut list_store = gtk::ListStore::new(&[glib::Type::I64, glib::Type::String,
                                                    glib::Type::String, glib::Type::U32]);
@@ -114,6 +173,10 @@ impl Procs {
                 }
             }
         });
+        set_sort!(0, left_tree, i64, columns);
+        set_sort!(1, left_tree, String, columns, 1);
+        set_sort!(2, left_tree, String, columns, 1, 1);
+        set_sort!(3, left_tree, u32, columns);
         (*kill_button.borrow_mut()).set_sensitive(false);
 
         vertical_layout.add(&scroll);
@@ -136,7 +199,6 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
     let l = v.len();
     let renderer = gtk::CellRendererText::new();
 
-    //let len = v.len();
     v.push(gtk::TreeViewColumn::new());
     let tmp = v.get_mut(l).unwrap();
 
@@ -146,15 +208,6 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
     tmp.add_attribute(&renderer, "text", l as i32);
     tmp.set_clickable(true);
     left_tree.append_column(&tmp);
-    /*if len < 1 {
-        left_tree.get_model().unwrap()
-                 .downcast::<TreeSortable>().unwrap()
-                 .set_sort_func(SortColumn::Index(0), |m, it1, it2| {
-                     let it1 : String = m.upcast::<TreeModel>().get_value(it1, 0).get().unwrap();
-                     let it2 : String = m.upcast::<TreeModel>().get_value(it2, 0).get().unwrap();
-                     it1.cmp(&it2)
-                 });
-    }*/
 }
 
 fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &str, name: &str,
