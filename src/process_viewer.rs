@@ -4,7 +4,7 @@ extern crate gtk;
 extern crate glib;
 extern crate sysinfo;
 
-use gtk::{Orientation, SortColumn, SortType, TreeModel, TreeSortable, Widget};
+use gtk::{Orientation, SortColumn, TreeModel, TreeSortable, Widget};
 use gtk::prelude::*;
 
 use sysinfo::*;
@@ -15,73 +15,38 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::cmp::Ordering;
 
-fn get_sort(model: &TreeSortable, id: u32) -> SortType {
-    match model.get_sort_column_id() {
-        Some((SortColumn::Index(x), sort_type)) => {
-            if x != id || sort_type == SortType::Descending {
-                SortType::Ascending
-            } else {
-                SortType::Descending
-            }
-        }
-        _ => SortType::Ascending,
-    }
-}
-
 macro_rules! set_sort {
+    ($id:expr, $columns:expr) => {{
+        $columns.get($id).unwrap().set_sort_column_id($id);
+    }};
     ($id:expr, $left_tree:expr, $val:ty, $columns:expr) => {{
         let model = $left_tree.get_model().unwrap()
                               .downcast::<TreeSortable>().unwrap();
         model.set_sort_func(SortColumn::Index($id), |m, it1, it2| {
-            let it1 : $val = m.clone().upcast::<TreeModel>().get_value(it1, $id).get().unwrap();
-            let it2 : $val = m.clone().upcast::<TreeModel>().get_value(it2, $id).get().unwrap();
-            it1.cmp(&it2)
+            let it1 : $val = m.clone().upcast::<TreeModel>().get_value(it1, $id).get().unwrap_or(String::new());
+            let it2 : $val = m.clone().upcast::<TreeModel>().get_value(it2, $id).get().unwrap_or(String::new());
+            it1.to_lowercase().cmp(&it2.to_uppercase())
         });
-        $columns.get($id).unwrap().connect_clicked(move |_| {
-            model.set_sort_column_id(SortColumn::Index($id), get_sort(&model, $id));
-        })
+        $columns.get($id).unwrap().set_sort_column_id($id);
     }};
-    // super ugly
+    // ultra super ugly
     ($id:expr, $left_tree:expr, $val:ty, $columns:expr, $fill:expr) => {{
         let model = $left_tree.get_model().unwrap()
                               .downcast::<TreeSortable>().unwrap();
         model.set_sort_func(SortColumn::Index($id), |m, it1, it2| {
-            let it1 : $val = m.clone().upcast::<TreeModel>().get_value(it1, $id).get().unwrap();
-            let it2 : $val = m.clone().upcast::<TreeModel>().get_value(it2, $id).get().unwrap();
-            it1.to_uppercase().cmp(&it2.to_uppercase())
-        });
-        $columns.get($id).unwrap().connect_clicked(move |_| {
-            model.set_sort_column_id(SortColumn::Index($id), get_sort(&model, $id));
-        })
-    }};
-    // ultra super ugly
-    ($id:expr, $left_tree:expr, $val:ty, $columns:expr, $fill:expr, $fill2:expr) => {{
-        let model = $left_tree.get_model().unwrap()
-                              .downcast::<TreeSortable>().unwrap();
-        model.set_sort_func(SortColumn::Index($id), |m, it1, it2| {
-            // sometimes it returns None, don't know why for the moment
-            let it1 : Option<$val> = m.clone().upcast::<TreeModel>().get_value(it1, $id).get();
-            let it2 : Option<$val> = m.clone().upcast::<TreeModel>().get_value(it2, $id).get();
-            match (it1, it2) {
-                (Some(it1), Some(it2)) => {
-                    let it1 : f32 = it1.parse().unwrap();
-                    let it2 : f32 = it2.parse().unwrap();
-                    if it1.lt(&it2) {
-                        Ordering::Less
-                    } else if it1.gt(&it2) {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
-                    }
-                }
-                (Some(_), None) => Ordering::Greater,
-                (None, Some(_)) => Ordering::Less,
-                _ => Ordering::Equal,
+            let it1 : $val = m.clone().upcast::<TreeModel>().get_value(it1, $id).get().unwrap_or("0".to_owned());
+            let it2 : $val = m.clone().upcast::<TreeModel>().get_value(it2, $id).get().unwrap_or("0".to_owned());
+            let it1 : f32 = it1.parse().unwrap();
+            let it2 : f32 = it2.parse().unwrap();
+            if it1.lt(&it2) {
+                Ordering::Less
+            } else if it1.gt(&it2) {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
             }
         });
-        $columns.get($id).unwrap().connect_clicked(move |_| {
-            model.set_sort_column_id(SortColumn::Index($id), get_sort(&model, $id));
-        })
+        $columns.get($id).unwrap().set_sort_column_id($id);
     }};
 }
 
@@ -173,10 +138,10 @@ impl Procs {
                 }
             }
         });
-        set_sort!(0, left_tree, i64, columns);
-        set_sort!(1, left_tree, String, columns, 1);
-        set_sort!(2, left_tree, String, columns, 1, 1);
-        set_sort!(3, left_tree, u32, columns);
+        set_sort!(0, columns);
+        set_sort!(3, columns);
+        set_sort!(1, left_tree, String, columns);
+        set_sort!(2, left_tree, String, columns, 1);
         (*kill_button.borrow_mut()).set_sensitive(false);
 
         vertical_layout.add(&scroll);
