@@ -12,7 +12,6 @@ use sysinfo::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use std::cmp::Ordering;
 
 macro_rules! set_sort {
@@ -87,8 +86,6 @@ struct Procs {
     vertical_layout: gtk::Box,
     list_store: gtk::ListStore,
 }
-
-unsafe impl Send for Procs {}
 
 impl Procs {
     pub fn new<'a>(proc_list: &HashMap<usize, Process>, note: &mut NoteBook) -> Procs {
@@ -190,17 +187,14 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
     list_store.set_value(&top_level, 3, &val2);
 }
 
-fn update_window(list: &mut gtk::ListStore, system: Arc<Mutex<sysinfo::System>>,
-                 info: Arc<Mutex<DisplaySysInfo>>) {
-    let system = &mut system.lock().unwrap();
-    let info = &mut info.lock().unwrap();
-
-    system.refresh_all();
-    let mut entries : HashMap<usize, Process> = system.get_process_list().clone();
+fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
+                 info: &mut DisplaySysInfo) {
+    system.borrow_mut().refresh_all();
+    let mut entries : HashMap<usize, Process> = system.borrow().get_process_list().clone();
     let mut nb = list.iter_n_children(None);
 
-    info.update_ram_display(&system);
-    info.update_process_display(&system);
+    info.update_ram_display(&system.borrow());
+    info.update_process_display(&system.borrow());
 
     let mut i = 0;
     while i < nb {
@@ -247,9 +241,7 @@ struct DisplaySysInfo {
 }
 
 impl DisplaySysInfo {
-    pub fn new(sys1: Arc<Mutex<sysinfo::System>>, note: &mut NoteBook) -> DisplaySysInfo {
-        let sys2 = sys1.clone();
-
+    pub fn new(sys1: Rc<RefCell<sysinfo::System>>, note: &mut NoteBook) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
         let ram = gtk::ProgressBar::new();
@@ -267,7 +259,7 @@ impl DisplaySysInfo {
         vertical_layout.pack_start(&gtk::Label::new(Some("Swap usage")), false, false, 15);
         vertical_layout.add(&swap);
         vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 15);
-        for pro in sys1.lock().unwrap().get_processor_list() {
+        for pro in sys1.borrow().get_processor_list() {
             if total {
                 procs.push(gtk::ProgressBar::new());
                 let p : &gtk::ProgressBar = &procs[i];
@@ -306,7 +298,7 @@ impl DisplaySysInfo {
             swap: Rc::new(RefCell::new(swap)),
             vertical_layout: Rc::new(RefCell::new(vertical_layout)),
         };
-        tmp.update_ram_display(&sys2.lock().unwrap());
+        tmp.update_ram_display(&sys1.borrow());
         tmp
     }
 
@@ -359,9 +351,9 @@ fn main() {
     gtk::init().expect("GTK couldn't start normally");
 
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
-    let sys : Arc<Mutex<sysinfo::System>> = Arc::new(Mutex::new(sysinfo::System::new()));
+    let sys = Rc::new(RefCell::new(sysinfo::System::new()));
     let mut note = NoteBook::new();
-    let mut procs = Procs::new(sys.lock().unwrap().get_process_list(), &mut note);
+    let mut procs = Procs::new((*sys.borrow()).get_process_list(), &mut note);
     let current_pid2 = procs.current_pid.clone();
     let sys1 = sys.clone();
     let sys2 = sys.clone();
@@ -374,13 +366,13 @@ fn main() {
         Inhibit(true)
     });
 
-    { sys.lock().unwrap().refresh_all(); }
+    sys.borrow_mut().refresh_all();
     (*procs.kill_button.borrow_mut()).connect_clicked(move |_| {
         let tmp = (*current_pid2.borrow_mut()).is_some() ;
 
         if tmp {
             let s = (*current_pid2.borrow()).clone();
-            match sys.lock().unwrap().get_process(s.unwrap()) {
+            match sys1.borrow().get_process(s.unwrap()) {
                 Some(p) => {
                     p.kill(Signal::Kill);
                 },
@@ -389,11 +381,11 @@ fn main() {
         }
     });
 
-    let display_tab = DisplaySysInfo::new(sys2, &mut note);
-    let m_display_tab = Arc::new(Mutex::new(display_tab));
+    let display_tab = DisplaySysInfo::new(sys2.clone(), &mut note);
+    let m_display_tab = Rc::new(RefCell::new(display_tab));
 
     gtk::timeout_add(1500, move || {
-        update_window(&mut procs.list_store, sys1.clone(), m_display_tab.clone());
+        update_window(&mut procs.list_store, &sys2, &mut m_display_tab.borrow_mut());
         glib::Continue(true)
     });
 
