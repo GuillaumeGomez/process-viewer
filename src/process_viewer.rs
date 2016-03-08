@@ -180,14 +180,12 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
 
     let val1 = pid.to_value();
     let val2 = memory.to_value();
-    //let top_level = list_store.append();
-    /*list_store.set_value(&top_level, 0, &val1);
-    list_store.set_value(&top_level, 1, &name.to_value());
-    list_store.set_value(&top_level, 2, &format!("{:.1}", cpu).to_value());
-    list_store.set_value(&top_level, 3, &val2);*/
     list_store.insert_with_values(None,
                                   &[0, 1, 2, 3],
-                                  &[&val1, &name.to_value(), &format!("{:.1}", cpu).to_value(), &val2]);
+                                  &[&val1,
+                                    &name.to_value(),
+                                    &format!("{:.1}", cpu).to_value(),
+                                    &val2]);
 }
 
 fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
@@ -206,11 +204,9 @@ fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>
                 match entries.get(&(pid as usize)) {
                     Some(p) => {
                         let val2 = p.memory.to_value();
-                        //list.set_value(&iter, 2, &format!("{:.1}", p.cpu_usage).to_value());
-                        //list.set_value(&iter, 3, &val2);
-                        list.insert_with_values(Some(i as u32),
-                                                &[2, 3],
-                                                &[&format!("{:.1}", p.cpu_usage).to_value(), &val2]);
+                        list.set(&iter,
+                                 &[2, 3],
+                                 &[&format!("{:.1}", p.cpu_usage).to_value(), &val2]);
                     }
                     None => {
                         list.remove(&mut iter);
