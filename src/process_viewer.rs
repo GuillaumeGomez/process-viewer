@@ -174,15 +174,12 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
     if cmdline.len() < 1 {
         return;
     }
-
-    let val1 = pid.to_value();
-    let val2 = memory.to_value();
     list_store.insert_with_values(None,
                                   &[0, 1, 2, 3],
-                                  &[&val1,
-                                    &name.to_value(),
-                                    &format!("{:.1}", cpu).to_value(),
-                                    &val2]);
+                                  &[&pid,
+                                    &name,
+                                    &format!("{:.1}", cpu),
+                                    &memory]);
 }
 
 fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
@@ -200,10 +197,9 @@ fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>
             if let Some(pid) = list.get_value(&iter, 0).get::<i64>() {
                 match entries.get(&(pid as usize)) {
                     Some(p) => {
-                        let val2 = p.memory.to_value();
                         list.set(&iter,
                                  &[2, 3],
-                                 &[&format!("{:.1}", p.cpu_usage).to_value(), &val2]);
+                                 &[&format!("{:.1}", p.cpu_usage), &p.memory]);
                     }
                     None => {
                         list.remove(&mut iter);
