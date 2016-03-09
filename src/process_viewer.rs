@@ -66,22 +66,29 @@ impl Procs {
 
         let mut columns : Vec<gtk::TreeViewColumn> = Vec::new();
 
+        let list_store = gtk::ListStore::new(&[
+            // The first four columns of the model are going to be visible in the view.
+            Type::I64,       // pid
+            Type::String,    // name
+            Type::String,    // CPU
+            Type::U32,       // mem
+            // These two will serve as keys when sorting by process name and CPU usage.
+            Type::String,    // name_lowercase
+            Type::F32,       // CPU_f32
+        ]);
+
         append_column("pid", &mut columns, &left_tree);
         append_column("process name", &mut columns, &left_tree);
         append_column("cpu usage", &mut columns, &left_tree);
         append_column("memory usage (in kB)", &mut columns, &left_tree);
-        // sort the name column by name_lowercase
+
+        // When we click the "name" column the order is defined by the
+        // "name_lowercase" effectively making the built-in comparator ignore case.
         columns[1].set_sort_column_id(4);
-        // sort the CPU column by CPU_f32
+        // Likewise clicking the "CPU" column sorts by the "CPU_f32" one because
+        // we want the order to be numerical not lexicographical.
         columns[2].set_sort_column_id(5);
 
-        let list_store = gtk::ListStore::new(&[Type::I64,       // pid
-                                               Type::String,    // name
-                                               Type::String,    // CPU
-                                               Type::U32,       // mem
-                                               Type::String,    // name_lowercase
-                                               Type::F32,       // CPU_f32
-                                              ]);
         for (_, pro) in proc_list {
             create_and_fill_model(&list_store, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage,
                                   pro.memory);
