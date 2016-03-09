@@ -85,6 +85,7 @@ struct Procs {
     kill_button: Rc<RefCell<gtk::Button>>,
     vertical_layout: gtk::Box,
     list_store: gtk::ListStore,
+    columns: Vec<gtk::TreeViewColumn>,
 }
 
 impl Procs {
@@ -120,29 +121,24 @@ impl Procs {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         left_tree.connect_cursor_changed(move |tree_view| {
-            match tree_view.get_selection() {
-                Some(selection) => {
-                    if let Some((model, iter)) = selection.get_selected() {
-                        let pid = Some(model.get_value(&iter, 0).get().unwrap());
-                        let mut tmp = current_pid1.borrow_mut();
-                        *tmp = pid;
-                    }
-                    (*kill_button1.borrow_mut()).set_sensitive((*current_pid.borrow()).is_some());
-                }
-                None => {
-                    let mut tmp = current_pid1.borrow_mut();
-                    *tmp = None;
-                }
+            let selection = tree_view.get_selection();
+            if let Some((model, iter)) = selection.get_selected() {
+                let pid = Some(model.get_value(&iter, 0).get().unwrap());
+                *(current_pid1.borrow_mut()) = pid;
+                (*kill_button1.borrow()).set_sensitive(true);
+            } else {
+                *(current_pid1.borrow_mut()) = None;
+                (*kill_button1.borrow()).set_sensitive(false);
             }
         });
         set_sort!(0, columns);
         set_sort!(3, columns);
         set_sort!(1, left_tree, String, columns);
         set_sort!(2, left_tree, String, columns, 1);
-        (*kill_button.borrow_mut()).set_sensitive(false);
+        (*kill_button.borrow()).set_sensitive(false);
 
         vertical_layout.add(&scroll);
-        vertical_layout.add(&(*kill_button.borrow_mut()));
+        vertical_layout.add(&(*kill_button.borrow()));
         let vertical_layout : Widget = vertical_layout.upcast();
 
         note.create_tab("Process list", &vertical_layout);
@@ -150,9 +146,10 @@ impl Procs {
             left_tree: left_tree,
             scroll: scroll,
             current_pid: current_pid2.clone(),
-            kill_button: kill_button,
+            kill_button: kill_button.clone(),
             vertical_layout: vertical_layout.downcast::<gtk::Box>().unwrap(),
             list_store: list_store,
+            columns: columns,
         }
     }
 }
@@ -177,14 +174,12 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
     if cmdline.len() < 1 {
         return;
     }
-
-    let val1 = pid.to_value();
-    let val2 = memory.to_value();
-    let top_level = list_store.append();
-    list_store.set_value(&top_level, 0, &val1);
-    list_store.set_value(&top_level, 1, &name.to_value());
-    list_store.set_value(&top_level, 2, &format!("{:.1}", cpu).to_value());
-    list_store.set_value(&top_level, 3, &val2);
+    list_store.insert_with_values(None,
+                                  &[0, 1, 2, 3],
+                                  &[&pid,
+                                    &name,
+                                    &format!("{:.1}", cpu),
+                                    &memory]);
 }
 
 fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
@@ -199,28 +194,20 @@ fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>
     let mut i = 0;
     while i < nb {
         if let Some(mut iter) = list.iter_nth_child(None, i) {
-            let pid : Option<i64> = list.get_value(&iter, 0).get();
-            if pid.is_none() {
-                i += 1;
-                continue;
-            }
-            let pid = pid.unwrap();
-            let mut to_delete = false;
-
-            match entries.get(&(pid as usize)) {
-                Some(p) => {
-                    let val2 = p.memory.to_value();
-                    list.set_value(&iter, 2, &format!("{:.1}", p.cpu_usage).to_value());
-                    list.set_value(&iter, 3, &val2);
-                    to_delete = true;
+            if let Some(pid) = list.get_value(&iter, 0).get::<i64>() {
+                match entries.get(&(pid as usize)) {
+                    Some(p) => {
+                        list.set(&iter,
+                                 &[2, 3],
+                                 &[&format!("{:.1}", p.cpu_usage), &p.memory]);
+                    }
+                    None => {
+                        list.remove(&mut iter);
+                        nb = list.iter_n_children(None);
+                        continue
+                    }
                 }
-                None => {
-                    list.remove(&mut iter);
-                }
-            }
-            if to_delete {
                 entries.remove(&(pid as usize));
-                nb = list.iter_n_children(None);
                 i += 1;
             }
         } else {
@@ -315,8 +302,8 @@ impl DisplaySysInfo {
             format!("{} / {}TB", used / 1000000000, total / 1000000000)
         };
 
-        (*self.ram.borrow_mut()).set_text(Some(&disp));
-        (*self.ram.borrow_mut()).set_fraction(used as f64 / total as f64);
+        (*self.ram.borrow()).set_text(Some(&disp));
+        (*self.ram.borrow()).set_fraction(used as f64 / total as f64);
 
         let total = sys.get_total_swap();
         let used = total - sys.get_used_swap();
@@ -330,8 +317,8 @@ impl DisplaySysInfo {
             format!("{} / {}TB", used / 1000000000, total / 1000000000)
         };
 
-        (*self.swap.borrow_mut()).set_text(Some(&disp));
-        (*self.swap.borrow_mut()).set_fraction(used as f64 / total as f64);
+        (*self.swap.borrow()).set_text(Some(&disp));
+        (*self.swap.borrow()).set_fraction(used as f64 / total as f64);
     }
 
     pub fn update_process_display(&mut self, sys: &sysinfo::System) {
@@ -367,10 +354,8 @@ fn main() {
     });
 
     sys.borrow_mut().refresh_all();
-    (*procs.kill_button.borrow_mut()).connect_clicked(move |_| {
-        let tmp = (*current_pid2.borrow_mut()).is_some() ;
-
-        if tmp {
+    (*procs.kill_button.borrow()).connect_clicked(move |_| {
+        if (*current_pid2.borrow()).is_some() {
             let s = (*current_pid2.borrow()).clone();
             match sys1.borrow().get_process(s.unwrap()) {
                 Some(p) => {
@@ -385,7 +370,19 @@ fn main() {
     let m_display_tab = Rc::new(RefCell::new(display_tab));
 
     gtk::timeout_add(1500, move || {
+        // first part, deactivate sorting
+        let model = procs.left_tree.get_model().unwrap()
+                                   .downcast::<TreeSortable>().unwrap();
+        let sorted = model.get_sort_column_id();
+        model.set_unsorted();
+
+        // we update the tree view
         update_window(&mut procs.list_store, &sys2, &mut m_display_tab.borrow_mut());
+
+        // we re-enable the sorting
+        if let Some((col, order)) = sorted {
+            model.set_sort_column_id(col, order);
+        }
         glib::Continue(true)
     });
 
