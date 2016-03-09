@@ -10,7 +10,7 @@ use gtk::prelude::*;
 use sysinfo::*;
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 struct NoteBook {
@@ -155,38 +155,33 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
 
 fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
                  info: &mut DisplaySysInfo) {
-    system.borrow_mut().refresh_all();
-    let mut entries : HashMap<usize, Process> = system.borrow().get_process_list().clone();
-    let mut nb = list.iter_n_children(None);
+    let mut system = system.borrow_mut();
+    system.refresh_all();
+    info.update_ram_display(&system);
+    info.update_process_display(&system);
+    let entries: &HashMap<usize, Process> = system.get_process_list();
+    let mut seen: HashSet<usize> = HashSet::new();
 
-    info.update_ram_display(&system.borrow());
-    info.update_process_display(&system.borrow());
-
-    let mut i = 0;
-    while i < nb {
-        if let Some(mut iter) = list.iter_nth_child(None, i) {
-            if let Some(pid) = list.get_value(&iter, 0).get::<i64>() {
-                match entries.get(&(pid as usize)) {
-                    Some(p) => {
-                        list.set(&iter,
-                                 &[2, 3, 5],
-                                 &[&format!("{:.1}", p.cpu_usage), &p.memory, &p.cpu_usage]);
-                    }
-                    None => {
-                        list.remove(&mut iter);
-                        nb = list.iter_n_children(None);
-                        continue
-                    }
-                }
-                entries.remove(&(pid as usize));
-                i += 1;
+    if let Some(mut iter) = list.get_iter_first() {
+        let mut valid = true;
+        while valid {
+            let pid = list.get_value(&iter, 0).get::<i64>().unwrap() as usize;
+            if let Some(p) = entries.get(&(pid)) {
+                list.set(&iter,
+                         &[2, 3, 5],
+                         &[&format!("{:.1}", p.cpu_usage), &p.memory, &p.cpu_usage]);
+                valid = list.iter_next(&mut iter);
+                seen.insert(pid);
+            } else {
+                valid = list.remove(&mut iter);
             }
-        } else {
-            i += 1;
         }
     }
-    for (_, pro) in entries {
-        create_and_fill_model(list, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage, pro.memory);
+
+    for (pid, pro) in entries.iter() {
+        if !seen.contains(pid) {
+            create_and_fill_model(list, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage, pro.memory);
+        }
     }
 }
 
