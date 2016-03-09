@@ -4,7 +4,7 @@ extern crate gtk;
 extern crate glib;
 extern crate sysinfo;
 
-use gtk::{Orientation, SortColumn, TreeModel, TreeSortable, Widget};
+use gtk::{Orientation, Type, Widget};
 use gtk::prelude::*;
 
 use sysinfo::*;
@@ -12,42 +12,6 @@ use sysinfo::*;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cmp::Ordering;
-
-macro_rules! set_sort {
-    ($id:expr, $columns:expr) => {{
-        $columns.get($id).unwrap().set_sort_column_id($id);
-    }};
-    ($id:expr, $left_tree:expr, $val:ty, $columns:expr) => {{
-        let model = $left_tree.get_model().unwrap()
-                              .downcast::<TreeSortable>().unwrap();
-        model.set_sort_func(SortColumn::Index($id), |m, it1, it2| {
-            let it1 : $val = m.clone().upcast::<TreeModel>().get_value(it1, $id).get().unwrap_or(String::new());
-            let it2 : $val = m.clone().upcast::<TreeModel>().get_value(it2, $id).get().unwrap_or(String::new());
-            it1.to_lowercase().cmp(&it2.to_uppercase())
-        });
-        $columns.get($id).unwrap().set_sort_column_id($id);
-    }};
-    // ultra super ugly
-    ($id:expr, $left_tree:expr, $val:ty, $columns:expr, $fill:expr) => {{
-        let model = $left_tree.get_model().unwrap()
-                              .downcast::<TreeSortable>().unwrap();
-        model.set_sort_func(SortColumn::Index($id), |m, it1, it2| {
-            let it1 : $val = m.clone().upcast::<TreeModel>().get_value(it1, $id).get().unwrap_or("0".to_owned());
-            let it2 : $val = m.clone().upcast::<TreeModel>().get_value(it2, $id).get().unwrap_or("0".to_owned());
-            let it1 : f32 = it1.parse().unwrap();
-            let it2 : f32 = it2.parse().unwrap();
-            if it1.lt(&it2) {
-                Ordering::Less
-            } else if it1.gt(&it2) {
-                Ordering::Greater
-            } else {
-                Ordering::Equal
-            }
-        });
-        $columns.get($id).unwrap().set_sort_column_id($id);
-    }};
-}
 
 struct NoteBook {
     notebook: gtk::Notebook,
@@ -106,9 +70,18 @@ impl Procs {
         append_column("process name", &mut columns, &left_tree);
         append_column("cpu usage", &mut columns, &left_tree);
         append_column("memory usage (in kB)", &mut columns, &left_tree);
+        // sort the name column by name_lowercase
+        columns[1].set_sort_column_id(4);
+        // sort the CPU column by CPU_f32
+        columns[2].set_sort_column_id(5);
 
-        let mut list_store = gtk::ListStore::new(&[glib::Type::I64, glib::Type::String,
-                                                   glib::Type::String, glib::Type::U32]);
+        let mut list_store = gtk::ListStore::new(&[Type::I64,       // pid
+                                                   Type::String,    // name
+                                                   Type::String,    // CPU
+                                                   Type::U32,       // mem
+                                                   Type::String,    // name_lowercase
+                                                   Type::F32,       // CPU_f32
+                                                  ]);
         for (_, pro) in proc_list {
             create_and_fill_model(&mut list_store, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage,
                                   pro.memory);
@@ -130,10 +103,6 @@ impl Procs {
                 kill_button1.set_sensitive(false);
             }
         });
-        set_sort!(0, columns);
-        set_sort!(3, columns);
-        set_sort!(1, left_tree, String, columns);
-        set_sort!(2, left_tree, String, columns, 1);
         kill_button.set_sensitive(false);
 
         vertical_layout.add(&scroll);
@@ -154,18 +123,18 @@ impl Procs {
 }
 
 fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk::TreeView) {
-    let l = v.len();
+    let id = v.len() as i32;
     let renderer = gtk::CellRendererText::new();
 
-    v.push(gtk::TreeViewColumn::new());
-    let tmp = v.get_mut(l).unwrap();
-
-    tmp.set_title(title);
-    tmp.set_resizable(true);
-    tmp.pack_start(&renderer, true);
-    tmp.add_attribute(&renderer, "text", l as i32);
-    tmp.set_clickable(true);
-    left_tree.append_column(&tmp);
+    let column = gtk::TreeViewColumn::new();
+    column.set_title(title);
+    column.set_resizable(true);
+    column.pack_start(&renderer, true);
+    column.add_attribute(&renderer, "text", id);
+    column.set_clickable(true);
+    column.set_sort_column_id(id);
+    left_tree.append_column(&column);
+    v.push(column);
 }
 
 fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &str, name: &str,
@@ -174,11 +143,14 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
         return;
     }
     list_store.insert_with_values(None,
-                                  &[0, 1, 2, 3],
+                                  &[0, 1, 2, 3, 4, 5],
                                   &[&pid,
                                     &name,
                                     &format!("{:.1}", cpu),
-                                    &memory]);
+                                    &memory,
+                                    &name.to_lowercase(),
+                                    &cpu
+                                   ]);
 }
 
 fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
@@ -197,8 +169,8 @@ fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>
                 match entries.get(&(pid as usize)) {
                     Some(p) => {
                         list.set(&iter,
-                                 &[2, 3],
-                                 &[&format!("{:.1}", p.cpu_usage), &p.memory]);
+                                 &[2, 3, 5],
+                                 &[&format!("{:.1}", p.cpu_usage), &p.memory, &p.cpu_usage]);
                     }
                     None => {
                         list.remove(&mut iter);
