@@ -371,17 +371,15 @@ fn main() {
 
     gtk::timeout_add(1500, move || {
         // first part, deactivate sorting
-        let model = procs.left_tree.get_model().unwrap()
-                                   .downcast::<TreeSortable>().unwrap();
-        let sorted = model.get_sort_column_id();
-        model.set_unsorted();
+        let sorted = procs.list_store.get_sort_column_id();
+        procs.list_store.set_unsorted();
 
         // we update the tree view
         update_window(&mut procs.list_store, &sys2, &mut m_display_tab.borrow_mut());
 
         // we re-enable the sorting
         if let Some((col, order)) = sorted {
-            model.set_sort_column_id(col, order);
+            procs.list_store.set_sort_column_id(col, order);
         }
         glib::Continue(true)
     });
