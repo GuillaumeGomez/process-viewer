@@ -26,7 +26,7 @@ impl NoteBook {
         }
     }
 
-    fn create_tab<'a>(&mut self, title: &'a str, widget: &Widget) -> Option<u32> {
+    fn create_tab(&mut self, title: &str, widget: &Widget) -> Option<u32> {
         let label = gtk::Label::new(Some(title));
         let tab = gtk::Box::new(Orientation::Horizontal, 0);
 
@@ -53,7 +53,7 @@ struct Procs {
 }
 
 impl Procs {
-    pub fn new<'a>(proc_list: &HashMap<usize, Process>, note: &mut NoteBook) -> Procs {
+    pub fn new(proc_list: &HashMap<usize, Process>, note: &mut NoteBook) -> Procs {
         let left_tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None, None);
         let current_pid = Rc::new(Cell::new(None));
@@ -75,15 +75,15 @@ impl Procs {
         // sort the CPU column by CPU_f32
         columns[2].set_sort_column_id(5);
 
-        let mut list_store = gtk::ListStore::new(&[Type::I64,       // pid
-                                                   Type::String,    // name
-                                                   Type::String,    // CPU
-                                                   Type::U32,       // mem
-                                                   Type::String,    // name_lowercase
-                                                   Type::F32,       // CPU_f32
-                                                  ]);
+        let list_store = gtk::ListStore::new(&[Type::I64,       // pid
+                                               Type::String,    // name
+                                               Type::String,    // CPU
+                                               Type::U32,       // mem
+                                               Type::String,    // name_lowercase
+                                               Type::F32,       // CPU_f32
+                                              ]);
         for (_, pro) in proc_list {
-            create_and_fill_model(&mut list_store, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage,
+            create_and_fill_model(&list_store, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage,
                                   pro.memory);
         }
 
@@ -137,7 +137,7 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
     v.push(column);
 }
 
-fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &str, name: &str,
+fn create_and_fill_model(list_store: &gtk::ListStore, pid: i64, cmdline: &str, name: &str,
                          cpu: f32, memory: u64) {
     if cmdline.len() < 1 {
         return;
@@ -153,7 +153,7 @@ fn create_and_fill_model(list_store: &mut gtk::ListStore, pid: i64, cmdline: &st
                                    ]);
 }
 
-fn update_window(list: &mut gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
+fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
                  info: &mut DisplaySysInfo) {
     let mut system = system.borrow_mut();
     system.refresh_all();
@@ -306,7 +306,7 @@ fn main() {
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     let sys = Rc::new(RefCell::new(sysinfo::System::new()));
     let mut note = NoteBook::new();
-    let mut procs = Procs::new((*sys.borrow()).get_process_list(), &mut note);
+    let procs = Procs::new(sys.borrow().get_process_list(), &mut note);
     let current_pid = procs.current_pid.clone();
     let sys1 = sys.clone();
 
@@ -334,7 +334,7 @@ fn main() {
         procs.list_store.set_unsorted();
 
         // we update the tree view
-        update_window(&mut procs.list_store, &sys, &mut display_tab);
+        update_window(&procs.list_store, &sys, &mut display_tab);
 
         // we re-enable the sorting
         if let Some((col, order)) = sorted {
