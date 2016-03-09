@@ -315,7 +315,7 @@ fn main() {
 
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
-        Inhibit(true)
+        Inhibit(false)
     });
 
     sys.borrow_mut().refresh_all();
