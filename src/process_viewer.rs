@@ -198,6 +198,7 @@ struct DisplaySysInfo {
     ram : gtk::ProgressBar,
     swap : gtk::ProgressBar,
     vertical_layout : gtk::Box,
+    components: Vec<gtk::Label>,
 }
 
 impl DisplaySysInfo {
@@ -206,6 +207,8 @@ impl DisplaySysInfo {
         let mut procs = Vec::new();
         let ram = gtk::ProgressBar::new();
         let swap = gtk::ProgressBar::new();
+        let scroll = gtk::ScrolledWindow::new(None, None);
+        let mut components = vec!();
 
         ram.set_show_text(true);
         swap.set_show_text(true);
@@ -247,9 +250,22 @@ impl DisplaySysInfo {
             }
             i += 1;
         }
+        if sys1.borrow().get_components_list().len() > 0 {
+            vertical_layout.pack_start(&gtk::Label::new(Some("Components' temperature")), false, false, 15);
+            for component in sys1.borrow().get_components_list() {
+                let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature)));
+                horizontal_layout.pack_start(&gtk::Label::new(Some(&component.label)), true, false, 0);
+                horizontal_layout.pack_start(&temp, true, false, 0);
+                horizontal_layout.set_homogeneous(true);
+                vertical_layout.add(&horizontal_layout);
+                components.push(temp);
+            }
+        }
 
-        let vertical_layout : Widget = vertical_layout.upcast();
-        note.create_tab("System usage", &vertical_layout);
+        scroll.add(&vertical_layout);
+        let scroll : Widget = scroll.upcast();
+        note.create_tab("System usage", &scroll);
         let vertical_layout : gtk::Box = vertical_layout.downcast::<gtk::Box>().unwrap();
 
         let mut tmp = DisplaySysInfo {
@@ -257,6 +273,7 @@ impl DisplaySysInfo {
             ram: ram,
             swap: swap,
             vertical_layout: vertical_layout,
+            components: components,
         };
         tmp.update_ram_display(&sys1.borrow());
         tmp
@@ -292,6 +309,10 @@ impl DisplaySysInfo {
 
         self.swap.set_text(Some(&disp));
         self.swap.set_fraction(used as f64 / total as f64);
+
+        for (component, label) in sys.get_components_list().iter().zip(self.components.iter()) {
+            label.set_text(&format!("{:.1} °C", component.temperature));
+        }
     }
 
     pub fn update_process_display(&mut self, sys: &sysinfo::System) {
