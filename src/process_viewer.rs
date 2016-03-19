@@ -112,8 +112,8 @@ impl Procs {
         });
         kill_button.set_sensitive(false);
 
-        vertical_layout.add(&scroll);
-        vertical_layout.add(&kill_button);
+        vertical_layout.pack_start(&scroll, true, true, 0);
+        vertical_layout.pack_start(&kill_button, false, true, 0);
         let vertical_layout : Widget = vertical_layout.upcast();
 
         note.create_tab("Process list", &vertical_layout);
