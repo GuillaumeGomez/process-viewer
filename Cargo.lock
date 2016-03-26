@@ -2,9 +2,10 @@
 name = "process_viewer"
 version = "0.0.1"
 dependencies = [
+ "cairo-rs 0.0.8 (git+https://github.com/gtk-rs/cairo)",
  "glib 0.0.8 (git+https://github.com/gtk-rs/glib)",
  "gtk 0.0.7 (git+https://github.com/gtk-rs/gtk)",
- "sysinfo 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sysinfo 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -214,7 +215,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "sysinfo"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",

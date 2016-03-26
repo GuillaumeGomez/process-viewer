@@ -15,7 +15,8 @@ keywords = ["GUI", "process", "viewer", "gtk"]
 [dependencies]
 gtk = { git = "https://github.com/gtk-rs/gtk" }
 glib = { git = "https://github.com/gtk-rs/glib" }
-sysinfo = "0.1.8"
+cairo-rs = { git = "https://github.com/gtk-rs/cairo" }
+sysinfo = "0.1.9"
 
 [[bin]]
 name = "process_viewer"

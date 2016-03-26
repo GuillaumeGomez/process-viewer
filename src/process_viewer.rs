@@ -1,17 +1,26 @@
 #![crate_type = "bin"]
 
+extern crate cairo;
 extern crate gtk;
 extern crate glib;
 extern crate sysinfo;
 
-use gtk::{Orientation, Type, Widget};
+use gtk::{DrawingArea, Orientation, Type, Widget};
 use gtk::prelude::*;
 
 use sysinfo::*;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
+use std::iter;
 use std::rc::Rc;
+use std::time::Instant;
+
+use color::Color;
+use utils::RotateVec;
+
+mod color;
+mod utils;
 
 struct NoteBook {
     notebook: gtk::Notebook,
@@ -192,6 +201,55 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
     }
 }
 
+fn draw_grid(c: &cairo::Context, width: f64, height: f64, mut elapsed: u64,
+             cpu_usage_history: &mut [(Color, RotateVec<f64>)]) {
+    c.set_source_rgb(0.8, 0.8, 0.8);
+    c.rectangle(2.0, 1.0, width - 2.0, height - 2.0);
+    c.fill();
+    c.set_source_rgb(0.0, 0.0, 0.0);
+    c.set_line_width(1.0);
+    c.move_to(1.0, 0.0);
+    c.line_to(1.0, height);
+    c.move_to(width, 0.0);
+    c.line_to(width, height);
+    c.move_to(1.0, 0.0);
+    c.line_to(width, 0.0);
+    c.move_to(1.0, height);
+    c.line_to(width, height);
+    elapsed = elapsed % 5;
+    let x_step = width * 5.0 / 60.0;
+    let mut current = width - elapsed as f64 * (x_step / 5.0) - 1.0;
+    while current > 0.0 {
+        c.move_to(current, 0.0);
+        c.line_to(current, height);
+        current -= x_step;
+    }
+    let step = height / 10.0;
+    current = step - 1.0;
+    while current < height {
+        c.move_to(1.0, current);
+        c.line_to(width - 1.0, current);
+        current += step;
+    }
+    c.stroke();
+    let step = (width - 2.0) / 59.0;
+    current = 1.0;
+    let mut index = 59;
+    while current > 0.0 && index > 0 {
+        for &(ref color, ref entry) in cpu_usage_history.iter() {
+            c.set_source_rgb(color.r, color.g, color.b);
+            c.move_to(current + step, height - entry[index - 1] * height - 2.0);
+            c.line_to(current, height - entry[index] * height - 2.0);
+            c.stroke();
+        }
+        current += step;
+        index -= 1;
+    }
+    for &mut (_, ref mut entry) in cpu_usage_history.iter_mut() {
+        entry.move_start();
+    }
+}
+
 #[allow(dead_code)]
 struct DisplaySysInfo {
     procs : Rc<RefCell<Vec<gtk::ProgressBar>>>,
@@ -199,6 +257,7 @@ struct DisplaySysInfo {
     swap : gtk::ProgressBar,
     vertical_layout : gtk::Box,
     components: Vec<gtk::Label>,
+    cpu_usage_history: Rc<RefCell<Vec<(Color, RotateVec<f64>)>>>,
 }
 
 impl DisplaySysInfo {
@@ -209,12 +268,12 @@ impl DisplaySysInfo {
         let swap = gtk::ProgressBar::new();
         let scroll = gtk::ScrolledWindow::new(None, None);
         let mut components = vec!();
+        let mut cpu_usage_history = vec!();
 
         ram.set_show_text(true);
         swap.set_show_text(true);
         vertical_layout.set_spacing(5);
 
-        let mut i = 0;
         let mut total = false;
 
         vertical_layout.pack_start(&gtk::Label::new(Some("Memory usage")), false, false, 15);
@@ -222,7 +281,7 @@ impl DisplaySysInfo {
         vertical_layout.pack_start(&gtk::Label::new(Some("Swap usage")), false, false, 15);
         vertical_layout.add(&swap);
         vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 15);
-        for pro in sys1.borrow().get_processor_list() {
+        for (i, pro) in sys1.borrow().get_processor_list().iter().enumerate() {
             if total {
                 procs.push(gtk::ProgressBar::new());
                 let p : &gtk::ProgressBar = &procs[i];
@@ -235,6 +294,8 @@ impl DisplaySysInfo {
                 horizontal_layout.pack_start(&l, false, false, 5);
                 horizontal_layout.pack_start(p, true, true, 5);
                 vertical_layout.add(&horizontal_layout);
+                cpu_usage_history.push((Color::generate(i),
+                                        RotateVec::new(iter::repeat(0f64).take(60).collect())));
             } else {
                 procs.push(gtk::ProgressBar::new());
                 let p : &gtk::ProgressBar = &procs[i];
@@ -248,20 +309,33 @@ impl DisplaySysInfo {
                                            false, 15);
                 total = true;
             }
-            i += 1;
         }
         if sys1.borrow().get_components_list().len() > 0 {
-            vertical_layout.pack_start(&gtk::Label::new(Some("Components' temperature")), false, false, 15);
+            vertical_layout.pack_start(&gtk::Label::new(Some("Components' temperature")),
+                                       false, false, 15);
             for component in sys1.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature)));
-                horizontal_layout.pack_start(&gtk::Label::new(Some(&component.label)), true, false, 0);
+                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.get_temperature())));
+                horizontal_layout.pack_start(&gtk::Label::new(Some(&component.get_label())),
+                                             true, false, 0);
                 horizontal_layout.pack_start(&temp, true, false, 0);
                 horizontal_layout.set_homogeneous(true);
                 vertical_layout.add(&horizontal_layout);
                 components.push(temp);
             }
         }
+
+        let area = DrawingArea::new();
+        area.set_size_request(300, 200);
+        vertical_layout.add(&area);
+        let start_time = Instant::now();
+        let cpu_usage_history = Rc::new(RefCell::new(cpu_usage_history));
+        let c_cpu_usage_history = cpu_usage_history.clone();
+        area.connect_draw(move |_, c| {
+            draw_grid(&c, 300.0, 200.0, start_time.elapsed().as_secs(),
+                      &mut c_cpu_usage_history.borrow_mut());
+            Inhibit(false)
+        });
 
         scroll.add(&vertical_layout);
         let scroll : Widget = scroll.upcast();
@@ -274,6 +348,7 @@ impl DisplaySysInfo {
             swap: swap,
             vertical_layout: vertical_layout,
             components: components,
+            cpu_usage_history: cpu_usage_history,
         };
         tmp.update_ram_display(&sys1.borrow());
         tmp
@@ -311,19 +386,21 @@ impl DisplaySysInfo {
         self.swap.set_fraction(used as f64 / total as f64);
 
         for (component, label) in sys.get_components_list().iter().zip(self.components.iter()) {
-            label.set_text(&format!("{:.1} °C", component.temperature));
+            label.set_text(&format!("{:.1} °C", component.get_temperature()));
         }
     }
 
     pub fn update_process_display(&mut self, sys: &sysinfo::System) {
         let v = &*self.procs.borrow_mut();
-        let mut i = 0;
+        let mut h = &mut *self.cpu_usage_history.borrow_mut();
 
-        for pro in sys.get_processor_list() {
+        for (i, pro) in sys.get_processor_list().iter().enumerate() {
             v[i].set_text(Some(&format!("{:.1} %", pro.get_cpu_usage() * 100.)));
             v[i].set_show_text(true);
             v[i].set_fraction(pro.get_cpu_usage() as f64);
-            i += 1;
+            if i > 0 {
+                *h[i - 1].1.get_mut(0).unwrap() = pro.get_cpu_usage() as f64;
+            }
         }
     }
 }
@@ -356,6 +433,9 @@ fn main() {
 
     let mut display_tab = DisplaySysInfo::new(sys.clone(), &mut note);
 
+    window.add(&note.notebook);
+    window.show_all();
+
     gtk::timeout_add(1500, move || {
         // first part, deactivate sorting
         let sorted = procs.list_store.get_sort_column_id();
@@ -368,10 +448,9 @@ fn main() {
         if let Some((col, order)) = sorted {
             procs.list_store.set_sort_column_id(col, order);
         }
+        window.queue_draw();
         glib::Continue(true)
     });
 
-    window.add(&note.notebook);
-    window.show_all();
     gtk::main();
 }
