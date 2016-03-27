@@ -102,8 +102,9 @@ impl DisplaySysInfo {
                                        false, false, 15);
             for component in sys1.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.get_temperature())));
-                horizontal_layout.pack_start(&gtk::Label::new(Some(&component.get_label())),
+                // TODO: add max and critical temperatures as well
+                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature)));
+                horizontal_layout.pack_start(&gtk::Label::new(Some(&component.label)),
                                              true, false, 0);
                 horizontal_layout.pack_start(&temp, true, false, 0);
                 horizontal_layout.set_homogeneous(true);
@@ -194,7 +195,7 @@ impl DisplaySysInfo {
         self.swap.set_fraction(used as f64 / total as f64);
 
         for (component, label) in sys.get_components_list().iter().zip(self.components.iter()) {
-            label.set_text(&format!("{:.1} °C", component.get_temperature()));
+            label.set_text(&format!("{:.1} °C", component.temperature));
         }
     }
 
