@@ -1,3 +1,5 @@
+use gdk;
+
 pub struct Color {
     pub r: f64,
     pub g: f64,
@@ -50,5 +52,18 @@ impl Color {
         p[v] = index / n;
         p[(v + 1) % 3] = index % n;
         Color::new(apply(p[0]), apply(p[1]), apply(p[2]))
+    }
+
+    /*pub fn to_int(&self) -> usize {
+        0xFF << 24 | (self.r as usize) << 16 | (self.g as usize) << 8 | (self.b as usize)
+    }*/
+
+    pub fn to_gdk(&self) -> gdk::RGBA {
+        gdk::RGBA {
+            red: self.r,
+            green: self.g,
+            blue: self.b,
+            alpha: 1.0,
+        }
     }
 }

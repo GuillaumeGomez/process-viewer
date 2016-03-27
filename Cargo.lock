@@ -3,6 +3,7 @@ name = "process_viewer"
 version = "0.0.1"
 dependencies = [
  "cairo-rs 0.0.8 (git+https://github.com/gtk-rs/cairo)",
+ "gdk 0.3.0 (git+https://github.com/gtk-rs/gdk)",
  "glib 0.0.8 (git+https://github.com/gtk-rs/glib)",
  "gtk 0.0.7 (git+https://github.com/gtk-rs/gtk)",
  "sysinfo 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",

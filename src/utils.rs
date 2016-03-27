@@ -13,9 +13,9 @@ impl<T> RotateVec<T> {
         }
     }
 
-    /*pub fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.data.len()
-    }*/
+    }
 
     pub fn move_start(&mut self) {
         if self.start > 0 {

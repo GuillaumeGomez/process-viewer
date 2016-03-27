@@ -16,6 +16,7 @@ keywords = ["GUI", "process", "viewer", "gtk"]
 gtk = { git = "https://github.com/gtk-rs/gtk" }
 glib = { git = "https://github.com/gtk-rs/glib" }
 cairo-rs = { git = "https://github.com/gtk-rs/cairo" }
+gdk = { git = "https://github.com/gtk-rs/gdk" }
 sysinfo = "0.1.9"
 
 [[bin]]

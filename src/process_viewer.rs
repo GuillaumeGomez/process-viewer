@@ -4,170 +4,25 @@ extern crate cairo;
 extern crate gtk;
 extern crate glib;
 extern crate sysinfo;
+extern crate gdk;
 
-use gtk::{DrawingArea, Orientation, Type, Widget};
 use gtk::prelude::*;
 
 use sysinfo::*;
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::iter;
 use std::rc::Rc;
-use std::time::Instant;
 
-use color::Color;
-use utils::RotateVec;
+use display_sysinfo::DisplaySysInfo;
+use notebook::NoteBook;
+use procs::{create_and_fill_model, Procs};
 
 mod color;
+mod display_sysinfo;
+mod notebook;
+mod procs;
 mod utils;
-
-struct NoteBook {
-    notebook: gtk::Notebook,
-    tabs: Vec<gtk::Box>,
-}
-
-impl NoteBook {
-    fn new() -> NoteBook {
-        NoteBook {
-            notebook: gtk::Notebook::new(),
-            tabs: Vec::new(),
-        }
-    }
-
-    fn create_tab(&mut self, title: &str, widget: &Widget) -> Option<u32> {
-        let label = gtk::Label::new(Some(title));
-        let tab = gtk::Box::new(Orientation::Horizontal, 0);
-
-        tab.pack_start(&label, false, false, 0);
-        tab.show_all();
-
-        let index = self.notebook.append_page(widget, Some(&tab));
-
-        self.tabs.push(tab);
-
-        Some(index)
-    }
-}
-
-#[allow(dead_code)]
-struct Procs {
-    left_tree: gtk::TreeView,
-    scroll: gtk::ScrolledWindow,
-    current_pid: Rc<Cell<Option<i64>>>,
-    kill_button: gtk::Button,
-    vertical_layout: gtk::Box,
-    list_store: gtk::ListStore,
-    columns: Vec<gtk::TreeViewColumn>,
-}
-
-impl Procs {
-    pub fn new(proc_list: &HashMap<usize, Process>, note: &mut NoteBook) -> Procs {
-        let left_tree = gtk::TreeView::new();
-        let scroll = gtk::ScrolledWindow::new(None, None);
-        let current_pid = Rc::new(Cell::new(None));
-        let kill_button = gtk::Button::new_with_label("End task");
-        let current_pid1 = current_pid.clone();
-        let kill_button1 = kill_button.clone();
-
-        scroll.set_min_content_height(800);
-        scroll.set_min_content_width(600);
-
-        let mut columns : Vec<gtk::TreeViewColumn> = Vec::new();
-
-        let list_store = gtk::ListStore::new(&[
-            // The first four columns of the model are going to be visible in the view.
-            Type::I64,       // pid
-            Type::String,    // name
-            Type::String,    // CPU
-            Type::U32,       // mem
-            // These two will serve as keys when sorting by process name and CPU usage.
-            Type::String,    // name_lowercase
-            Type::F32,       // CPU_f32
-        ]);
-
-        append_column("pid", &mut columns, &left_tree);
-        append_column("process name", &mut columns, &left_tree);
-        append_column("cpu usage", &mut columns, &left_tree);
-        append_column("memory usage (in kB)", &mut columns, &left_tree);
-
-        // When we click the "name" column the order is defined by the
-        // "name_lowercase" effectively making the built-in comparator ignore case.
-        columns[1].set_sort_column_id(4);
-        // Likewise clicking the "CPU" column sorts by the "CPU_f32" one because
-        // we want the order to be numerical not lexicographical.
-        columns[2].set_sort_column_id(5);
-
-        for (_, pro) in proc_list {
-            create_and_fill_model(&list_store, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage,
-                                  pro.memory);
-        }
-
-        left_tree.set_model(Some(&list_store));
-        left_tree.set_headers_visible(true);
-        scroll.add(&left_tree);
-        let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
-        left_tree.connect_cursor_changed(move |tree_view| {
-            let selection = tree_view.get_selection();
-            if let Some((model, iter)) = selection.get_selected() {
-                let pid = Some(model.get_value(&iter, 0).get().unwrap());
-                current_pid1.set(pid);
-                kill_button1.set_sensitive(true);
-            } else {
-                current_pid1.set(None);
-                kill_button1.set_sensitive(false);
-            }
-        });
-        kill_button.set_sensitive(false);
-
-        vertical_layout.pack_start(&scroll, true, true, 0);
-        vertical_layout.pack_start(&kill_button, false, true, 0);
-        let vertical_layout : Widget = vertical_layout.upcast();
-
-        note.create_tab("Process list", &vertical_layout);
-        Procs {
-            left_tree: left_tree,
-            scroll: scroll,
-            current_pid: current_pid,
-            kill_button: kill_button.clone(),
-            vertical_layout: vertical_layout.downcast::<gtk::Box>().unwrap(),
-            list_store: list_store,
-            columns: columns,
-        }
-    }
-}
-
-fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk::TreeView) {
-    let id = v.len() as i32;
-    let renderer = gtk::CellRendererText::new();
-
-    let column = gtk::TreeViewColumn::new();
-    column.set_title(title);
-    column.set_resizable(true);
-    column.pack_start(&renderer, true);
-    column.add_attribute(&renderer, "text", id);
-    column.set_clickable(true);
-    column.set_sort_column_id(id);
-    left_tree.append_column(&column);
-    v.push(column);
-}
-
-fn create_and_fill_model(list_store: &gtk::ListStore, pid: i64, cmdline: &str, name: &str,
-                         cpu: f32, memory: u64) {
-    if cmdline.len() < 1 {
-        return;
-    }
-    list_store.insert_with_values(None,
-                                  &[0, 1, 2, 3, 4, 5],
-                                  &[&pid,
-                                    &name,
-                                    &format!("{:.1}", cpu),
-                                    &memory,
-                                    &name.to_lowercase(),
-                                    &cpu
-                                   ]);
-}
 
 fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
                  info: &mut DisplaySysInfo) {
@@ -201,210 +56,6 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
     }
 }
 
-fn draw_grid(c: &cairo::Context, width: f64, height: f64, mut elapsed: u64,
-             cpu_usage_history: &mut [(Color, RotateVec<f64>)]) {
-    c.set_source_rgb(0.8, 0.8, 0.8);
-    c.rectangle(2.0, 1.0, width - 2.0, height - 2.0);
-    c.fill();
-    c.set_source_rgb(0.0, 0.0, 0.0);
-    c.set_line_width(1.0);
-    c.move_to(1.0, 0.0);
-    c.line_to(1.0, height);
-    c.move_to(width, 0.0);
-    c.line_to(width, height);
-    c.move_to(1.0, 0.0);
-    c.line_to(width, 0.0);
-    c.move_to(1.0, height);
-    c.line_to(width, height);
-    elapsed = elapsed % 5;
-    let x_step = width * 5.0 / 60.0;
-    let mut current = width - elapsed as f64 * (x_step / 5.0) - 1.0;
-    while current > 0.0 {
-        c.move_to(current, 0.0);
-        c.line_to(current, height);
-        current -= x_step;
-    }
-    let step = height / 10.0;
-    current = step - 1.0;
-    while current < height {
-        c.move_to(1.0, current);
-        c.line_to(width - 1.0, current);
-        current += step;
-    }
-    c.stroke();
-    let step = (width - 2.0) / 59.0;
-    current = 1.0;
-    let mut index = 59;
-    while current > 0.0 && index > 0 {
-        for &(ref color, ref entry) in cpu_usage_history.iter() {
-            c.set_source_rgb(color.r, color.g, color.b);
-            c.move_to(current + step, height - entry[index - 1] * height - 2.0);
-            c.line_to(current, height - entry[index] * height - 2.0);
-            c.stroke();
-        }
-        current += step;
-        index -= 1;
-    }
-    for &mut (_, ref mut entry) in cpu_usage_history.iter_mut() {
-        entry.move_start();
-    }
-}
-
-#[allow(dead_code)]
-struct DisplaySysInfo {
-    procs : Rc<RefCell<Vec<gtk::ProgressBar>>>,
-    ram : gtk::ProgressBar,
-    swap : gtk::ProgressBar,
-    vertical_layout : gtk::Box,
-    components: Vec<gtk::Label>,
-    cpu_usage_history: Rc<RefCell<Vec<(Color, RotateVec<f64>)>>>,
-}
-
-impl DisplaySysInfo {
-    pub fn new(sys1: Rc<RefCell<sysinfo::System>>, note: &mut NoteBook) -> DisplaySysInfo {
-        let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let mut procs = Vec::new();
-        let ram = gtk::ProgressBar::new();
-        let swap = gtk::ProgressBar::new();
-        let scroll = gtk::ScrolledWindow::new(None, None);
-        let mut components = vec!();
-        let mut cpu_usage_history = vec!();
-
-        ram.set_show_text(true);
-        swap.set_show_text(true);
-        vertical_layout.set_spacing(5);
-
-        let mut total = false;
-
-        vertical_layout.pack_start(&gtk::Label::new(Some("Memory usage")), false, false, 15);
-        vertical_layout.add(&ram);
-        vertical_layout.pack_start(&gtk::Label::new(Some("Swap usage")), false, false, 15);
-        vertical_layout.add(&swap);
-        vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 15);
-        for (i, pro) in sys1.borrow().get_processor_list().iter().enumerate() {
-            if total {
-                procs.push(gtk::ProgressBar::new());
-                let p : &gtk::ProgressBar = &procs[i];
-                let l = gtk::Label::new(Some(&format!("{}", i)));
-                let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-
-                p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
-                p.set_show_text(true);
-                p.set_fraction(pro.get_cpu_usage() as f64);
-                horizontal_layout.pack_start(&l, false, false, 5);
-                horizontal_layout.pack_start(p, true, true, 5);
-                vertical_layout.add(&horizontal_layout);
-                cpu_usage_history.push((Color::generate(i),
-                                        RotateVec::new(iter::repeat(0f64).take(60).collect())));
-            } else {
-                procs.push(gtk::ProgressBar::new());
-                let p : &gtk::ProgressBar = &procs[i];
-
-                p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
-                p.set_show_text(true);
-                p.set_fraction(pro.get_cpu_usage() as f64);
-
-                vertical_layout.add(p);
-                vertical_layout.pack_start(&gtk::Label::new(Some("Process usage")), false,
-                                           false, 15);
-                total = true;
-            }
-        }
-        if sys1.borrow().get_components_list().len() > 0 {
-            vertical_layout.pack_start(&gtk::Label::new(Some("Components' temperature")),
-                                       false, false, 15);
-            for component in sys1.borrow().get_components_list() {
-                let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.get_temperature())));
-                horizontal_layout.pack_start(&gtk::Label::new(Some(&component.get_label())),
-                                             true, false, 0);
-                horizontal_layout.pack_start(&temp, true, false, 0);
-                horizontal_layout.set_homogeneous(true);
-                vertical_layout.add(&horizontal_layout);
-                components.push(temp);
-            }
-        }
-
-        let area = DrawingArea::new();
-        area.set_size_request(300, 200);
-        vertical_layout.add(&area);
-        let start_time = Instant::now();
-        let cpu_usage_history = Rc::new(RefCell::new(cpu_usage_history));
-        let c_cpu_usage_history = cpu_usage_history.clone();
-        area.connect_draw(move |_, c| {
-            draw_grid(&c, 300.0, 200.0, start_time.elapsed().as_secs(),
-                      &mut c_cpu_usage_history.borrow_mut());
-            Inhibit(false)
-        });
-
-        scroll.add(&vertical_layout);
-        let scroll : Widget = scroll.upcast();
-        note.create_tab("System usage", &scroll);
-        let vertical_layout : gtk::Box = vertical_layout.downcast::<gtk::Box>().unwrap();
-
-        let mut tmp = DisplaySysInfo {
-            procs: Rc::new(RefCell::new(procs)),
-            ram: ram,
-            swap: swap,
-            vertical_layout: vertical_layout,
-            components: components,
-            cpu_usage_history: cpu_usage_history,
-        };
-        tmp.update_ram_display(&sys1.borrow());
-        tmp
-    }
-
-    pub fn update_ram_display(&mut self, sys: &sysinfo::System) {
-        let total = sys.get_total_memory();
-        let used = sys.get_used_memory();
-        let disp = if total < 100000 {
-            format!("{} / {}KB", used, total)
-        } else if total < 10000000 {
-            format!("{} / {}MB", used / 1000, total / 1000)
-        } else if total < 10000000000 {
-            format!("{} / {}GB", used / 1000000, total / 1000000)
-        } else {
-            format!("{} / {}TB", used / 1000000000, total / 1000000000)
-        };
-
-        self.ram.set_text(Some(&disp));
-        self.ram.set_fraction(used as f64 / total as f64);
-
-        let total = sys.get_total_swap();
-        let used = total - sys.get_used_swap();
-        let disp = if total < 100000 {
-            format!("{} / {}KB", used, total)
-        } else if total < 10000000 {
-            format!("{} / {}MB", used / 1000, total / 1000)
-        } else if total < 10000000000 {
-            format!("{} / {}GB", used / 1000000, total / 1000000)
-        } else {
-            format!("{} / {}TB", used / 1000000000, total / 1000000000)
-        };
-
-        self.swap.set_text(Some(&disp));
-        self.swap.set_fraction(used as f64 / total as f64);
-
-        for (component, label) in sys.get_components_list().iter().zip(self.components.iter()) {
-            label.set_text(&format!("{:.1} °C", component.get_temperature()));
-        }
-    }
-
-    pub fn update_process_display(&mut self, sys: &sysinfo::System) {
-        let v = &*self.procs.borrow_mut();
-        let mut h = &mut *self.cpu_usage_history.borrow_mut();
-
-        for (i, pro) in sys.get_processor_list().iter().enumerate() {
-            v[i].set_text(Some(&format!("{:.1} %", pro.get_cpu_usage() * 100.)));
-            v[i].set_show_text(true);
-            v[i].set_fraction(pro.get_cpu_usage() as f64);
-            if i > 0 {
-                *h[i - 1].1.get_mut(0).unwrap() = pro.get_cpu_usage() as f64;
-            }
-        }
-    }
-}
-
 fn main() {
     gtk::init().expect("GTK couldn't start normally");
 
@@ -431,12 +82,12 @@ fn main() {
         }
     });
 
-    let mut display_tab = DisplaySysInfo::new(sys.clone(), &mut note);
+    let mut display_tab = DisplaySysInfo::new(sys.clone(), &mut note, &window);
 
     window.add(&note.notebook);
     window.show_all();
 
-    gtk::timeout_add(1500, move || {
+    gtk::timeout_add(1000, move || {
         // first part, deactivate sorting
         let sorted = procs.list_store.get_sort_column_id();
         procs.list_store.set_unsorted();
