@@ -17,6 +17,7 @@ pub struct Procs {
     pub scroll: gtk::ScrolledWindow,
     pub current_pid: Rc<Cell<Option<i64>>>,
     pub kill_button: gtk::Button,
+    pub info_button: gtk::Button,
     pub vertical_layout: gtk::Box,
     pub list_store: gtk::ListStore,
     pub columns: Vec<gtk::TreeViewColumn>,
@@ -28,8 +29,10 @@ impl Procs {
         let scroll = gtk::ScrolledWindow::new(None, None);
         let current_pid = Rc::new(Cell::new(None));
         let kill_button = gtk::Button::new_with_label("End task");
+        let info_button = gtk::Button::new_with_label("More information");
         let current_pid1 = current_pid.clone();
         let kill_button1 = kill_button.clone();
+        let info_button1 = info_button.clone();
 
         scroll.set_min_content_height(800);
         scroll.set_min_content_width(600);
@@ -68,6 +71,7 @@ impl Procs {
         left_tree.set_headers_visible(true);
         scroll.add(&left_tree);
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let horizontal_layout = gtk::Grid::new();
 
         left_tree.connect_cursor_changed(move |tree_view| {
             let selection = tree_view.get_selection();
@@ -75,23 +79,32 @@ impl Procs {
                 let pid = Some(model.get_value(&iter, 0).get().unwrap());
                 current_pid1.set(pid);
                 kill_button1.set_sensitive(true);
+                info_button1.set_sensitive(true);
             } else {
                 current_pid1.set(None);
                 kill_button1.set_sensitive(false);
+                info_button1.set_sensitive(false);
             }
         });
         kill_button.set_sensitive(false);
+        info_button.set_sensitive(false);
 
         vertical_layout.pack_start(&scroll, true, true, 0);
-        vertical_layout.pack_start(&kill_button, false, true, 0);
-        let vertical_layout : Widget = vertical_layout.upcast();
+        horizontal_layout.attach(&info_button, 0, 0, 2, 1);
+        horizontal_layout.attach_next_to(&kill_button, Some(&info_button),
+                                         gtk::PositionType::Right, 2, 1);
+        horizontal_layout.set_column_homogeneous(true);
+        vertical_layout.pack_start(&horizontal_layout, false, true, 0);
 
+        let vertical_layout : Widget = vertical_layout.upcast();
         note.create_tab("Process list", &vertical_layout);
+
         Procs {
             left_tree: left_tree,
             scroll: scroll,
             current_pid: current_pid,
-            kill_button: kill_button.clone(),
+            kill_button: kill_button,
+            info_button: info_button,
             vertical_layout: vertical_layout.downcast::<gtk::Box>().unwrap(),
             list_store: list_store,
             columns: columns,
