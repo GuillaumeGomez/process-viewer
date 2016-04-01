@@ -97,21 +97,6 @@ impl DisplaySysInfo {
         }
         vertical_layout.add(&non_graph_layout);
         proc_scroll.set_min_content_width(90);
-        if sys1.borrow().get_components_list().len() > 0 {
-            vertical_layout.pack_start(&gtk::Label::new(Some("Components' temperature")),
-                                       false, false, 15);
-            for component in sys1.borrow().get_components_list() {
-                let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-                // TODO: add max and critical temperatures as well
-                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature)));
-                horizontal_layout.pack_start(&gtk::Label::new(Some(&component.label)),
-                                             true, false, 0);
-                horizontal_layout.pack_start(&temp, true, false, 0);
-                horizontal_layout.set_homogeneous(true);
-                vertical_layout.add(&horizontal_layout);
-                components.push(temp);
-            }
-        }
 
         let area = DrawingArea::new();
         //vertical_layout.add(&area);
@@ -129,6 +114,22 @@ impl DisplaySysInfo {
         proc_scroll.add(&proc_vertical_layout);
         proc_horizontal_layout.pack_start(&proc_scroll, false, true, 15);
         vertical_layout.add(&proc_horizontal_layout);
+
+        if sys1.borrow().get_components_list().len() > 0 {
+            vertical_layout.pack_start(&gtk::Label::new(Some("Components' temperature")),
+                                       false, false, 15);
+            for component in sys1.borrow().get_components_list() {
+                let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+                // TODO: add max and critical temperatures as well
+                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature)));
+                horizontal_layout.pack_start(&gtk::Label::new(Some(&component.label)),
+                                             true, false, 0);
+                horizontal_layout.pack_start(&temp, true, false, 0);
+                horizontal_layout.set_homogeneous(true);
+                vertical_layout.add(&horizontal_layout);
+                components.push(temp);
+            }
+        }
 
         scroll.add(&vertical_layout);
         let scroll : Widget = scroll.upcast();
@@ -228,6 +229,7 @@ fn show_if_necessary(check_box: &gtk::ToggleButton, proc_horizontal_layout: &gtk
 
 fn draw_grid(c: &cairo::Context, width: f64, height: f64, mut elapsed: u64,
              cpu_usage_history: &mut [(Color, RotateVec<f64>)]) {
+    let len = cpu_usage_history[0].1.len() - 1;
     c.set_source_rgb(0.8, 0.8, 0.8);
     c.rectangle(2.0, 1.0, width - 2.0, height - 2.0);
     c.fill();
@@ -242,7 +244,7 @@ fn draw_grid(c: &cairo::Context, width: f64, height: f64, mut elapsed: u64,
     c.move_to(1.0, height);
     c.line_to(width, height);
     elapsed = elapsed % 5;
-    let x_step = width * 5.0 / 60.0;
+    let x_step = (width - 2.0) * 5.0 / (len as f64);
     let mut current = width - elapsed as f64 * (x_step / 5.0) - 1.0;
     while current > 0.0 {
         c.move_to(current, 0.0);
@@ -257,7 +259,6 @@ fn draw_grid(c: &cairo::Context, width: f64, height: f64, mut elapsed: u64,
         current += step;
     }
     c.stroke();
-    let len = cpu_usage_history[0].1.len() - 1;
     let step = (width - 2.0) / (len as f64);
     current = 1.0;
     let mut index = len;
