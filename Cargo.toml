@@ -1,6 +1,6 @@
 [package]
 name = "process_viewer"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 
 description = "A process viewer GUI"
@@ -13,11 +13,12 @@ readme = "README.md"
 keywords = ["GUI", "process", "viewer", "gtk"]
 
 [dependencies]
+gtk-sys = { git = "https://github.com/gtk-rs/sys" }
 gtk = { git = "https://github.com/gtk-rs/gtk" }
 glib = { git = "https://github.com/gtk-rs/glib" }
 cairo-rs = { git = "https://github.com/gtk-rs/cairo" }
 gdk = { git = "https://github.com/gtk-rs/gdk" }
-sysinfo = "0.1.10"
+sysinfo = "0.1.12"
 
 [[bin]]
 name = "process_viewer"
