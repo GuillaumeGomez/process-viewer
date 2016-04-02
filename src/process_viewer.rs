@@ -1,11 +1,12 @@
 #![crate_type = "bin"]
 
 extern crate cairo;
+extern crate pango_sys;
+extern crate gdk;
+extern crate glib;
 extern crate gtk;
 extern crate gtk_sys;
-extern crate glib;
 extern crate sysinfo;
-extern crate gdk;
 
 use gtk::prelude::*;
 
@@ -69,6 +70,7 @@ fn main() {
     let current_pid2 = procs.current_pid.clone();
     let sys1 = sys.clone();
     let sys2 = sys.clone();
+    let sys3 = sys.clone();
     let info_button = procs.info_button.clone();
 
     window.set_title("Process viewer");
@@ -92,18 +94,20 @@ fn main() {
     window.add(&note.notebook);
     window.show_all();
     let window1 = window.clone();
+    let window2 = window.clone();
 
+    let list_store = procs.list_store.clone();
     gtk::timeout_add(1000, move || {
         // first part, deactivate sorting
-        let sorted = procs.list_store.get_sort_column_id();
-        procs.list_store.set_unsorted();
+        let sorted = list_store.get_sort_column_id();
+        list_store.set_unsorted();
 
         // we update the tree view
-        update_window(&procs.list_store, &sys, &mut display_tab);
+        update_window(&list_store, &sys, &mut display_tab);
 
         // we re-enable the sorting
         if let Some((col, order)) = sorted {
-            procs.list_store.set_sort_column_id(col, order);
+            list_store.set_sort_column_id(col, order);
         }
         window1.queue_draw();
         glib::Continue(true)
@@ -111,6 +115,14 @@ fn main() {
     info_button.connect_clicked(move |_| {
         let sys = sys2.borrow();
         if let Some(process) = current_pid2.get().and_then(|pid| sys.get_process(pid)) {
+            process_dialog::create_process_dialog(&process, &window2);
+        }
+    });
+    procs.left_tree.connect_row_activated(move |tree_view, path, _| {
+        let model = tree_view.get_model().unwrap();
+        let iter = model.get_iter(path).unwrap();
+        let sys = sys3.borrow();
+        if let Some(process) = sys.get_process(model.get_value(&iter, 0).get().unwrap()) {
             process_dialog::create_process_dialog(&process, &window);
         }
     });

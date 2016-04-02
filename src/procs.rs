@@ -69,9 +69,16 @@ impl Procs {
 
         left_tree.set_model(Some(&list_store));
         left_tree.set_headers_visible(true);
+        //let filter = gtk::TreeModelFilter::new(&list_store, None);
         scroll.add(&left_tree);
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let horizontal_layout = gtk::Grid::new();
+        /*let list_store1 = list_store.clone();
+
+        filter.set_modify_func(|_, iter, value| {
+            list_store1.get_value(&iter, 4).get::<String>().unwrap()
+                       .contains(value.get::<String>().unwrap().to_lowercase())
+        });*/
 
         left_tree.connect_cursor_changed(move |tree_view| {
             let selection = tree_view.get_selection();
