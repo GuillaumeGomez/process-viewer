@@ -22,7 +22,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
     let running_since = if start_time > process.start_time {
         start_time - process.start_time + running_since
     } else {
-        process.start_time - start_time + running_since
+        start_time + running_since - process.start_time
     };
     let mut text = format!("name: {}\n\
                             pid: {}\n\
