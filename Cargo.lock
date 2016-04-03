@@ -7,8 +7,9 @@ dependencies = [
  "glib 0.0.8 (git+https://github.com/gtk-rs/glib)",
  "gtk 0.0.7 (git+https://github.com/gtk-rs/gtk)",
  "gtk-sys 0.3.0 (git+https://github.com/gtk-rs/sys)",
+ "libc 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "pango-sys 0.3.0 (git+https://github.com/gtk-rs/sys)",
- "sysinfo 0.1.12",
+ "sysinfo 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -218,7 +219,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "sysinfo"
-version = "0.1.12"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

@@ -6,9 +6,8 @@ use gtk_sys;
 use pango_sys::PangoWrapMode;
 use sysinfo;
 
-use std::time::{UNIX_EPOCH, Duration, SystemTime};
-
-pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window) {
+pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
+                             start_time: u64, running_since: u64) {
     let flags = gtk_sys::GTK_DIALOG_DESTROY_WITH_PARENT |
                 gtk_sys::GTK_DIALOG_USE_HEADER_BAR;
     let scroll = gtk::ScrolledWindow::new(None, None);
@@ -20,6 +19,11 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window) {
                                               flags,
                                               &[]);
     let area = popup.get_content_area();
+    let running_since = if start_time > process.start_time {
+        start_time - process.start_time + running_since
+    } else {
+        process.start_time - start_time + running_since
+    };
     let mut text = format!("name: {}\n\
                             pid: {}\n\
                             command: {}\n\
@@ -38,7 +42,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window) {
                             process.root,
                             process.memory,
                             process.cpu_usage,
-                            SystemTime::now().duration_since(UNIX_EPOCH + Duration::from_secs(process.start_time)).unwrap_or(Duration::from_secs(0)).as_secs());
+                            running_since);
     for env in process.environ.iter() {
         text.push_str(&format!("\n{:?}", env));
     }

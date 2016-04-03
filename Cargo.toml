@@ -19,7 +19,8 @@ gtk = { git = "https://github.com/gtk-rs/gtk" }
 glib = { git = "https://github.com/gtk-rs/glib" }
 cairo-rs = { git = "https://github.com/gtk-rs/cairo" }
 gdk = { git = "https://github.com/gtk-rs/gdk" }
-sysinfo = { path = "../sysinfo"} # "0.1.12"
+libc = "0.2"
+sysinfo = "0.1.13"
 
 [[bin]]
 name = "process_viewer"
