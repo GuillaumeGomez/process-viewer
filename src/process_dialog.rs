@@ -13,7 +13,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
     let scroll = gtk::ScrolledWindow::new(None, None);
     let close_button = gtk::Button::new_with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+    scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
     let popup = gtk::Dialog::new_with_buttons(Some(&format!("Information about {}", process.name)),
                                               Some(window),
                                               flags,
@@ -56,7 +56,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
     vertical_layout.pack_start(&close_button, false, true, 0);
     vertical_layout.set_spacing(10);
     area.pack_start(&vertical_layout, true, true, 0);
-    popup.set_size_request(400, 600);
+    popup.set_size_request(500, 700);
     let popup = popup.upcast::<gtk::Window>();
     popup.set_resizable(false);
     popup.show_all();
