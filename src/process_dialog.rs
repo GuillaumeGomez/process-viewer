@@ -6,6 +6,35 @@ use gtk_sys;
 use pango_sys::PangoWrapMode;
 use sysinfo;
 
+fn fomat_time(t: u64) -> String {
+    format!("{}{}{}{}s",
+            {
+                let days = t / 86400;
+                if days > 0 {
+                    format!("{}d ", days)
+                } else {
+                    "".to_owned()
+                }
+            },
+            {
+                let hours = t / 3600 % 60;
+                if hours > 0 {
+                    format!("{}h ", hours)
+                } else {
+                    "".to_owned()
+                }
+            },
+            {
+                let minutes = t / 60 % 60;
+                if minutes > 0 {
+                    format!("{}m ", minutes)
+                } else {
+                    "".to_owned()
+                }
+            },
+            t % 60)
+}
+
 pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
                              start_time: u64, running_since: u64) {
     let flags = gtk_sys::GTK_DIALOG_DESTROY_WITH_PARENT |
@@ -32,7 +61,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
                             root directory: {}\n\
                             memory usage: {} kB\n\
                             cpu usage: {}%\n\n\
-                            Running since {} seconds\n\n\
+                            Running since {}\n\n\
                             environment:",
                             process.name,
                             process.pid,
@@ -42,7 +71,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
                             process.root,
                             process.memory,
                             process.cpu_usage,
-                            running_since);
+                            fomat_time(running_since));
     for env in process.environ.iter() {
         text.push_str(&format!("\n{:?}", env));
     }
