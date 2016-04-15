@@ -193,7 +193,12 @@ impl DisplaySysInfo {
         };
 
         self.swap.set_text(Some(&disp));
-        self.swap.set_fraction(used as f64 / total as f64);
+        
+        let mut fraction = used as f64 / total as f64;
+        if fraction.is_nan() {
+        	fraction = 0 as f64;
+        }
+        self.swap.set_fraction(fraction);
 
         for (component, label) in sys.get_components_list().iter().zip(self.components.iter()) {
             label.set_text(&format!("{:.1} °C", component.temperature));
