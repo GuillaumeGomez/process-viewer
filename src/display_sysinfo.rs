@@ -1,7 +1,7 @@
 use cairo;
 use gdk;
 use glib::object::Cast;
-use gtk::{self, BoxExt, ContainerExt, DrawingArea, ScrolledWindowExt, StateFlags};
+use gtk::{self, BoxExt, ContainerExt, ContainerSignals, DrawingArea, ScrolledWindowExt, StateFlags};
 use gtk::{ToggleButtonSignals, ToggleButtonExt, Widget, WidgetSignals, WindowExt};
 use gtk::prelude::{Inhibit, WidgetExt};
 use sysinfo;
@@ -29,6 +29,7 @@ impl DisplaySysInfo {
     pub fn new(sys1: Rc<RefCell<sysinfo::System>>, note: &mut NoteBook,
                win: &gtk::Window) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        vertical_layout.connect_add(|_,_|{ println!("a");});
         let mut procs = Vec::new();
         let ram = gtk::ProgressBar::new();
         let swap = gtk::ProgressBar::new();
