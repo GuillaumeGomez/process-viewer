@@ -2,7 +2,7 @@ use cairo;
 use gdk;
 use glib::object::Cast;
 use gtk::{self, BoxExt, ContainerExt, DrawingArea, ScrolledWindowExt, StateFlags};
-use gtk::{ToggleButtonSignals, ToggleButtonExt, Widget, WidgetSignals, WindowExt};
+use gtk::{ToggleButtonExt, Widget, WidgetSignals, WindowExt};
 use gtk::prelude::{Inhibit, WidgetExt};
 use sysinfo;
 

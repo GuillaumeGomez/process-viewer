@@ -9,9 +9,10 @@ extern crate gtk_sys;
 extern crate libc;
 extern crate sysinfo;
 
-use gtk::prelude::*;
-
 use sysinfo::*;
+
+use gtk::prelude::*;
+use gtk::MenuBar;
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -95,7 +96,28 @@ fn main() {
 
     let mut display_tab = DisplaySysInfo::new(sys.clone(), &mut note, &window);
 
-    window.add(&note.notebook);
+    let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let menu_bar = MenuBar::new();
+    let menu = gtk::Menu::new();
+    let more_menu = gtk::Menu::new();
+    let file = gtk::MenuItem::new_with_label("File");
+    let new_task = gtk::MenuItem::new_with_label("Launch new executable");
+    let quit = gtk::MenuItem::new_with_label("Quit");
+    let more = gtk::MenuItem::new_with_label("?");
+    let about = gtk::MenuItem::new_with_label("About");
+
+    menu.append(&new_task);
+    menu.append(&quit);
+    file.set_submenu(Some(&menu));
+    menu_bar.append(&file);
+    more_menu.append(&about);
+    more.set_submenu(Some(&more_menu));
+    menu_bar.append(&more);
+
+    v_box.pack_start(&menu_bar, false, false, 0);
+    v_box.pack_start(&note.notebook, true, true, 0);
+
+    window.add(&v_box);
     window.show_all();
     let window1 = window.clone();
     let window2 = window.clone();
@@ -134,6 +156,9 @@ fn main() {
             process_dialog::create_process_dialog(&process, &window, start_time,
                                                   running_since.borrow().clone());
         }
+    });
+    quit.connect_activate(|_| {
+        gtk::main_quit();
     });
 
     gtk::main();
