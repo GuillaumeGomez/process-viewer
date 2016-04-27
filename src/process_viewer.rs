@@ -16,7 +16,10 @@ use gtk::{AboutDialog, Button, Dialog, Entry, MenuBar};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::ffi::CString;
 use std::rc::Rc;
+use std::time::Duration;
+use std::thread::sleep;
 
 use display_sysinfo::DisplaySysInfo;
 use notebook::NoteBook;
@@ -57,6 +60,77 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
     for (pid, pro) in entries.iter() {
         if !seen.contains(pid) {
             create_and_fill_model(list, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage, pro.memory);
+        }
+    }
+}
+
+fn parse_quote(line: &str, quote: char) -> Vec<CString> {
+    let args = line.split(quote).collect::<Vec<&str>>();
+    let mut out_args = vec!();
+
+    for (num, arg) in args.iter().enumerate() {
+        if num != 1 {
+            out_args.extend_from_slice(&parse_entry(arg));
+        } else {
+            out_args.push(CString::new(*arg).unwrap());
+        }
+    }
+    out_args
+}
+
+// super simple parsing
+fn parse_entry(line: &str) -> Vec<CString> {
+    match (line.find('\''), line.find('"')) {
+        (Some(x), Some(y)) => {
+            if x < y {
+                parse_quote(line, '\'')
+            } else {
+                parse_quote(line, '"')
+            }
+        }
+        (Some(_), None) => parse_quote(line, '\''),
+        (None, Some(_)) => parse_quote(line, '"'),
+        (None, None) => line.split(' ').into_iter()
+                                       .map(|s| CString::new(s).unwrap())
+                                       .collect::<Vec<CString>>(),
+    }
+}
+
+fn start_detached_process(line: &str) -> Option<i32> {
+    let args = parse_entry(line);
+    let command = args[0].clone();
+
+    unsafe {
+        let pid = libc::fork();
+
+        if pid < 0 {
+            libc::exit(2); // error
+        } else if pid == 0 {
+            libc::umask(0);
+            if libc::setsid() < 0 {
+                libc::exit(3);
+            }
+            libc::chdir("/".as_ptr() as *const i8);
+            let stdin = libc::fdopen(0, "r".as_ptr() as *const i8);
+            let stdout = libc::fdopen(1, "w".as_ptr() as *const i8);
+            let stderr = libc::fdopen(2, "w".as_ptr() as *const i8);
+            libc::freopen("/dev/null".as_ptr() as *const i8, "r".as_ptr() as *const i8, stdin);
+            libc::freopen("/dev/null".as_ptr() as *const i8, "w".as_ptr() as *const i8, stdout);
+            libc::freopen("/dev/null".as_ptr() as *const i8, "w".as_ptr() as *const i8, stderr);
+            libc::execv(command.as_ptr(), args.into_iter()
+                                              .map(|s| s.as_ptr())
+                                              .collect::<Vec<*const libc::c_char>>().as_ptr());
+            None
+        } else {
+            sleep(Duration::from_millis(100));
+            if libc::kill(pid, 0) != 0 {
+                let mut status = 0i32;
+                // the process isn't running, getting error code
+                libc::wait(&mut status as *mut i32);
+                Some(status)
+            } else {
+                None
+            }
         }
     }
 }
@@ -191,8 +265,22 @@ fn main() {
         d.set_size_request(400, 70);
         d.show_all();
 
+        run.set_sensitive(false);
+        let run2 = run.clone();
+        let input2 = input.clone();
+        input.connect_changed(move |_| {
+            match input2.get_text() {
+                Some(ref x) if x.len() > 0 => run2.set_sensitive(true),
+                _ => run2.set_sensitive(false),
+            }
+        });
         cancel.connect_clicked(move |_| {
             d.destroy();
+        });
+        run.connect_clicked(move |_| {
+            if let Some(text) = input.get_text() {
+                start_detached_process(&text);
+            }
         });
     });
 
