@@ -12,7 +12,7 @@ extern crate sysinfo;
 use sysinfo::*;
 
 use gtk::prelude::*;
-use gtk::MenuBar;
+use gtk::{AboutDialog, Button, Dialog, Entry, MenuBar};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -148,17 +148,52 @@ fn main() {
                                                   run2.borrow().clone());
         }
     });
+    let window2 = window.clone();
     procs.left_tree.connect_row_activated(move |tree_view, path, _| {
         let model = tree_view.get_model().unwrap();
         let iter = model.get_iter(path).unwrap();
         let sys = sys3.borrow();
         if let Some(process) = sys.get_process(model.get_value(&iter, 0).get().unwrap()) {
-            process_dialog::create_process_dialog(&process, &window, start_time,
+            process_dialog::create_process_dialog(&process, &window2, start_time,
                                                   running_since.borrow().clone());
         }
     });
+
     quit.connect_activate(|_| {
         gtk::main_quit();
+    });
+    let window3 = window.clone();
+    about.connect_activate(move |_| {
+        let p = AboutDialog::new();
+        p.set_authors(&["Guillaume Gomez"]);
+        p.set_website_label(Some("my website"));
+        p.set_website(Some("http://guillaume-gomez.fr/"));
+        p.set_comments(Some("A process viewer GUI wrote with gtk-rs"));
+        p.set_copyright(Some("This is under MIT license"));
+        p.set_transient_for(Some(&window3));
+        p.show_all();
+    });
+    new_task.connect_activate(move |_| {
+        let d = Dialog::new();
+        d.set_title("Launch new executable");
+        let content_area = d.get_content_area();
+        let input = Entry::new();
+        let run = Button::new_with_label("Run");
+        let cancel = Button::new_with_label("Cancel");
+        let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let h_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        h_box.pack_start(&run, true, true, 0);
+        h_box.pack_start(&cancel, true, true, 0);
+        v_box.pack_start(&input, true, true, 0);
+        v_box.pack_start(&h_box, true, true, 0);
+        content_area.add(&v_box);
+        d.set_transient_for(Some(&window));
+        d.set_size_request(400, 70);
+        d.show_all();
+
+        cancel.connect_clicked(move |_| {
+            d.destroy();
+        });
     });
 
     gtk::main();
