@@ -1,4 +1,5 @@
 #![crate_type = "bin"]
+#![feature(process_exec)]
 
 extern crate cairo;
 extern crate pango_sys;
@@ -12,14 +13,13 @@ extern crate sysinfo;
 use sysinfo::*;
 
 use gtk::prelude::*;
-use gtk::{AboutDialog, Button, Dialog, Entry, MenuBar, MessageDialog};
+use gtk::{AboutDialog, Button, Dialog, Entry, IconSize, Image, Label, MenuBar, MenuItem, MessageDialog};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::ffi::CString;
+use std::process::{Command, Stdio};
+use std::os::unix::process::CommandExt;
 use std::rc::Rc;
-use std::time::Duration;
-use std::thread::sleep;
 
 use display_sysinfo::DisplaySysInfo;
 use notebook::NoteBook;
@@ -64,7 +64,7 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
     }
 }
 
-fn parse_quote(line: &str, quote: char) -> Vec<CString> {
+fn parse_quote(line: &str, quote: char) -> Vec<String> {
     let args = line.split(quote).collect::<Vec<&str>>();
     let mut out_args = vec!();
 
@@ -72,14 +72,14 @@ fn parse_quote(line: &str, quote: char) -> Vec<CString> {
         if num != 1 {
             out_args.extend_from_slice(&parse_entry(arg));
         } else {
-            out_args.push(CString::new(*arg).unwrap());
+            out_args.push((*arg).to_owned());
         }
     }
     out_args
 }
 
 // super simple parsing
-fn parse_entry(line: &str) -> Vec<CString> {
+fn parse_entry(line: &str) -> Vec<String> {
     match (line.find('\''), line.find('"')) {
         (Some(x), Some(y)) => {
             if x < y {
@@ -91,49 +91,30 @@ fn parse_entry(line: &str) -> Vec<CString> {
         (Some(_), None) => parse_quote(line, '\''),
         (None, Some(_)) => parse_quote(line, '"'),
         (None, None) => line.split(' ').into_iter()
-                                       .map(|s| CString::new(s).unwrap())
-                                       .collect::<Vec<CString>>(),
+                                       .map(|s| s.to_owned())
+                                       .collect::<Vec<String>>(),
     }
 }
 
-fn start_detached_process(line: &str) -> Option<i32> {
+fn start_detached_process(line: &str) -> Option<String> {
     let args = parse_entry(line);
     let command = args[0].clone();
-    let mut args = args.into_iter()
-                       .map(|s| s.as_ptr())
-                       .collect::<Vec<*const libc::c_char>>();
-    args.push(std::ptr::null());
-
-    unsafe {
-        let pid = libc::fork();
-
-        if pid < 0 {
-            libc::exit(2); // error
-        } else if pid == 0 {
-            libc::umask(0);
-            if libc::setsid() < 0 {
-                libc::exit(3);
-            }
-            libc::chdir("/".as_ptr() as *const i8);
-            /*let stdin = libc::fdopen(0, "r".as_ptr() as *const i8);
-            let stdout = libc::fdopen(1, "w".as_ptr() as *const i8);
-            let stderr = libc::fdopen(2, "w".as_ptr() as *const i8);
-            libc::freopen("/dev/null".as_ptr() as *const i8, "r".as_ptr() as *const i8, stdin);
-            libc::freopen("/dev/null".as_ptr() as *const i8, "w".as_ptr() as *const i8, stdout);
-            libc::freopen("/dev/null".as_ptr() as *const i8, "w".as_ptr() as *const i8, stderr);*/
-            libc::execv(command.as_ptr(), args.as_ptr());
-            None
-        } else {
-            sleep(Duration::from_millis(100));
-            if libc::kill(pid, 0) != 0 {
-                let mut status = 0i32;
-                // the process isn't running, getting error code
-                libc::wait(&mut status as *mut i32);
-                Some(status)
-            } else {
-                None
-            }
-        }
+    /*let args = args.into_iter()
+                   .map(|s| s.as_ref())
+                   .collect::<Vec<OsStr>>();*/
+    if let Err(_) = Command::new(&command)
+                            .args(&args)
+                            .before_exec(|| {
+                                unsafe { libc::setsid() };
+                                Ok(())
+                            })
+                            .stdin(Stdio::null())
+                            .stderr(Stdio::null())
+                            .stdout(Stdio::null())
+                            .spawn() {
+        Some(format!("Failed to start '{}'", &command))
+    } else {
+        None
     }
 }
 
@@ -142,16 +123,29 @@ fn run_command(input: &Entry, window: &gtk::Window, d: &Dialog) {
         let x = if let Some(x) = start_detached_process(&text) {
             x
         } else {
-            0
+            "The command started successfully".to_owned()
         };
         d.destroy();
         let m = MessageDialog::new(Some(window),
                                    gtk::DIALOG_DESTROY_WITH_PARENT,
                                    gtk::MessageType::Info,
                                    gtk::ButtonsType::Ok,
-                                   &format!("The command exited with {} code", x));
-        m.show_all();
+                                   &x);
+        m.run();
+        m.destroy();
     }
+}
+
+fn create_image_menu_item(label: &str, icon: &str) -> MenuItem {
+    let item = gtk::MenuItem::new();
+    let _box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    let image = Image::new_from_icon_name(icon, IconSize::Menu.into());
+    let label = Label::new(Some(label));
+
+    _box.add(&image);
+    _box.add(&label);
+    item.add(&_box);
+    item
 }
 
 fn main() {
@@ -193,11 +187,11 @@ fn main() {
     let menu_bar = MenuBar::new();
     let menu = gtk::Menu::new();
     let more_menu = gtk::Menu::new();
-    let file = gtk::MenuItem::new_with_label("File");
-    let new_task = gtk::MenuItem::new_with_label("Launch new executable");
-    let quit = gtk::MenuItem::new_with_label("Quit");
+    let file = gtk::MenuItem::new_with_mnemonic("_File");
+    let new_task = create_image_menu_item("Launch new executable", "system-run");
+    let quit = create_image_menu_item("Quit", "application-exit");
     let more = gtk::MenuItem::new_with_label("?");
-    let about = gtk::MenuItem::new_with_label("About");
+    let about = create_image_menu_item("About", "help-about");
 
     menu.append(&new_task);
     menu.append(&quit);
