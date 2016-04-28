@@ -264,7 +264,8 @@ fn main() {
         p.set_comments(Some("A process viewer GUI wrote with gtk-rs"));
         p.set_copyright(Some("This is under MIT license"));
         p.set_transient_for(Some(&window3));
-        p.show_all();
+        p.run();
+        p.destroy();
     });
     new_task.connect_activate(move |_| {
         let d = Dialog::new();
