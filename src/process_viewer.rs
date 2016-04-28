@@ -12,7 +12,7 @@ extern crate sysinfo;
 use sysinfo::*;
 
 use gtk::prelude::*;
-use gtk::{AboutDialog, Button, Dialog, Entry, MenuBar};
+use gtk::{AboutDialog, Button, Dialog, Entry, MenuBar, MessageDialog};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -99,6 +99,10 @@ fn parse_entry(line: &str) -> Vec<CString> {
 fn start_detached_process(line: &str) -> Option<i32> {
     let args = parse_entry(line);
     let command = args[0].clone();
+    let mut args = args.into_iter()
+                       .map(|s| s.as_ptr())
+                       .collect::<Vec<*const libc::c_char>>();
+    args.push(std::ptr::null());
 
     unsafe {
         let pid = libc::fork();
@@ -111,15 +115,13 @@ fn start_detached_process(line: &str) -> Option<i32> {
                 libc::exit(3);
             }
             libc::chdir("/".as_ptr() as *const i8);
-            let stdin = libc::fdopen(0, "r".as_ptr() as *const i8);
+            /*let stdin = libc::fdopen(0, "r".as_ptr() as *const i8);
             let stdout = libc::fdopen(1, "w".as_ptr() as *const i8);
             let stderr = libc::fdopen(2, "w".as_ptr() as *const i8);
             libc::freopen("/dev/null".as_ptr() as *const i8, "r".as_ptr() as *const i8, stdin);
             libc::freopen("/dev/null".as_ptr() as *const i8, "w".as_ptr() as *const i8, stdout);
-            libc::freopen("/dev/null".as_ptr() as *const i8, "w".as_ptr() as *const i8, stderr);
-            libc::execv(command.as_ptr(), args.into_iter()
-                                              .map(|s| s.as_ptr())
-                                              .collect::<Vec<*const libc::c_char>>().as_ptr());
+            libc::freopen("/dev/null".as_ptr() as *const i8, "w".as_ptr() as *const i8, stderr);*/
+            libc::execv(command.as_ptr(), args.as_ptr());
             None
         } else {
             sleep(Duration::from_millis(100));
@@ -132,6 +134,23 @@ fn start_detached_process(line: &str) -> Option<i32> {
                 None
             }
         }
+    }
+}
+
+fn run_command(input: &Entry, window: &gtk::Window, d: &Dialog) {
+    if let Some(text) = input.get_text() {
+        let x = if let Some(x) = start_detached_process(&text) {
+            x
+        } else {
+            0
+        };
+        d.destroy();
+        let m = MessageDialog::new(Some(window),
+                                   gtk::DIALOG_DESTROY_WITH_PARENT,
+                                   gtk::MessageType::Info,
+                                   gtk::ButtonsType::Ok,
+                                   &format!("The command exited with {} code", x));
+        m.show_all();
     }
 }
 
@@ -261,7 +280,8 @@ fn main() {
         v_box.pack_start(&input, true, true, 0);
         v_box.pack_start(&h_box, true, true, 0);
         content_area.add(&v_box);
-        d.set_transient_for(Some(&window));
+        let window2 = window.clone();
+        d.set_transient_for(Some(&window2));
         d.set_size_request(400, 70);
         d.show_all();
 
@@ -274,13 +294,19 @@ fn main() {
                 _ => run2.set_sensitive(false),
             }
         });
+        let d2 = d.clone();
         cancel.connect_clicked(move |_| {
-            d.destroy();
+            d2.destroy();
         });
+        let window3 = window.clone();
+        let input3 = input.clone();
+        let d3 = d.clone();
+        input.connect_activate(move |_| {
+            run_command(&input3, &window3, &d3);
+        });
+        let window4 = window.clone();
         run.connect_clicked(move |_| {
-            if let Some(text) = input.get_text() {
-                start_detached_process(&text);
-            }
+            run_command(&input, &window4, &d);
         });
     });
 
