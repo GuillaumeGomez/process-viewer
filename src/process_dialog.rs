@@ -1,6 +1,6 @@
 use glib::object::Cast;
 use glib::translate::ToGlibPtr;
-use gtk::{self, BoxExt, ButtonSignals, ContainerExt, DialogExt, ScrolledWindowExt};
+use gtk::{self, BoxExt, ButtonExt, ContainerExt, DialogExt, ScrolledWindowExt};
 use gtk::{WidgetExt, WindowExt};
 use gtk_sys;
 use pango_sys::PangoWrapMode;
@@ -37,8 +37,8 @@ fn fomat_time(t: u64) -> String {
 
 pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
                              start_time: u64, running_since: u64) {
-    let flags = gtk_sys::GTK_DIALOG_DESTROY_WITH_PARENT |
-                gtk_sys::GTK_DIALOG_USE_HEADER_BAR;
+    let flags = gtk::DIALOG_DESTROY_WITH_PARENT |
+                gtk::DIALOG_USE_HEADER_BAR;
     let scroll = gtk::ScrolledWindow::new(None, None);
     let close_button = gtk::Button::new_with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
