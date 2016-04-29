@@ -99,9 +99,7 @@ fn parse_entry(line: &str) -> Vec<String> {
 fn start_detached_process(line: &str) -> Option<String> {
     let args = parse_entry(line);
     let command = args[0].clone();
-    /*let args = args.into_iter()
-                   .map(|s| s.as_ref())
-                   .collect::<Vec<OsStr>>();*/
+
     if let Err(_) = Command::new(&command)
                             .args(&args)
                             .before_exec(|| {
