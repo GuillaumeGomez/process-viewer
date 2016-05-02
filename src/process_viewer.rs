@@ -33,10 +33,10 @@ mod procs;
 mod utils;
 
 fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
-                 info: &mut DisplaySysInfo) {
+                 info: &mut DisplaySysInfo, display_fahrenheit: bool) {
     let mut system = system.borrow_mut();
     system.refresh_all();
-    info.update_ram_display(&system);
+    info.update_ram_display(&system, display_fahrenheit);
     info.update_process_display(&system);
     let entries: &HashMap<usize, Process> = system.get_process_list();
     let mut seen: HashSet<usize> = HashSet::new();
@@ -185,9 +185,12 @@ fn main() {
     let menu_bar = MenuBar::new();
     let menu = gtk::Menu::new();
     let more_menu = gtk::Menu::new();
+    let settings_menu = gtk::Menu::new();
     let file = gtk::MenuItem::new_with_mnemonic("_File");
     let new_task = create_image_menu_item("Launch new executable", "system-run");
     let quit = create_image_menu_item("Quit", "application-exit");
+    let settings = gtk::MenuItem::new_with_mnemonic("_Settings");
+    let temperature_setting = gtk::CheckMenuItem::new_with_label("Display temperature in °F");
     let more = gtk::MenuItem::new_with_label("?");
     let about = create_image_menu_item("About", "help-about");
 
@@ -195,6 +198,9 @@ fn main() {
     menu.append(&quit);
     file.set_submenu(Some(&menu));
     menu_bar.append(&file);
+    settings_menu.append(&temperature_setting);
+    settings.set_submenu(Some(&settings_menu));
+    menu_bar.append(&settings);
     more_menu.append(&about);
     more.set_submenu(Some(&more_menu));
     menu_bar.append(&more);
@@ -217,7 +223,7 @@ fn main() {
         list_store.set_unsorted();
 
         // we update the tree view
-        update_window(&list_store, &sys, &mut display_tab);
+        update_window(&list_store, &sys, &mut display_tab, temperature_setting.get_active());
 
         // we re-enable the sorting
         if let Some((col, order)) = sorted {

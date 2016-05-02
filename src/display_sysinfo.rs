@@ -69,7 +69,7 @@ impl DisplaySysInfo {
                 let l = gtk::Label::new(Some(&format!("process {}", i)));
                 l.override_color(StateFlags::from_bits(0).unwrap(), &c.to_gdk());
                 cpu_usage_history.push((c,
-                                        RotateVec::new(iter::repeat(0f64).take(60).collect())));
+                                        RotateVec::new(iter::repeat(0f64).take(61).collect())));
                 proc_vertical_layout.add(&l);
             } else {
                 procs.push(gtk::ProgressBar::new());
@@ -143,7 +143,7 @@ impl DisplaySysInfo {
             components: components,
             cpu_usage_history: cpu_usage_history,
         };
-        tmp.update_ram_display(&sys1.borrow());
+        tmp.update_ram_display(&sys1.borrow(), false);
         win.add_events(gdk::EventType::Configure as i32);
         // ugly way to resize drawing area, I should find a better way
         win.connect_configure_event(move |w, _| {
@@ -164,7 +164,7 @@ impl DisplaySysInfo {
         tmp
     }
 
-    pub fn update_ram_display(&mut self, sys: &sysinfo::System) {
+    pub fn update_ram_display(&mut self, sys: &sysinfo::System, display_fahrenheit: bool) {
         let total = sys.get_total_memory();
         let used = sys.get_used_memory();
         let disp = if total < 100000 {
@@ -196,12 +196,16 @@ impl DisplaySysInfo {
         
         let mut fraction = used as f64 / total as f64;
         if fraction.is_nan() {
-        	fraction = 0 as f64;
+            fraction = 0 as f64;
         }
         self.swap.set_fraction(fraction);
 
         for (component, label) in sys.get_components_list().iter().zip(self.components.iter()) {
-            label.set_text(&format!("{:.1} °C", component.temperature));
+            if display_fahrenheit {
+                label.set_text(&format!("{:.1} °F", component.temperature * 1.8 + 32.));
+            } else {
+                label.set_text(&format!("{:.1} °C", component.temperature));
+            }
         }
     }
 
