@@ -27,6 +27,7 @@ use procs::{create_and_fill_model, Procs};
 
 mod color;
 mod display_sysinfo;
+mod graph;
 mod notebook;
 mod process_dialog;
 mod procs;
