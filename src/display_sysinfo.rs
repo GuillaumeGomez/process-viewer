@@ -1,7 +1,6 @@
-use cairo;
 use gdk;
 use glib::object::Cast;
-use gtk::{self, BoxExt, ContainerExt, DrawingArea, ScrolledWindowExt, StateFlags};
+use gtk::{self, BoxExt, ContainerExt};
 use gtk::{ToggleButtonExt, Widget, WidgetSignals, WindowExt};
 use gtk::prelude::{Inhibit, WidgetExt};
 use sysinfo;
@@ -9,9 +8,8 @@ use sysinfo;
 use std::cell::RefCell;
 use std::iter;
 use std::rc::Rc;
-use std::time::Instant;
 
-use color::Color;
+use graph::Graph;
 use notebook::NoteBook;
 use utils::RotateVec;
 
@@ -22,7 +20,7 @@ pub struct DisplaySysInfo {
     swap : gtk::ProgressBar,
     vertical_layout : gtk::Box,
     components: Vec<gtk::Label>,
-    cpu_usage_history: Rc<RefCell<Vec<(Color, RotateVec<f64>)>>>,
+    cpu_usage_history: Rc<RefCell<Graph>>,
 }
 
 impl DisplaySysInfo {
@@ -33,9 +31,8 @@ impl DisplaySysInfo {
         let ram = gtk::ProgressBar::new();
         let swap = gtk::ProgressBar::new();
         let scroll = gtk::ScrolledWindow::new(None, None);
-        let proc_scroll = gtk::ScrolledWindow::new(None, None);
         let mut components = vec!();
-        let mut cpu_usage_history = vec!();
+        let mut cpu_usage_history = Graph::new();
         let check_box = gtk::CheckButton::new_with_label("Graph view");
 
         ram.set_show_text(true);
@@ -43,8 +40,6 @@ impl DisplaySysInfo {
         vertical_layout.set_spacing(5);
 
         let mut total = false;
-        let proc_horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        let proc_vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let non_graph_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         vertical_layout.pack_start(&gtk::Label::new(Some("Memory usage")), false, false, 15);
@@ -65,12 +60,8 @@ impl DisplaySysInfo {
                 horizontal_layout.pack_start(&l, false, false, 5);
                 horizontal_layout.pack_start(p, true, true, 5);
                 non_graph_layout.add(&horizontal_layout);
-                let c = Color::generate(i + 10);
-                let l = gtk::Label::new(Some(&format!("process {}", i)));
-                l.override_color(StateFlags::from_bits(0).unwrap(), &c.to_gdk());
-                cpu_usage_history.push((c,
-                                        RotateVec::new(iter::repeat(0f64).take(61).collect())));
-                proc_vertical_layout.add(&l);
+                cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                                       &format!("process {}", i));
             } else {
                 procs.push(gtk::ProgressBar::new());
                 let p : &gtk::ProgressBar = &procs[i];
@@ -96,24 +87,18 @@ impl DisplaySysInfo {
             }
         }
         vertical_layout.add(&non_graph_layout);
-        proc_scroll.set_min_content_width(90);
 
-        let area = DrawingArea::new();
-        //vertical_layout.add(&area);
-        let start_time = Instant::now();
+        let area = cpu_usage_history.area.clone();
+        cpu_usage_history.attach_to(&vertical_layout);
         let cpu_usage_history = Rc::new(RefCell::new(cpu_usage_history));
         let c_cpu_usage_history = cpu_usage_history.clone();
         area.connect_draw(move |w, c| {
-            draw_grid(&c, w.get_allocated_width() as f64, w.get_allocated_height() as f64,
-                      start_time.elapsed().as_secs(),
-                      &mut c_cpu_usage_history.borrow_mut());
+            c_cpu_usage_history.borrow()
+                               .draw(&c,
+                                     w.get_allocated_width() as f64,
+                                     w.get_allocated_height() as f64);
             Inhibit(false)
         });
-        proc_horizontal_layout.add(&area);
-        //proc_horizontal_layout.add(&proc_vertical_layout);
-        proc_scroll.add(&proc_vertical_layout);
-        proc_horizontal_layout.pack_start(&proc_scroll, false, true, 15);
-        vertical_layout.add(&proc_horizontal_layout);
 
         if sys1.borrow().get_components_list().len() > 0 {
             vertical_layout.pack_start(&gtk::Label::new(Some("Components' temperature")),
@@ -152,14 +137,16 @@ impl DisplaySysInfo {
             Inhibit(false)
         });
         let c_check_box = check_box.clone();
-        let c_proc_horizontal_layout = proc_horizontal_layout.clone();
         let c_non_graph_layout = non_graph_layout.clone();
+        let c_cpu_usage_history = tmp.cpu_usage_history.clone();
         c_check_box.upcast::<gtk::ToggleButton>().connect_toggled(move |c| {
-            show_if_necessary(c, &c_proc_horizontal_layout, &c_non_graph_layout);
+            show_if_necessary(c, &c_cpu_usage_history.borrow(), &c_non_graph_layout);
         });
+        let c_cpu_usage_history = tmp.cpu_usage_history.clone();
         scroll.connect_show(move |_| {
             show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
-                              &proc_horizontal_layout, &non_graph_layout);
+                              &c_cpu_usage_history.borrow(),
+                              &non_graph_layout);
         });
         tmp
     }
@@ -170,11 +157,11 @@ impl DisplaySysInfo {
         let disp = if total < 100000 {
             format!("{} / {}KB", used, total)
         } else if total < 10000000 {
-            format!("{} / {}MB", used / 1000, total / 1000)
+            format!("{} / {}MB", used / 1024, total / 1024)
         } else if total < 10000000000 {
-            format!("{} / {}GB", used / 1000000, total / 1000000)
+            format!("{} / {}GB", used / 1048576, total / 1048576)
         } else {
-            format!("{} / {}TB", used / 1000000000, total / 1000000000)
+            format!("{} / {}TB", used / 1073741824, total / 1073741824)
         };
 
         self.ram.set_text(Some(&disp));
@@ -185,15 +172,15 @@ impl DisplaySysInfo {
         let disp = if total < 100000 {
             format!("{} / {}KB", used, total)
         } else if total < 10000000 {
-            format!("{} / {}MB", used / 1000, total / 1000)
+            format!("{} / {}MB", used / 1024, total / 1024)
         } else if total < 10000000000 {
-            format!("{} / {}GB", used / 1000000, total / 1000000)
+            format!("{} / {}GB", used / 1048576, total / 1048576)
         } else {
-            format!("{} / {}TB", used / 1000000000, total / 1000000000)
+            format!("{} / {}TB", used / 1073741824, total / 1073741824)
         };
 
         self.swap.set_text(Some(&disp));
-        
+
         let mut fraction = used as f64 / total as f64;
         if fraction.is_nan() {
             fraction = 0 as f64;
@@ -218,14 +205,14 @@ impl DisplaySysInfo {
             v[i].set_show_text(true);
             v[i].set_fraction(pro.get_cpu_usage() as f64);
             if i > 0 {
-                h[i - 1].1.move_start();
-                *h[i - 1].1.get_mut(0).unwrap() = pro.get_cpu_usage() as f64;
+                h.data[i - 1].move_start();
+                *h.data[i - 1].get_mut(0).unwrap() = pro.get_cpu_usage() as f64;
             }
         }
     }
 }
 
-fn show_if_necessary(check_box: &gtk::ToggleButton, proc_horizontal_layout: &gtk::Box,
+fn show_if_necessary(check_box: &gtk::ToggleButton, proc_horizontal_layout: &Graph,
                      non_graph_layout: &gtk::Box) {
     if check_box.get_active() {
         proc_horizontal_layout.show_all();
@@ -233,52 +220,5 @@ fn show_if_necessary(check_box: &gtk::ToggleButton, proc_horizontal_layout: &gtk
     } else {
         non_graph_layout.show_all();
         proc_horizontal_layout.hide();
-    }
-}
-
-fn draw_grid(c: &cairo::Context, width: f64, height: f64, mut elapsed: u64,
-             cpu_usage_history: &mut [(Color, RotateVec<f64>)]) {
-    let len = cpu_usage_history[0].1.len() - 1;
-    c.set_source_rgb(0.8, 0.8, 0.8);
-    c.rectangle(2.0, 1.0, width - 2.0, height - 2.0);
-    c.fill();
-    c.set_source_rgb(0.0, 0.0, 0.0);
-    c.set_line_width(1.0);
-    c.move_to(1.0, 0.0);
-    c.line_to(1.0, height);
-    c.move_to(width, 0.0);
-    c.line_to(width, height);
-    c.move_to(1.0, 0.0);
-    c.line_to(width, 0.0);
-    c.move_to(1.0, height);
-    c.line_to(width, height);
-    elapsed = elapsed % 5;
-    let x_step = (width - 2.0) * 5.0 / (len as f64);
-    let mut current = width - elapsed as f64 * (x_step / 5.0) - 1.0;
-    while current > 0.0 {
-        c.move_to(current, 0.0);
-        c.line_to(current, height);
-        current -= x_step;
-    }
-    let step = height / 10.0;
-    current = step - 1.0;
-    while current < height {
-        c.move_to(1.0, current);
-        c.line_to(width - 1.0, current);
-        current += step;
-    }
-    c.stroke();
-    let step = (width - 2.0) / (len as f64);
-    current = 1.0;
-    let mut index = len;
-    while current > 0.0 && index > 0 {
-        for &(ref color, ref entry) in cpu_usage_history.iter() {
-            c.set_source_rgb(color.r, color.g, color.b);
-            c.move_to(current + step, height - entry[index - 1] * height - 2.0);
-            c.line_to(current, height - entry[index] * height - 2.0);
-            c.stroke();
-        }
-        current += step;
-        index -= 1;
     }
 }
