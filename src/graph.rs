@@ -1,6 +1,6 @@
 use cairo;
-use gtk::{self, BoxExt, ContainerExt, DrawingArea, ScrolledWindowExt, StateFlags};
-use gtk::prelude::WidgetExt;
+use gtk::{self, DrawingArea, StateFlags};
+use gtk::prelude::*;
 
 use std::time::Instant;
 
@@ -77,6 +77,10 @@ impl Graph {
         let elapsed = self.elapsed.elapsed().as_secs() % 5;
         let x_step = (width - 2.0) * 5.0 / (time as f64);
         let mut current = width - elapsed as f64 * (x_step / 5.0) - 1.0;
+        if x_step < 0.1 {
+            c.stroke();
+            return;
+        }
         while current > 0.0 {
             c.move_to(current, 0.0);
             c.line_to(current, height);
@@ -90,7 +94,7 @@ impl Graph {
             current += step;
         }
         c.stroke();
-        if self.data.len() > 0 {
+        if self.data.len() > 0 && self.data[0].len() > 0 {
             let len = self.data[0].len() - 1;
             let step = (width - 2.0) / (len as f64);
             current = 1.0;
