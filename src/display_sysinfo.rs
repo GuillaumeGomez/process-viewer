@@ -65,6 +65,7 @@ impl DisplaySysInfo {
         vertical_layout.add(&ram);
         ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()), "RAM");
         ram_usage_history.attach_to(&vertical_layout);
+        ram_usage_history.hide();
 
         vertical_layout.pack_start(&gtk::Label::new(Some("Swap usage")), false, false, 15);
         vertical_layout.add(&swap);
@@ -99,28 +100,12 @@ impl DisplaySysInfo {
             }
         }
         vertical_layout.add(&non_graph_layout);
+        cpu_usage_history.attach_to(&vertical_layout);
 
         let area = cpu_usage_history.area.clone();
-        cpu_usage_history.attach_to(&vertical_layout);
-        let cpu_usage_history = Rc::new(RefCell::new(cpu_usage_history));
-        let c_cpu_usage_history = cpu_usage_history.clone();
-        area.connect_draw(move |w, c| {
-            c_cpu_usage_history.borrow()
-                               .draw(&c,
-                                     w.get_allocated_width() as f64,
-                                     w.get_allocated_height() as f64);
-            Inhibit(false)
-        });
-        let area = ram_usage_history.area.clone();
-        let ram_usage_history = Rc::new(RefCell::new(ram_usage_history));
-        let c_ram_usage_history = ram_usage_history.clone();
-        area.connect_draw(move |w, c| {
-            c_ram_usage_history.borrow()
-                               .draw(&c,
-                                     w.get_allocated_width() as f64,
-                                     w.get_allocated_height() as f64);
-            Inhibit(false)
-        });
+        let area2 = ram_usage_history.area.clone();
+        let cpu_usage_history = connect_graph(cpu_usage_history);
+        let ram_usage_history = connect_graph(ram_usage_history);
 
         if sys1.borrow().get_components_list().len() > 0 {
             vertical_layout.pack_start(&gtk::Label::new(Some("Components' temperature")),
@@ -152,13 +137,16 @@ impl DisplaySysInfo {
             ram_usage_history: ram_usage_history,
         };
         tmp.update_ram_display(&sys1.borrow(), false);
+
         win.add_events(gdk::EventType::Configure as i32);
         // ugly way to resize drawing area, I should find a better way
         win.connect_configure_event(move |w, _| {
             let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
             area.set_size_request(w, 200);
+            area2.set_size_request(w, 200);
             false
         });
+
         if let Some(check_box) = check_box {
             let c_check_box = check_box.clone();
             let c_non_graph_layout = non_graph_layout.clone();
@@ -167,24 +155,29 @@ impl DisplaySysInfo {
                 show_if_necessary(c, &c_cpu_usage_history.borrow(), &c_non_graph_layout);
             });
             let c_cpu_usage_history = tmp.cpu_usage_history.clone();
+            let c_ram_usage_history = tmp.ram_usage_history.clone();
+            let check_box2 = check_box2.clone();
+            let ram = ram.clone();
             scroll.connect_show(move |_| {
                 show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
-                                  &c_cpu_usage_history.borrow(),
-                                  &non_graph_layout);
+                                  &c_cpu_usage_history.borrow(), &non_graph_layout);
+                show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
+                                  &c_ram_usage_history.borrow(), &ram);
+            });
+        } else {
+            let c_ram_usage_history = tmp.ram_usage_history.clone();
+            let check_box2 = check_box2.clone();
+            let ram = ram.clone();
+            scroll.connect_show(move |_| {
+                show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
+                                  &c_ram_usage_history.borrow(), &ram);
             });
         }
         let c_check_box = check_box2.clone();
-        let c_non_graph_layout = ram.clone();
         let c_ram_usage_history = tmp.ram_usage_history.clone();
         c_check_box.upcast::<gtk::ToggleButton>().connect_toggled(move |c| {
             show_if_necessary(c, &c_ram_usage_history.borrow(), &ram);
         });
-        /*let c_cpu_usage_history = tmp.cpu_usage_history.clone();
-        scroll.connect_show(move |_| {
-            show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
-                              &c_cpu_usage_history.borrow(),
-                              &non_graph_layout);
-        });*/
         tmp
     }
 
@@ -203,6 +196,11 @@ impl DisplaySysInfo {
 
         self.ram.set_text(Some(&disp));
         self.ram.set_fraction(used as f64 / total as f64);
+        {
+            let mut r = self.ram_usage_history.borrow_mut();
+            r.data[0].move_start();
+            *r.data[0].get_mut(0).unwrap() = used as f64 / total as f64;
+        }
 
         let total = sys.get_total_swap();
         let used = total - sys.get_used_swap();
@@ -247,6 +245,20 @@ impl DisplaySysInfo {
             }
         }
     }
+}
+
+fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
+    let area = graph.area.clone();
+    let graph = Rc::new(RefCell::new(graph));
+    let c_graph = graph.clone();
+    area.connect_draw(move |w, c| {
+        c_graph.borrow()
+               .draw(&c,
+                     w.get_allocated_width() as f64,
+                     w.get_allocated_height() as f64);
+        Inhibit(false)
+    });
+    graph
 }
 
 fn show_if_necessary<T: WidgetExt>(check_box: &gtk::ToggleButton, proc_horizontal_layout: &Graph,
