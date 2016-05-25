@@ -1,7 +1,7 @@
 use gdk;
 use glib::object::Cast;
 use gtk::{self, BoxExt, ContainerExt};
-use gtk::{ToggleButtonExt, Widget, WidgetSignals, WindowExt};
+use gtk::{ToggleButtonExt, Widget, WindowExt};
 use gtk::prelude::{Inhibit, WidgetExt};
 use sysinfo;
 
@@ -13,14 +13,32 @@ use graph::Graph;
 use notebook::NoteBook;
 use utils::RotateVec;
 
+fn create_header(label_text: &str, parent_layout: &gtk::Box) -> gtk::CheckButton {
+    let check_box = gtk::CheckButton::new_with_label("Graph view");
+    let label = gtk::Label::new(Some(label_text));
+    let empty = gtk::Label::new(None);
+    let grid = gtk::Grid::new();
+    let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    horizontal_layout.pack_start(&gtk::Label::new(None), true, true, 0);
+    horizontal_layout.pack_start(&check_box, false, false, 0);
+    grid.attach(&empty, 0, 0, 3, 1);
+    grid.attach_next_to(&label, Some(&empty), gtk::PositionType::Right, 3, 1);
+    grid.attach_next_to(&horizontal_layout, Some(&label),
+                        gtk::PositionType::Right, 3, 1);
+    grid.set_column_homogeneous(true);
+    parent_layout.pack_start(&grid, false, false, 15);
+    check_box
+}
+
 #[allow(dead_code)]
 pub struct DisplaySysInfo {
-    procs : Rc<RefCell<Vec<gtk::ProgressBar>>>,
-    ram : gtk::ProgressBar,
-    swap : gtk::ProgressBar,
-    vertical_layout : gtk::Box,
+    procs: Rc<RefCell<Vec<gtk::ProgressBar>>>,
+    ram: gtk::ProgressBar,
+    swap: gtk::ProgressBar,
+    vertical_layout: gtk::Box,
     components: Vec<gtk::Label>,
     cpu_usage_history: Rc<RefCell<Graph>>,
+    ram_usage_history: Rc<RefCell<Graph>>,
 }
 
 impl DisplaySysInfo {
@@ -33,7 +51,8 @@ impl DisplaySysInfo {
         let scroll = gtk::ScrolledWindow::new(None, None);
         let mut components = vec!();
         let mut cpu_usage_history = Graph::new();
-        let check_box = gtk::CheckButton::new_with_label("Graph view");
+        let mut ram_usage_history = Graph::new();
+        let mut check_box = None;
 
         ram.set_show_text(true);
         swap.set_show_text(true);
@@ -42,10 +61,14 @@ impl DisplaySysInfo {
         let mut total = false;
         let non_graph_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
-        vertical_layout.pack_start(&gtk::Label::new(Some("Memory usage")), false, false, 15);
+        let check_box2 = create_header("Memory usage", &vertical_layout);
         vertical_layout.add(&ram);
+        ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()), "RAM");
+        ram_usage_history.attach_to(&vertical_layout);
+
         vertical_layout.pack_start(&gtk::Label::new(Some("Swap usage")), false, false, 15);
         vertical_layout.add(&swap);
+
         vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 7);
         for (i, pro) in sys1.borrow().get_processor_list().iter().enumerate() {
             if total {
@@ -71,18 +94,7 @@ impl DisplaySysInfo {
                 p.set_fraction(pro.get_cpu_usage() as f64);
 
                 vertical_layout.add(p);
-                let label = gtk::Label::new(Some("Process usage"));
-                let empty = gtk::Label::new(None);
-                let grid = gtk::Grid::new();
-                let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-                horizontal_layout.pack_start(&gtk::Label::new(None), true, true, 0);
-                horizontal_layout.pack_start(&check_box, false, false, 0);
-                grid.attach(&empty, 0, 0, 3, 1);
-                grid.attach_next_to(&label, Some(&empty), gtk::PositionType::Right, 3, 1);
-                grid.attach_next_to(&horizontal_layout, Some(&label),
-                                    gtk::PositionType::Right, 3, 1);
-                grid.set_column_homogeneous(true);
-                vertical_layout.pack_start(&grid, false, false, 15);
+                check_box = Some(create_header("Process usage", &vertical_layout));
                 total = true;
             }
         }
@@ -94,6 +106,16 @@ impl DisplaySysInfo {
         let c_cpu_usage_history = cpu_usage_history.clone();
         area.connect_draw(move |w, c| {
             c_cpu_usage_history.borrow()
+                               .draw(&c,
+                                     w.get_allocated_width() as f64,
+                                     w.get_allocated_height() as f64);
+            Inhibit(false)
+        });
+        let area = ram_usage_history.area.clone();
+        let ram_usage_history = Rc::new(RefCell::new(ram_usage_history));
+        let c_ram_usage_history = ram_usage_history.clone();
+        area.connect_draw(move |w, c| {
+            c_ram_usage_history.borrow()
                                .draw(&c,
                                      w.get_allocated_width() as f64,
                                      w.get_allocated_height() as f64);
@@ -122,11 +144,12 @@ impl DisplaySysInfo {
 
         let mut tmp = DisplaySysInfo {
             procs: Rc::new(RefCell::new(procs)),
-            ram: ram,
+            ram: ram.clone(),
             swap: swap,
             vertical_layout: vertical_layout,
             components: components,
             cpu_usage_history: cpu_usage_history,
+            ram_usage_history: ram_usage_history,
         };
         tmp.update_ram_display(&sys1.borrow(), false);
         win.add_events(gdk::EventType::Configure as i32);
@@ -134,20 +157,34 @@ impl DisplaySysInfo {
         win.connect_configure_event(move |w, _| {
             let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
             area.set_size_request(w, 200);
-            Inhibit(false)
+            false
         });
-        let c_check_box = check_box.clone();
-        let c_non_graph_layout = non_graph_layout.clone();
-        let c_cpu_usage_history = tmp.cpu_usage_history.clone();
+        if let Some(check_box) = check_box {
+            let c_check_box = check_box.clone();
+            let c_non_graph_layout = non_graph_layout.clone();
+            let c_cpu_usage_history = tmp.cpu_usage_history.clone();
+            c_check_box.upcast::<gtk::ToggleButton>().connect_toggled(move |c| {
+                show_if_necessary(c, &c_cpu_usage_history.borrow(), &c_non_graph_layout);
+            });
+            let c_cpu_usage_history = tmp.cpu_usage_history.clone();
+            scroll.connect_show(move |_| {
+                show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
+                                  &c_cpu_usage_history.borrow(),
+                                  &non_graph_layout);
+            });
+        }
+        let c_check_box = check_box2.clone();
+        let c_non_graph_layout = ram.clone();
+        let c_ram_usage_history = tmp.ram_usage_history.clone();
         c_check_box.upcast::<gtk::ToggleButton>().connect_toggled(move |c| {
-            show_if_necessary(c, &c_cpu_usage_history.borrow(), &c_non_graph_layout);
+            show_if_necessary(c, &c_ram_usage_history.borrow(), &ram);
         });
-        let c_cpu_usage_history = tmp.cpu_usage_history.clone();
+        /*let c_cpu_usage_history = tmp.cpu_usage_history.clone();
         scroll.connect_show(move |_| {
-            show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
+            show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
                               &c_cpu_usage_history.borrow(),
                               &non_graph_layout);
-        });
+        });*/
         tmp
     }
 
@@ -212,8 +249,8 @@ impl DisplaySysInfo {
     }
 }
 
-fn show_if_necessary(check_box: &gtk::ToggleButton, proc_horizontal_layout: &Graph,
-                     non_graph_layout: &gtk::Box) {
+fn show_if_necessary<T: WidgetExt>(check_box: &gtk::ToggleButton, proc_horizontal_layout: &Graph,
+                                   non_graph_layout: &T) {
     if check_box.get_active() {
         proc_horizontal_layout.show_all();
         non_graph_layout.hide();

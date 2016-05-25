@@ -13,7 +13,8 @@ extern crate sysinfo;
 use sysinfo::*;
 
 use gtk::prelude::*;
-use gtk::{AboutDialog, Button, Dialog, Entry, IconSize, Image, Label, MenuBar, MenuItem, MessageDialog};
+use gtk::{AboutDialog, Button, Dialog, Entry, IconSize, Image, Label, MenuBar, MenuItem,
+          MessageDialog, SortColumn};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -220,7 +221,7 @@ fn main() {
     gtk::timeout_add(1000, move || {
         *run1.borrow_mut() += 1;
         // first part, deactivate sorting
-        let sorted = list_store.get_sort_column_id();
+        let sorted = TreeSortableExt::get_sort_column_id(&list_store);
         list_store.set_unsorted();
 
         // we update the tree view
@@ -228,7 +229,7 @@ fn main() {
 
         // we re-enable the sorting
         if let Some((col, order)) = sorted {
-            list_store.set_sort_column_id(col, order);
+            list_store.set_sort_column_id(SortColumn::Index(col as u32), order);
         }
         window1.queue_draw();
         glib::Continue(true)

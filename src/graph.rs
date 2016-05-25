@@ -1,6 +1,6 @@
 use cairo;
-use gtk::{self, BoxExt, ContainerExt, DrawingArea, ScrolledWindowExt, StateFlags};
-use gtk::prelude::WidgetExt;
+use gtk::{self, DrawingArea, StateFlags};
+use gtk::prelude::*;
 
 use std::time::Instant;
 
