@@ -13,6 +13,23 @@ use graph::Graph;
 use notebook::NoteBook;
 use utils::RotateVec;
 
+macro_rules! clone {
+    (@param _) => ( _ );
+    (@param $x:ident) => ( $x );
+    ($($n:ident),+ => move || $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+            move || $body
+        }
+    );
+    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+            move |$(clone!(@param $p),)+| $body
+        }
+    );
+}
+
 fn create_header(label_text: &str, parent_layout: &gtk::Box) -> gtk::CheckButton {
     let check_box = gtk::CheckButton::new_with_label("Graph view");
     let label = gtk::Label::new(Some(label_text));
@@ -30,6 +47,18 @@ fn create_header(label_text: &str, parent_layout: &gtk::Box) -> gtk::CheckButton
     check_box
 }
 
+fn create_progress_bar(non_graph_layout: &gtk::Grid, line: i32, label: &str,
+                       text: &str) -> gtk::ProgressBar {
+    let p = gtk::ProgressBar::new();
+    let l = gtk::Label::new(Some(label));
+
+    p.set_text(Some(text));
+    p.set_show_text(true);
+    non_graph_layout.attach(&l, 0, line, 1, 1);
+    non_graph_layout.attach(&p, 1, line, 11, 1);
+    p
+}
+
 #[allow(dead_code)]
 pub struct DisplaySysInfo {
     procs: Rc<RefCell<Vec<gtk::ProgressBar>>>,
@@ -38,7 +67,11 @@ pub struct DisplaySysInfo {
     vertical_layout: gtk::Box,
     components: Vec<gtk::Label>,
     cpu_usage_history: Rc<RefCell<Graph>>,
+    // 0 = RAM
+    // 1 = SWAP
     ram_usage_history: Rc<RefCell<Graph>>,
+    pub ram_check_box: gtk::CheckButton,
+    pub swap_check_box: gtk::CheckButton,
 }
 
 impl DisplaySysInfo {
@@ -46,61 +79,63 @@ impl DisplaySysInfo {
                win: &gtk::Window) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
-        let ram = gtk::ProgressBar::new();
-        let swap = gtk::ProgressBar::new();
         let scroll = gtk::ScrolledWindow::new(None, None);
         let mut components = vec!();
         let mut cpu_usage_history = Graph::new();
         let mut ram_usage_history = Graph::new();
-        let mut check_box = None;
 
-        ram.set_show_text(true);
-        swap.set_show_text(true);
         vertical_layout.set_spacing(5);
 
-        let mut total = false;
-        let non_graph_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
-        let check_box2 = create_header("Memory usage", &vertical_layout);
-        vertical_layout.add(&ram);
-        ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()), "RAM");
-        ram_usage_history.attach_to(&vertical_layout);
-        ram_usage_history.hide();
-
-        vertical_layout.pack_start(&gtk::Label::new(Some("Swap usage")), false, false, 15);
-        vertical_layout.add(&swap);
+        let non_graph_layout = gtk::Grid::new();
+        non_graph_layout.set_column_homogeneous(true);
+        non_graph_layout.set_margin_right(5);
+        let non_graph_layout2 = gtk::Grid::new();
+        non_graph_layout2.set_column_homogeneous(true);
+        non_graph_layout2.set_margin_right(5);
 
         vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 7);
-        for (i, pro) in sys1.borrow().get_processor_list().iter().enumerate() {
-            if total {
-                procs.push(gtk::ProgressBar::new());
-                let p : &gtk::ProgressBar = &procs[i];
-                let l = gtk::Label::new(Some(&format!("{}", i)));
-                let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        procs.push(gtk::ProgressBar::new());
+        {
+            let p: &gtk::ProgressBar = &procs[0];
+            let s = sys1.borrow();
+            let pro = &s.get_processor_list()[0];
 
-                p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
-                p.set_show_text(true);
-                p.set_fraction(pro.get_cpu_usage() as f64);
-                horizontal_layout.pack_start(&l, false, false, 5);
-                horizontal_layout.pack_start(p, true, true, 5);
-                non_graph_layout.add(&horizontal_layout);
-                cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                                       &format!("process {}", i));
-            } else {
-                procs.push(gtk::ProgressBar::new());
-                let p : &gtk::ProgressBar = &procs[i];
+            p.set_margin_right(5);
+            p.set_margin_left(5);
+            p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
+            p.set_show_text(true);
+            p.set_fraction(pro.get_cpu_usage() as f64);
+            vertical_layout.add(p);
+        }
 
-                p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
-                p.set_show_text(true);
-                p.set_fraction(pro.get_cpu_usage() as f64);
+        let check_box = create_header("Process usage", &vertical_layout);
+        for (i, pro) in sys1.borrow().get_processor_list().iter().skip(1).enumerate() {
+            let i = i + 1;
+            procs.push(gtk::ProgressBar::new());
+            let p: &gtk::ProgressBar = &procs[i];
+            let l = gtk::Label::new(Some(&format!("{}", i)));
 
-                vertical_layout.add(p);
-                check_box = Some(create_header("Process usage", &vertical_layout));
-                total = true;
-            }
+            p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
+            p.set_show_text(true);
+            p.set_fraction(pro.get_cpu_usage() as f64);
+            non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
+            non_graph_layout.attach(p, 1, i as i32 - 1, 11, 1);
+            cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                                   &format!("process {}", i), None);
         }
         vertical_layout.add(&non_graph_layout);
         cpu_usage_history.attach_to(&vertical_layout);
+
+        let check_box2 = create_header("Memory usage", &vertical_layout);
+        let ram = create_progress_bar(&non_graph_layout2, 0, "RAM", "");
+        let swap = create_progress_bar(&non_graph_layout2, 1, "Swap", "");
+        vertical_layout.pack_start(&non_graph_layout2, false, false, 15);
+        //vertical_layout.add(&non_graph_layout2);
+        ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                               "RAM", Some(4));
+        ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                               "Swap", Some(2));
+        ram_usage_history.attach_to(&vertical_layout);
 
         let area = cpu_usage_history.area.clone();
         let area2 = ram_usage_history.area.clone();
@@ -130,11 +165,13 @@ impl DisplaySysInfo {
         let mut tmp = DisplaySysInfo {
             procs: Rc::new(RefCell::new(procs)),
             ram: ram.clone(),
-            swap: swap,
+            swap: swap.clone(),
             vertical_layout: vertical_layout,
             components: components,
-            cpu_usage_history: cpu_usage_history,
-            ram_usage_history: ram_usage_history,
+            cpu_usage_history: cpu_usage_history.clone(),
+            ram_usage_history: ram_usage_history.clone(),
+            ram_check_box: check_box.clone(),
+            swap_check_box: check_box2.clone(),
         };
         tmp.update_ram_display(&sys1.borrow(), false);
 
@@ -147,37 +184,21 @@ impl DisplaySysInfo {
             false
         });
 
-        if let Some(check_box) = check_box {
-            let c_check_box = check_box.clone();
-            let c_non_graph_layout = non_graph_layout.clone();
-            let c_cpu_usage_history = tmp.cpu_usage_history.clone();
-            c_check_box.upcast::<gtk::ToggleButton>().connect_toggled(move |c| {
-                show_if_necessary(c, &c_cpu_usage_history.borrow(), &c_non_graph_layout);
-            });
-            let c_cpu_usage_history = tmp.cpu_usage_history.clone();
-            let c_ram_usage_history = tmp.ram_usage_history.clone();
-            let check_box2 = check_box2.clone();
-            let ram = ram.clone();
-            scroll.connect_show(move |_| {
-                show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
-                                  &c_cpu_usage_history.borrow(), &non_graph_layout);
-                show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
-                                  &c_ram_usage_history.borrow(), &ram);
-            });
-        } else {
-            let c_ram_usage_history = tmp.ram_usage_history.clone();
-            let check_box2 = check_box2.clone();
-            let ram = ram.clone();
-            scroll.connect_show(move |_| {
-                show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
-                                  &c_ram_usage_history.borrow(), &ram);
-            });
-        }
-        let c_check_box = check_box2.clone();
-        let c_ram_usage_history = tmp.ram_usage_history.clone();
-        c_check_box.upcast::<gtk::ToggleButton>().connect_toggled(move |c| {
-            show_if_necessary(c, &c_ram_usage_history.borrow(), &ram);
-        });
+        check_box.clone().upcast::<gtk::ToggleButton>()
+                 .connect_toggled(clone!(non_graph_layout, cpu_usage_history => move |c| {
+            show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
+        }));
+        check_box2.clone().upcast::<gtk::ToggleButton>()
+                  .connect_toggled(clone!(ram_usage_history, non_graph_layout2 => move |c| {
+            show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
+        }));
+
+        scroll.connect_show(clone!(cpu_usage_history, ram_usage_history => move |_| {
+            show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
+                              &cpu_usage_history.borrow(), &non_graph_layout);
+            show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
+                              &ram_usage_history.borrow(), &non_graph_layout2);
+        }));
         tmp
     }
 
@@ -221,6 +242,11 @@ impl DisplaySysInfo {
             fraction = 0 as f64;
         }
         self.swap.set_fraction(fraction);
+        {
+            let mut r = self.ram_usage_history.borrow_mut();
+            r.data[1].move_start();
+            *r.data[1].get_mut(0).unwrap() = used as f64 / total as f64;
+        }
 
         for (component, label) in sys.get_components_list().iter().zip(self.components.iter()) {
             if display_fahrenheit {

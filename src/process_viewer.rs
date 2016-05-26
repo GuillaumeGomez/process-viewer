@@ -193,14 +193,28 @@ fn main() {
     let quit = create_image_menu_item("Quit", "application-exit");
     let settings = gtk::MenuItem::new_with_mnemonic("_Settings");
     let temperature_setting = gtk::CheckMenuItem::new_with_label("Display temperature in °F");
+    let graph_setting = gtk::CheckMenuItem::new_with_label("Display graphs");
     let more = gtk::MenuItem::new_with_label("?");
     let about = create_image_menu_item("About", "help-about");
+
+    let ram_check_box = display_tab.ram_check_box.clone();
+    let swap_check_box = display_tab.swap_check_box.clone();
+    graph_setting.connect_toggled(move |g| {
+        if g.get_active() {
+            ram_check_box.set_active(true);
+            swap_check_box.set_active(true);
+        } else {
+            ram_check_box.set_active(false);
+            swap_check_box.set_active(false);
+        }
+    });
 
     menu.append(&new_task);
     menu.append(&quit);
     file.set_submenu(Some(&menu));
     menu_bar.append(&file);
     settings_menu.append(&temperature_setting);
+    settings_menu.append(&graph_setting);
     settings.set_submenu(Some(&settings_menu));
     menu_bar.append(&settings);
     more_menu.append(&about);

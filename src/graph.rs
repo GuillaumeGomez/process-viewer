@@ -32,6 +32,7 @@ impl Graph {
         g.scroll_layout.add(&g.vertical_layout);
         g.horizontal_layout.add(&g.area);
         g.horizontal_layout.pack_start(&g.scroll_layout, false, true, 15);
+        g.horizontal_layout.set_margin_left(5);
         g
     }
 
@@ -47,8 +48,12 @@ impl Graph {
         to.add(&self.horizontal_layout);
     }
 
-    pub fn push(&mut self, d: RotateVec<f64>, s: &str) {
-        let c = Color::generate(self.data.len() + 11);
+    pub fn push(&mut self, d: RotateVec<f64>, s: &str, override_color: Option<usize>) {
+        let c = if let Some(over) = override_color {
+            Color::generate(over)
+        } else {
+            Color::generate(self.data.len() + 11)
+        };
         let l = gtk::Label::new(Some(s));
         l.override_color(StateFlags::from_bits(0).unwrap(), &c.to_gdk());
         self.vertical_layout.add(&l);
