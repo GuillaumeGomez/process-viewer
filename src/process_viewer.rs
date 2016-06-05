@@ -226,8 +226,6 @@ fn main() {
 
     window.add(&v_box);
     window.show_all();
-    let window1 = window.clone();
-    let window2 = window.clone();
 
     let list_store = procs.list_store.clone();
     let run1 = running_since.clone();
@@ -245,13 +243,13 @@ fn main() {
         if let Some((col, order)) = sorted {
             list_store.set_sort_column_id(SortColumn::Index(col as u32), order);
         }
-        window1.queue_draw();
         glib::Continue(true)
     });
+    let window1 = window.clone();
     info_button.connect_clicked(move |_| {
         let sys = sys2.borrow();
         if let Some(process) = current_pid2.get().and_then(|pid| sys.get_process(pid)) {
-            process_dialog::create_process_dialog(&process, &window2, start_time,
+            process_dialog::create_process_dialog(&process, &window1, start_time,
                                                   run2.borrow().clone());
         }
     });

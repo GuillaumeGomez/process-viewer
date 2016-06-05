@@ -270,6 +270,8 @@ impl DisplaySysInfo {
                 *h.data[i - 1].get_mut(0).unwrap() = pro.get_cpu_usage() as f64;
             }
         }
+        h.invalidate();
+        self.ram_usage_history.borrow().invalidate();
     }
 }
 
@@ -278,10 +280,10 @@ fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
     let graph = Rc::new(RefCell::new(graph));
     let c_graph = graph.clone();
     area.connect_draw(move |w, c| {
-        c_graph.borrow()
-               .draw(&c,
-                     w.get_allocated_width() as f64,
-                     w.get_allocated_height() as f64);
+        let graph = c_graph.borrow();
+        graph.draw(&c,
+                   w.get_allocated_width() as f64,
+                   w.get_allocated_height() as f64);
         Inhibit(false)
     });
     graph
