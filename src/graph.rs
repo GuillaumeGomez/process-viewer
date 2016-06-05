@@ -1,6 +1,7 @@
 use cairo;
 use gtk::{self, DrawingArea, StateFlags};
 use gtk::prelude::*;
+use gdk;
 
 use std::time::Instant;
 
@@ -114,6 +115,15 @@ impl Graph {
                 current += step;
                 index -= 1;
             }
+        }
+    }
+
+    pub fn invalidate(&self) {
+        if let Some(t_win) = self.area.get_window() {
+            let (x, y) = self.area.translate_coordinates(&self.area, 0, 0).unwrap();
+            let rect = gdk::Rectangle { x: x, y: y,
+                width: self.area.get_allocated_width(), height: self.area.get_allocated_height() };
+            t_win.invalidate_rect(&rect, true);
         }
     }
 }
