@@ -199,13 +199,13 @@ fn main() {
 
     let ram_check_box = display_tab.ram_check_box.clone();
     let swap_check_box = display_tab.swap_check_box.clone();
+    let temperature_check_box = display_tab.temperature_check_box.clone();
     graph_setting.connect_toggled(move |g| {
-        if g.get_active() {
-            ram_check_box.set_active(true);
-            swap_check_box.set_active(true);
-        } else {
-            ram_check_box.set_active(false);
-            swap_check_box.set_active(false);
+        let is_active = g.get_active();
+        ram_check_box.set_active(is_active);
+        swap_check_box.set_active(is_active);
+        if let Some(ref temperature_check_box) = temperature_check_box {
+            temperature_check_box.set_active(is_active);
         }
     });
 

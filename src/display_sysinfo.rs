@@ -70,8 +70,10 @@ pub struct DisplaySysInfo {
     // 0 = RAM
     // 1 = SWAP
     ram_usage_history: Rc<RefCell<Graph>>,
+    temperature_usage_history: Rc<RefCell<Graph>>,
     pub ram_check_box: gtk::CheckButton,
     pub swap_check_box: gtk::CheckButton,
+    pub temperature_check_box: Option<gtk::CheckButton>,
 }
 
 impl DisplaySysInfo {
@@ -83,6 +85,8 @@ impl DisplaySysInfo {
         let mut components = vec!();
         let mut cpu_usage_history = Graph::new();
         let mut ram_usage_history = Graph::new();
+        let mut temperature_usage_history = Graph::new();
+        let mut check_box3 = None;
 
         vertical_layout.set_spacing(5);
 
@@ -92,6 +96,7 @@ impl DisplaySysInfo {
         let non_graph_layout2 = gtk::Grid::new();
         non_graph_layout2.set_column_homogeneous(true);
         non_graph_layout2.set_margin_right(5);
+        let non_graph_layout3 = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 7);
         procs.push(gtk::ProgressBar::new());
@@ -137,14 +142,9 @@ impl DisplaySysInfo {
                                "Swap", Some(2));
         ram_usage_history.attach_to(&vertical_layout);
 
-        let area = cpu_usage_history.area.clone();
-        let area2 = ram_usage_history.area.clone();
-        let cpu_usage_history = connect_graph(cpu_usage_history);
-        let ram_usage_history = connect_graph(ram_usage_history);
 
         if sys1.borrow().get_components_list().len() > 0 {
-            vertical_layout.pack_start(&gtk::Label::new(Some("Components' temperature")),
-                                       false, false, 15);
+            check_box3 = Some(create_header("Components' temperature", &vertical_layout));
             for component in sys1.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
@@ -153,10 +153,21 @@ impl DisplaySysInfo {
                                              true, false, 0);
                 horizontal_layout.pack_start(&temp, true, false, 0);
                 horizontal_layout.set_homogeneous(true);
-                vertical_layout.add(&horizontal_layout);
+                non_graph_layout3.add(&horizontal_layout);
                 components.push(temp);
+                temperature_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                                               &component.label, None);
             }
+            vertical_layout.add(&non_graph_layout3);
+            temperature_usage_history.attach_to(&vertical_layout);
         }
+
+        let area = cpu_usage_history.area.clone();
+        let area2 = ram_usage_history.area.clone();
+        let area3 = temperature_usage_history.area.clone();
+        let cpu_usage_history = connect_graph(cpu_usage_history);
+        let ram_usage_history = connect_graph(ram_usage_history);
+        let temperature_usage_history = connect_graph(temperature_usage_history);
 
         scroll.add(&vertical_layout);
         let scroll : Widget = scroll.upcast();
@@ -172,6 +183,8 @@ impl DisplaySysInfo {
             ram_usage_history: ram_usage_history.clone(),
             ram_check_box: check_box.clone(),
             swap_check_box: check_box2.clone(),
+            temperature_usage_history: temperature_usage_history.clone(),
+            temperature_check_box: check_box3.clone(),
         };
         tmp.update_ram_display(&sys1.borrow(), false);
 
@@ -181,6 +194,7 @@ impl DisplaySysInfo {
             let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
             area.set_size_request(w, 200);
             area2.set_size_request(w, 200);
+            area3.set_size_request(w, 200);
             false
         });
 
@@ -189,15 +203,25 @@ impl DisplaySysInfo {
             show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
         }));
         check_box2.clone().upcast::<gtk::ToggleButton>()
-                  .connect_toggled(clone!(ram_usage_history, non_graph_layout2 => move |c| {
+                  .connect_toggled(clone!(non_graph_layout2, ram_usage_history => move |c| {
             show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
         }));
+        if let Some(ref check_box3) = check_box3 {
+            check_box3.clone().upcast::<gtk::ToggleButton>()
+                 .connect_toggled(clone!(non_graph_layout3, temperature_usage_history => move |c| {
+                show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
+            }));
+        }
 
         scroll.connect_show(clone!(cpu_usage_history, ram_usage_history => move |_| {
             show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
                               &cpu_usage_history.borrow(), &non_graph_layout);
             show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
                               &ram_usage_history.borrow(), &non_graph_layout2);
+            if let Some(ref check_box3) = check_box3 {
+                show_if_necessary(&check_box3.clone().upcast::<gtk::ToggleButton>(),
+                                  &temperature_usage_history.borrow(), &non_graph_layout3);
+            }
         }));
         tmp
     }
@@ -248,7 +272,15 @@ impl DisplaySysInfo {
             *r.data[1].get_mut(0).unwrap() = used as f64 / total as f64;
         }
 
-        for (component, label) in sys.get_components_list().iter().zip(self.components.iter()) {
+        let mut t = self.temperature_usage_history.borrow_mut();
+        for (pos, (component, label)) in sys.get_components_list()
+                                            .iter().zip(self.components.iter()).enumerate() {
+            t.data[pos].move_start();
+            if let Some(critical) = component.critical {
+                *t.data[pos].get_mut(0).unwrap() = component.temperature as f64 / critical as f64;
+            } else {
+                *t.data[pos].get_mut(0).unwrap() = component.temperature as f64 / component.max as f64;
+            }
             if display_fahrenheit {
                 label.set_text(&format!("{:.1} °F", component.temperature * 1.8 + 32.));
             } else {
@@ -272,6 +304,7 @@ impl DisplaySysInfo {
         }
         h.invalidate();
         self.ram_usage_history.borrow().invalidate();
+        self.temperature_usage_history.borrow().invalidate();
     }
 }
 
