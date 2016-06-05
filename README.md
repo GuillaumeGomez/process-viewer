@@ -5,6 +5,6 @@ A process viewer GUI in rust. It provides current status of your processes (cpu 
 
 For now, it only builds on rust __nightly__!
 
-![screenshot](http://guillaume-gomez.fr/image/screen_process_viewer.png)
-![screenshot](http://guillaume-gomez.fr/image/screen_process_viewer2.png)
+![screenshot](http://guillaume-gomez.fr/image/screen1.png)
+![screenshot](http://guillaume-gomez.fr/image/screen2.png)
 
