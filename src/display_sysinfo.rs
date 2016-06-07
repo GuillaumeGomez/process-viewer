@@ -230,13 +230,13 @@ impl DisplaySysInfo {
         let total = sys.get_total_memory();
         let used = sys.get_used_memory();
         let disp = if total < 100000 {
-            format!("{} / {}KB", used, total)
+            format!("{} / {} kB", used, total)
         } else if total < 10000000 {
-            format!("{} / {}MB", used / 1024, total / 1024)
+            format!("{} / {} MB", used / 1024, total / 1024)
         } else if total < 10000000000 {
-            format!("{} / {}GB", used / 1048576, total / 1048576)
+            format!("{} / {} GB", used / 1048576, total / 1048576)
         } else {
-            format!("{} / {}TB", used / 1073741824, total / 1073741824)
+            format!("{} / {} TB", used / 1073741824, total / 1073741824)
         };
 
         self.ram.set_text(Some(&disp));
@@ -248,15 +248,15 @@ impl DisplaySysInfo {
         }
 
         let total = sys.get_total_swap();
-        let used = total - sys.get_used_swap();
+        let used = sys.get_used_swap();
         let disp = if total < 100000 {
-            format!("{} / {}KB", used, total)
+            format!("{} / {} kB", used, total)
         } else if total < 10000000 {
-            format!("{} / {}MB", used / 1024, total / 1024)
+            format!("{} / {} MB", used / 1024, total / 1024)
         } else if total < 10000000000 {
-            format!("{} / {}GB", used / 1048576, total / 1048576)
+            format!("{} / {} GB", used / 1048576, total / 1048576)
         } else {
-            format!("{} / {}TB", used / 1073741824, total / 1073741824)
+            format!("{} / {} TB", used / 1073741824, total / 1073741824)
         };
 
         self.swap.set_text(Some(&disp));
