@@ -13,12 +13,12 @@ readme = "README.md"
 keywords = ["GUI", "process", "viewer", "gtk"]
 
 [dependencies]
-gtk-sys = { git = "https://github.com/gtk-rs/sys" }
-pango-sys = { git = "https://github.com/gtk-rs/sys" }
-gtk = { git = "https://github.com/gtk-rs/gtk" }
-glib = { git = "https://github.com/gtk-rs/glib" }
-cairo-rs = { git = "https://github.com/gtk-rs/cairo" }
-gdk = { git = "https://github.com/gtk-rs/gdk" }
+gtk-sys = "0.3.1"
+pango-sys = "0.3.1"
+gtk = "0.1.0"
+glib = "0.1.0"
+cairo-rs = "0.1.0"
+gdk = "0.5.0"
 libc = "0.2"
 sysinfo = "0.1.15"
 
