@@ -227,19 +227,21 @@ impl DisplaySysInfo {
     }
 
     pub fn update_ram_display(&mut self, sys: &sysinfo::System, display_fahrenheit: bool) {
-        let total = sys.get_total_memory();
-        let used = sys.get_used_memory();
-        let disp = if total < 100000 {
-            format!("{} / {} kB", used, total)
-        } else if total < 10000000 {
-            format!("{} / {} MB", used / 1024, total / 1024)
-        } else if total < 10000000000 {
-            format!("{} / {} GB", used / 1048576, total / 1048576)
-        } else {
-            format!("{} / {} TB", used / 1073741824, total / 1073741824)
+        let disp = |total, used| {
+            if total < 100000 {
+                format!("{} / {} kB", used, total)
+            } else if total < 10000000 {
+                format!("{} / {} MB", used / 1024, total / 1024)
+            } else if total < 10000000000 {
+                format!("{} / {} GB", used / 1048576, total / 1048576)
+            } else {
+                format!("{} / {} TB", used / 1073741824, total / 1073741824)
+            }
         };
 
-        self.ram.set_text(Some(&disp));
+        let total = sys.get_total_memory();
+        let used = sys.get_used_memory();
+        self.ram.set_text(Some(&disp(total, used)));
         self.ram.set_fraction(used as f64 / total as f64);
         {
             let mut r = self.ram_usage_history.borrow_mut();
@@ -249,17 +251,7 @@ impl DisplaySysInfo {
 
         let total = sys.get_total_swap();
         let used = sys.get_used_swap();
-        let disp = if total < 100000 {
-            format!("{} / {} kB", used, total)
-        } else if total < 10000000 {
-            format!("{} / {} MB", used / 1024, total / 1024)
-        } else if total < 10000000000 {
-            format!("{} / {} GB", used / 1048576, total / 1048576)
-        } else {
-            format!("{} / {} TB", used / 1073741824, total / 1073741824)
-        };
-
-        self.swap.set_text(Some(&disp));
+        self.swap.set_text(Some(&disp(total, used)));
 
         let mut fraction = used as f64 / total as f64;
         if fraction.is_nan() {
