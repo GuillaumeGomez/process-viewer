@@ -231,11 +231,11 @@ impl DisplaySysInfo {
             if total < 100000 {
                 format!("{} / {} kB", used, total)
             } else if total < 10000000 {
-                format!("{} / {} MB", used / 1024, total / 1024)
+                format!("{:.2} / {} MB", used as f64 / 1024f64, total / 1024)
             } else if total < 10000000000 {
-                format!("{} / {} GB", used / 1048576, total / 1048576)
+                format!("{:.2} / {} GB", used as f64 / 1048576f64, total / 1048576)
             } else {
-                format!("{} / {} TB", used / 1073741824, total / 1073741824)
+                format!("{:.2} / {} TB", used as f64 / 1073741824f64, total / 1073741824)
             }
         };
 
