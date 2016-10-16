@@ -8,3 +8,7 @@ For now, it only builds on rust __nightly__!
 ![screenshot](http://guillaume-gomez.fr/image/screen1.png)
 ![screenshot](http://guillaume-gomez.fr/image/screen2.png)
 
+It can be run on the following platforms:
+
+ * Linux
+ * Mac OSX
