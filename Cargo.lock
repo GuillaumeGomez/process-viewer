@@ -1,6 +1,6 @@
 [root]
 name = "process_viewer"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "cairo-rs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "gdk 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -251,3 +251,26 @@ dependencies = [
  "libc 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
+[metadata]
+"checksum atk-sys 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "52dba8b14510e6d21395f6176396993782f8d1097a7b56bda448213a745311fd"
+"checksum bitflags 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8dead7461c1127cf637931a1e50934eb6eee8bff2f74433ac7909e9afcee04a3"
+"checksum bitflags 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4f67931368edf3a9a51d29886d245f1c3db2f1ef0dcc9e35ff70341b78c10d23"
+"checksum c_vec 1.0.12 (registry+https://github.com/rust-lang/crates.io-index)" = "aa9e1d9f7d49e289f36f19effbf3d5a5e30163ecf9c7a3c9be94d5374dec5b9a"
+"checksum cairo-rs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7897ceda29077c3d87f2d46a0f23ed6c552e48e8d1943ac755f8956f81a8a20d"
+"checksum cairo-sys-rs 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e43dcd461d0b014b01443cbda24684e88060e462a757a732e30309bb5fa26c9e"
+"checksum gdk 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "dbdd6a10d03581c2de537ad016f33522476091c05094ad9cf2e284985eb7d208"
+"checksum gdk-pixbuf 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5c4fd94e8cb37a8e25f84dd18b574a5d54823da3e8a9fe9b0adc154c77ca5c98"
+"checksum gdk-pixbuf-sys 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4db256fec7cfbb3ec00e45096a67b676dc255d5cdeb10770b8f0137932ec0944"
+"checksum gdk-sys 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "dce70d89e26b1b97a9ea580ef1f9d08a75b8623627a8452821c9357fc57fafbe"
+"checksum gio 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7ac814c79b301903e2f43428d26497c5d58fc1f34f4376d6f8a12bb296612a47"
+"checksum gio-sys 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "1967f858f0e536ce876868583a3a8df1025832d76567897da7f8ad860851eff3"
+"checksum glib 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bf2e0735d142ea9c5f29b1df3cfe1f818be83acd5f639a4c5516c70807574b53"
+"checksum glib-sys 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "512bc05befa05ae5fa84470205bae44d60c2209d95921d1a605e96f2f6578ac7"
+"checksum gobject-sys 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "70a2806ba2978a5072660797bc76c06ebf1b29dd7f857c6b485ac33423677529"
+"checksum gtk 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f4d3d0f046cb1473bfe9e6fbcc8478a5cbab07cfb21495734a37c9d8cd463dc7"
+"checksum gtk-sys 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "91d0e8c624c3b4e8047b960b350b208c82e2eb0d4e3db5da9a55590c10f2616d"
+"checksum libc 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)" = "97def9dc7ce1d8e153e693e3a33020bc69972181adb2f871e87e888876feae49"
+"checksum pango 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9163a579a31a3a07023f8ac47a27b62d3f59fae058f37993ec2815afaeb6d4d9"
+"checksum pango-sys 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d5d4e9d57dc8bb3a28b59d9339b13f67c456238921d82c3ae8eefd1ac815247b"
+"checksum pkg-config 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)" = "8cee804ecc7eaf201a4a207241472cc870e825206f6c031e3ee2a72fa425f2fa"
+"checksum sysinfo 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "071b8a0ae2f60c93c78872d6ca375b659b4818ef4faf706ca409c47292a49102"
