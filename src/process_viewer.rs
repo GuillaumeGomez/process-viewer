@@ -1,5 +1,4 @@
 #![crate_type = "bin"]
-#![feature(process_exec)]
 
 extern crate cairo;
 extern crate pango_sys;
