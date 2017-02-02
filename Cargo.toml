@@ -20,7 +20,7 @@ glib = "0.1.0"
 cairo-rs = "0.1.0"
 gdk = "0.5.0"
 libc = "0.2"
-sysinfo = "0.2"
+sysinfo = "0.2.3"
 
 [[bin]]
 name = "process_viewer"
