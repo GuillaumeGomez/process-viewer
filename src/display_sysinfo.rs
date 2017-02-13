@@ -3,7 +3,7 @@ use glib::object::Cast;
 use gtk::{self, BoxExt, ContainerExt};
 use gtk::{ToggleButtonExt, Widget, WindowExt};
 use gtk::prelude::{Inhibit, WidgetExt};
-use sysinfo;
+use sysinfo::{self, ProcessorExt, SystemExt};
 
 use std::cell::RefCell;
 use std::iter;

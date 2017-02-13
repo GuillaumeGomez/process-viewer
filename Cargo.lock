@@ -9,7 +9,7 @@ dependencies = [
  "gtk-sys 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.20 (registry+https://github.com/rust-lang/crates.io-index)",
  "pango-sys 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sysinfo 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sysinfo 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -245,7 +245,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "sysinfo"
-version = "0.2.3"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.20 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -273,4 +273,4 @@ dependencies = [
 "checksum pango 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2d25afdf2915e8afee5d0c2fccd8426b7c32e3a58aaf7ed2b41a4609c64617de"
 "checksum pango-sys 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a894abf6d9c35d205137cecc9e06e500b145f8381a4a700b2036aaa4fe8b6874"
 "checksum pkg-config 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "3a8b4c6b8165cd1a1cd4b9b120978131389f64bdaf456435caa41e630edba903"
-"checksum sysinfo 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "4f89fb39c8cbcecacc77510b9ad4648e4652609555de3f1df597ec1582c69577"
+"checksum sysinfo 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)" = "7c375c5a22bba3f377077c1c2c0a6ffe366e78f491032f1b587d85d6eac9f3fc"
