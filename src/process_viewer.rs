@@ -39,13 +39,13 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
     system.refresh_all();
     info.update_ram_display(&system, display_fahrenheit);
     info.update_process_display(&system);
-    let entries: &HashMap<usize, Process> = system.get_process_list();
-    let mut seen: HashSet<usize> = HashSet::new();
+    let entries: &HashMap<i32, Process> = system.get_process_list();
+    let mut seen: HashSet<i32> = HashSet::new();
 
     if let Some(mut iter) = list.get_iter_first() {
         let mut valid = true;
         while valid {
-            let pid = list.get_value(&iter, 0).get::<i64>().unwrap() as usize;
+            let pid = list.get_value(&iter, 0).get::<i32>().unwrap();
             if let Some(p) = entries.get(&(pid)) {
                 list.set(&iter,
                          &[2, 3, 5],
@@ -60,7 +60,8 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
 
     for (pid, pro) in entries.iter() {
         if !seen.contains(pid) {
-            create_and_fill_model(list, pro.pid, &pro.cmd, &pro.name, pro.cpu_usage, pro.memory);
+            create_and_fill_model(list, pro.pid, &format!("{:?}", &pro.cmd), &pro.name,
+                                  pro.cpu_usage, pro.memory);
         }
     }
 }
@@ -152,7 +153,7 @@ fn main() {
 
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     let sys = sysinfo::System::new();
-    let start_time = unsafe { sys.get_process(libc::getpid() as i64).unwrap().start_time };
+    let start_time = unsafe { sys.get_process(libc::getpid()).unwrap().start_time };
     let running_since = Rc::new(RefCell::new(0));
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();

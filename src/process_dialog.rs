@@ -55,7 +55,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
     };
     let mut text = format!("name: {}\n\
                             pid: {}\n\
-                            command: {}\n\
+                            command: {:?}\n\
                             executable path: {}\n\
                             current working directory: {}\n\
                             root directory: {}\n\
