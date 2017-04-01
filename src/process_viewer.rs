@@ -45,15 +45,16 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
     if let Some(mut iter) = list.get_iter_first() {
         let mut valid = true;
         while valid {
-            let pid = list.get_value(&iter, 0).get::<i32>().unwrap();
-            if let Some(p) = entries.get(&(pid)) {
-                list.set(&iter,
-                         &[2, 3, 5],
-                         &[&format!("{:.1}", p.cpu_usage), &p.memory, &p.cpu_usage]);
-                valid = list.iter_next(&mut iter);
-                seen.insert(pid);
-            } else {
-                valid = list.remove(&mut iter);
+            if let Some(pid) = list.get_value(&iter, 0).get::<i32>() {
+                if let Some(p) = entries.get(&(pid)) {
+                    list.set(&iter,
+                             &[2, 3, 5],
+                             &[&format!("{:.1}", p.cpu_usage), &p.memory, &p.cpu_usage]);
+                    valid = list.iter_next(&mut iter);
+                    seen.insert(pid);
+                } else {
+                    valid = list.remove(&mut iter);
+                }
             }
         }
     }
@@ -153,7 +154,11 @@ fn main() {
 
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     let sys = sysinfo::System::new();
-    let start_time = unsafe { sys.get_process(libc::getpid()).unwrap().start_time };
+    let start_time = unsafe { if let Some(p) = sys.get_process(libc::getpid()) {
+        p.start_time
+    } else {
+        0
+    } };
     let running_since = Rc::new(RefCell::new(0));
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();

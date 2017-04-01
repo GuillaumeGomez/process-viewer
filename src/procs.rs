@@ -82,16 +82,18 @@ impl Procs {
 
         left_tree.connect_cursor_changed(move |tree_view| {
             let selection = tree_view.get_selection();
-            if let Some((model, iter)) = selection.get_selected() {
-                let pid = Some(model.get_value(&iter, 0).get().unwrap());
-                current_pid1.set(pid);
-                kill_button1.set_sensitive(true);
-                info_button1.set_sensitive(true);
+            let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
+                if let Some(x) = model.get_value(&iter, 0).get() {
+                    (Some(x), true)
+                } else {
+                    (None, false)
+                }
             } else {
-                current_pid1.set(None);
-                kill_button1.set_sensitive(false);
-                info_button1.set_sensitive(false);
-            }
+                (None, false)
+            };
+            current_pid1.set(pid);
+            kill_button1.set_sensitive(ret);
+            info_button1.set_sensitive(ret);
         });
         kill_button.set_sensitive(false);
         info_button.set_sensitive(false);

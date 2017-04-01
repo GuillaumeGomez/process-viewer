@@ -103,13 +103,19 @@ impl DisplaySysInfo {
         {
             let p: &gtk::ProgressBar = &procs[0];
             let s = sys1.borrow();
-            let pro = &s.get_processor_list()[0];
 
             p.set_margin_right(5);
             p.set_margin_left(5);
-            p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
             p.set_show_text(true);
-            p.set_fraction(pro.get_cpu_usage() as f64);
+            let processor_list = s.get_processor_list();
+            if !processor_list.is_empty() {
+                let pro = &processor_list[0];
+                p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
+                p.set_fraction(pro.get_cpu_usage() as f64);
+            } else {
+                p.set_text(Some("0.0 %"));
+                p.set_fraction(0.);
+            }
             vertical_layout.add(p);
         }
 
@@ -242,18 +248,24 @@ impl DisplaySysInfo {
         let total = sys.get_total_memory();
         let used = sys.get_used_memory();
         self.ram.set_text(Some(&disp(total, used)));
-        self.ram.set_fraction(used as f64 / total as f64);
+        if total != 0 {
+            self.ram.set_fraction(used as f64 / total as f64);
+        } else {
+            self.ram.set_fraction(0.0);
+        }
         {
             let mut r = self.ram_usage_history.borrow_mut();
             r.data[0].move_start();
-            *r.data[0].get_mut(0).unwrap() = used as f64 / total as f64;
+            if let Some(p) = r.data[0].get_mut(0) {
+                *p = used as f64 / total as f64;
+            }
         }
 
         let total = sys.get_total_swap();
         let used = sys.get_used_swap();
         self.swap.set_text(Some(&disp(total, used)));
 
-        let mut fraction = used as f64 / total as f64;
+        let mut fraction = if total != 0 { used as f64 / total as f64 } else { 0f64 };
         if fraction.is_nan() {
             fraction = 0 as f64;
         }
@@ -261,7 +273,9 @@ impl DisplaySysInfo {
         {
             let mut r = self.ram_usage_history.borrow_mut();
             r.data[1].move_start();
-            *r.data[1].get_mut(0).unwrap() = used as f64 / total as f64;
+            if let Some(p) = r.data[1].get_mut(0) {
+                *p = used as f64 / total as f64;
+            }
         }
 
         let mut t = self.temperature_usage_history.borrow_mut();
@@ -269,9 +283,13 @@ impl DisplaySysInfo {
                                             .iter().zip(self.components.iter()).enumerate() {
             t.data[pos].move_start();
             if let Some(critical) = component.critical {
-                *t.data[pos].get_mut(0).unwrap() = component.temperature as f64 / critical as f64;
+                if let Some(t) = t.data[pos].get_mut(0) {
+                    *t = component.temperature as f64 / critical as f64;
+                }
             } else {
-                *t.data[pos].get_mut(0).unwrap() = component.temperature as f64 / component.max as f64;
+                if let Some(t) = t.data[pos].get_mut(0) {
+                    *t = component.temperature as f64 / component.max as f64;
+                }
             }
             if display_fahrenheit {
                 label.set_text(&format!("{:.1} °F", component.temperature * 1.8 + 32.));
@@ -291,7 +309,9 @@ impl DisplaySysInfo {
             v[i].set_fraction(pro.get_cpu_usage() as f64);
             if i > 0 {
                 h.data[i - 1].move_start();
-                *h.data[i - 1].get_mut(0).unwrap() = pro.get_cpu_usage() as f64;
+                if let Some(h) = h.data[i - 1].get_mut(0) {
+                    *h = pro.get_cpu_usage() as f64;
+                }
             }
         }
         h.invalidate();
