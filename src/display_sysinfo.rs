@@ -110,7 +110,7 @@ impl DisplaySysInfo {
             let processor_list = s.get_processor_list();
             if !processor_list.is_empty() {
                 let pro = &processor_list[0];
-                p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
+                p.set_text(format!("{:.2} %", pro.get_cpu_usage() * 100.).as_str());
                 p.set_fraction(pro.get_cpu_usage() as f64);
             } else {
                 p.set_text(Some("0.0 %"));
@@ -124,9 +124,9 @@ impl DisplaySysInfo {
             let i = i + 1;
             procs.push(gtk::ProgressBar::new());
             let p: &gtk::ProgressBar = &procs[i];
-            let l = gtk::Label::new(Some(&format!("{}", i)));
+            let l = gtk::Label::new(format!("{}", i).as_str());
 
-            p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
+            p.set_text(format!("{:.2} %", pro.get_cpu_usage() * 100.).as_str());
             p.set_show_text(true);
             p.set_fraction(pro.get_cpu_usage() as f64);
             non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
@@ -154,14 +154,16 @@ impl DisplaySysInfo {
             for component in sys1.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
-                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature)));
-                horizontal_layout.pack_start(&gtk::Label::new(Some(&component.label)),
+                let temp = gtk::Label::new(format!("{:.1} °C", component.temperature).as_str());
+                horizontal_layout.pack_start(&gtk::Label::new(component.label.as_str()),
                                              true, false, 0);
                 horizontal_layout.pack_start(&temp, true, false, 0);
                 horizontal_layout.set_homogeneous(true);
                 non_graph_layout3.add(&horizontal_layout);
                 components.push(temp);
-                temperature_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                temperature_usage_history.push(RotateVec::new(iter::repeat(0f64)
+                                                                   .take(61)
+                                                                   .collect()),
                                                &component.label, None);
             }
             vertical_layout.add(&non_graph_layout3);
@@ -247,7 +249,7 @@ impl DisplaySysInfo {
 
         let total = sys.get_total_memory();
         let used = sys.get_used_memory();
-        self.ram.set_text(Some(&disp(total, used)));
+        self.ram.set_text(disp(total, used).as_str());
         if total != 0 {
             self.ram.set_fraction(used as f64 / total as f64);
         } else {
@@ -263,11 +265,11 @@ impl DisplaySysInfo {
 
         let total = sys.get_total_swap();
         let used = sys.get_used_swap();
-        self.swap.set_text(Some(&disp(total, used)));
+        self.swap.set_text(disp(total, used).as_str());
 
         let mut fraction = if total != 0 { used as f64 / total as f64 } else { 0f64 };
         if fraction.is_nan() {
-            fraction = 0 as f64;
+            fraction = 0f64;
         }
         self.swap.set_fraction(fraction);
         {
@@ -304,7 +306,7 @@ impl DisplaySysInfo {
         let mut h = &mut *self.cpu_usage_history.borrow_mut();
 
         for (i, pro) in sys.get_processor_list().iter().enumerate() {
-            v[i].set_text(Some(&format!("{:.1} %", pro.get_cpu_usage() * 100.)));
+            v[i].set_text(format!("{:.1} %", pro.get_cpu_usage() * 100.).as_str());
             v[i].set_show_text(true);
             v[i].set_fraction(pro.get_cpu_usage() as f64);
             if i > 0 {
