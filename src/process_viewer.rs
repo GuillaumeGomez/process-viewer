@@ -13,7 +13,7 @@ use sysinfo::*;
 
 use gtk::prelude::*;
 use gtk::{AboutDialog, Button, Dialog, Entry, IconSize, Image, Label, MenuBar, MenuItem,
-          MessageDialog, SortColumn};
+          MessageDialog};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -158,7 +158,7 @@ fn main() {
         p.start_time
     } else {
         0
-    } };
+    }};
     let running_since = Rc::new(RefCell::new(0));
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
@@ -172,6 +172,7 @@ fn main() {
 
     window.set_title("Process viewer");
     window.set_position(gtk::WindowPosition::Center);
+    window.set_default_size(500, 700);
 
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
@@ -228,6 +229,7 @@ fn main() {
 
     v_box.pack_start(&menu_bar, false, false, 0);
     v_box.pack_start(&note.notebook, true, true, 0);
+    //v_box.set_size_request(v_box.get_preferred_width().1, 600);
 
     window.add(&v_box);
     window.show_all();
@@ -238,7 +240,7 @@ fn main() {
     gtk::timeout_add(1000, move || {
         *run1.borrow_mut() += 1;
         // first part, deactivate sorting
-        let sorted = TreeSortableExt::get_sort_column_id(&list_store);
+        let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
         list_store.set_unsorted();
 
         // we update the tree view
@@ -246,7 +248,7 @@ fn main() {
 
         // we re-enable the sorting
         if let Some((col, order)) = sorted {
-            list_store.set_sort_column_id(SortColumn::Index(col as u32), order);
+            list_store.set_sort_column_id(col, order);
         }
         glib::Continue(true)
     });

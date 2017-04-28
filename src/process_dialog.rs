@@ -75,7 +75,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
     for env in process.environ.iter() {
         text.push_str(&format!("\n{:?}", env));
     }
-    let label = gtk::Label::new(Some(&text));
+    let label = gtk::Label::new(text.as_str());
     label.set_selectable(true);
     label.set_line_wrap(true);
     //label.set_line_wrap_mode(gtk::WrapMode::Char);
