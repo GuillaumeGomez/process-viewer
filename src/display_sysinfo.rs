@@ -1,5 +1,6 @@
 use gdk;
 use glib::object::Cast;
+use glib::translate::ToGlib;
 use gtk::{self, BoxExt, ContainerExt};
 use gtk::{ToggleButtonExt, Widget, WindowExt};
 use gtk::prelude::{Inhibit, WidgetExt};
@@ -196,7 +197,7 @@ impl DisplaySysInfo {
         };
         tmp.update_ram_display(&sys1.borrow(), false);
 
-        win.add_events(gdk::EventType::Configure as i32);
+        win.add_events(gdk::EventType::Configure.to_glib() as i32);
         // ugly way to resize drawing area, I should find a better way
         win.connect_configure_event(move |w, _| {
             let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
