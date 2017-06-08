@@ -33,10 +33,7 @@ impl Procs {
         let kill_button1 = kill_button.clone();
         let info_button1 = info_button.clone();
 
-        scroll.set_min_content_height(800);
-        scroll.set_min_content_width(600);
-
-        let mut columns : Vec<gtk::TreeViewColumn> = Vec::new();
+        let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
 
         let list_store = gtk::ListStore::new(&[
             // The first four columns of the model are going to be visible in the view.
