@@ -1,6 +1,6 @@
 use glib::object::Cast;
 use gtk::{self, Type, Widget};
-use gtk::{BoxExt, CellLayoutExt, ContainerExt, ScrolledWindowExt, TreeModelExt, WidgetExt};
+use gtk::{BoxExt, CellLayoutExt, ContainerExt, TreeModelExt, WidgetExt};
 
 use sysinfo::*;
 
