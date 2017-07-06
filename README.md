@@ -12,3 +12,10 @@ It can be run on the following platforms:
 
  * Linux
  * Mac OSX
+
+
+## Donations
+
+If you appreciate my work and want to support me, you can do it here:
+
+[![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/GuillaumeGomez)
