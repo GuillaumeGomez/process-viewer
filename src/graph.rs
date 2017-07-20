@@ -1,5 +1,6 @@
 use cairo;
 use gtk::{self, DrawingArea, StateFlags};
+use std::cell::RefCell;
 use gtk::prelude::*;
 use gdk;
 
@@ -16,10 +17,12 @@ pub struct Graph {
     scroll_layout: gtk::ScrolledWindow,
     horizontal_layout: gtk::Box,
     pub area: DrawingArea,
+    max: Option<RefCell<f64>>,
 }
 
 impl Graph {
-    pub fn new() -> Graph {
+    // If `max` is `None`, the graph will expect values between 0 and 1.
+    pub fn new(max: Option<f64>) -> Graph {
         let g = Graph {
             elapsed: Instant::now(),
             colors: vec!(),
@@ -28,6 +31,7 @@ impl Graph {
             scroll_layout: gtk::ScrolledWindow::new(None, None),
             horizontal_layout: gtk::Box::new(gtk::Orientation::Horizontal, 0),
             area: DrawingArea::new(),
+            max: if let Some(max) = max { Some(RefCell::new(max)) } else { None },
         };
         g.scroll_layout.set_min_content_width(90);
         g.scroll_layout.add(&g.vertical_layout);
@@ -76,7 +80,6 @@ impl Graph {
         c.line_to(width, 0.0);
         c.move_to(1.0, height);
         c.line_to(width, height);
-
         // For now it's always 60 seconds.
         let time = 60.;
 
@@ -87,6 +90,7 @@ impl Graph {
             c.stroke();
             return;
         }
+
         while current > 0.0 {
             c.move_to(current, 0.0);
             c.line_to(current, height);
@@ -100,20 +104,52 @@ impl Graph {
             current += step;
         }
         c.stroke();
-        if self.data.len() > 0 && self.data[0].len() > 0 {
+
+        if self.max.is_some() {
+            let mut max = 1.;
             let len = self.data[0].len() - 1;
-            let step = (width - 2.0) / (len as f64);
-            current = 1.0;
-            let mut index = len;
-            while current > 0.0 && index > 0 {
-                for (ref entry, ref color) in self.data.iter().zip(self.colors.iter()) {
-                    c.set_source_rgb(color.r, color.g, color.b);
-                    c.move_to(current + step, height - entry[index - 1] * height - 2.0);
-                    c.line_to(current, height - entry[index] * height - 2.0);
-                    c.stroke();
+            for x in 0..len {
+                for entry in &self.data {
+                    if entry[x] > max {
+                        max = entry[x];
+                    }
                 }
-                current += step;
-                index -= 1;
+            }
+            if self.data.len() > 0 && self.data[0].len() > 0 {
+                let len = self.data[0].len() - 1;
+                let step = (width - 2.0) / (len as f64);
+                current = 1.0;
+                let mut index = len;
+                while current > 0.0 && index > 0 {
+                    for (ref entry, ref color) in self.data.iter().zip(self.colors.iter()) {
+                        c.set_source_rgb(color.r, color.g, color.b);
+                        c.move_to(current + step, height - entry[index - 1] / max * height - 2.0);
+                        c.line_to(current, height - entry[index] / max * height - 2.0);
+                        c.stroke();
+                    }
+                    current += step;
+                    index -= 1;
+                }
+            }
+            if let Some(ref cmax) = self.max {
+                *cmax.borrow_mut() = max;
+            }
+        } else {
+            if self.data.len() > 0 && self.data[0].len() > 0 {
+                let len = self.data[0].len() - 1;
+                let step = (width - 2.0) / (len as f64);
+                current = 1.0;
+                let mut index = len;
+                while current > 0.0 && index > 0 {
+                    for (ref entry, ref color) in self.data.iter().zip(self.colors.iter()) {
+                        c.set_source_rgb(color.r, color.g, color.b);
+                        c.move_to(current + step, height - entry[index - 1] * height - 2.0);
+                        c.line_to(current, height - entry[index] * height - 2.0);
+                        c.stroke();
+                    }
+                    current += step;
+                    index -= 1;
+                }
             }
         }
     }

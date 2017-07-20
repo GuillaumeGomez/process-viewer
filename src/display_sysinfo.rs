@@ -105,10 +105,10 @@ impl DisplaySysInfo {
         let mut procs = Vec::new();
         let scroll = gtk::ScrolledWindow::new(None, None);
         let mut components = vec!();
-        let mut cpu_usage_history = Graph::new();
-        let mut ram_usage_history = Graph::new();
-        let mut temperature_usage_history = Graph::new();
-        let mut network_history = Graph::new();
+        let mut cpu_usage_history = Graph::new(None);
+        let mut ram_usage_history = Graph::new(None);
+        let mut temperature_usage_history = Graph::new(Some(1.));
+        let mut network_history = Graph::new(Some(1.));
         let mut check_box3 = None;
 
         vertical_layout.set_spacing(5);
@@ -362,14 +362,11 @@ impl DisplaySysInfo {
         for (pos, (component, label)) in sys.get_components_list()
                                             .iter().zip(self.components.iter()).enumerate() {
             t.data[pos].move_start();
-            if let Some(critical) = component.critical {
-                if let Some(t) = t.data[pos].get_mut(0) {
-                    *t = component.temperature as f64 / critical as f64;
-                }
-            } else {
-                if let Some(t) = t.data[pos].get_mut(0) {
-                    *t = component.temperature as f64 / component.max as f64;
-                }
+            if let Some(t) = t.data[pos].get_mut(0) {
+                *t = component.temperature as f64;
+            }
+            if let Some(t) = t.data[pos].get_mut(0) {
+                *t = component.temperature as f64;
             }
             if display_fahrenheit {
                 label.set_text(&format!("{:.1} °F", component.temperature * 1.8 + 32.));
@@ -406,6 +403,7 @@ impl DisplaySysInfo {
         h.invalidate();
         self.ram_usage_history.borrow().invalidate();
         self.temperature_usage_history.borrow().invalidate();
+        self.network_history.borrow().invalidate();
     }
 }
 
