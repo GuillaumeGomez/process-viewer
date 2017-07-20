@@ -4,7 +4,7 @@ use glib::translate::ToGlib;
 use gtk::{self, BoxExt, ContainerExt};
 use gtk::{ToggleButtonExt, Widget, WindowExt};
 use gtk::prelude::{Inhibit, WidgetExt};
-use sysinfo::{self, ProcessorExt, SystemExt};
+use sysinfo::{self, NetworkExt, ProcessorExt, SystemExt};
 
 use std::cell::RefCell;
 use std::iter;
@@ -60,18 +60,39 @@ fn create_progress_bar(non_graph_layout: &gtk::Grid, line: i32, label: &str,
     p
 }
 
+fn format_number(mut nb: u64) -> String {
+    if nb < 1000 {
+        return format!("{} B", nb);
+    }
+    nb /= 1024;
+    if nb < 100000 {
+        format!("{} kB", nb / 1024)
+    } else if nb < 10000000 {
+        format!("{} MB", nb / 1024)
+    } else if nb < 10000000000 {
+        format!("{} GB", nb / 1_048_576)
+    } else {
+        format!("{} TB", nb / 1_073_741_824)
+    }
+}
+
 #[allow(dead_code)]
 pub struct DisplaySysInfo {
     procs: Rc<RefCell<Vec<gtk::ProgressBar>>>,
     ram: gtk::ProgressBar,
     swap: gtk::ProgressBar,
     vertical_layout: gtk::Box,
+    // network in usage
+    in_usage: gtk::Label,
+    // network out usage
+    out_usage: gtk::Label,
     components: Vec<gtk::Label>,
     cpu_usage_history: Rc<RefCell<Graph>>,
     // 0 = RAM
     // 1 = SWAP
     ram_usage_history: Rc<RefCell<Graph>>,
     temperature_usage_history: Rc<RefCell<Graph>>,
+    network_history: Rc<RefCell<Graph>>,
     pub ram_check_box: gtk::CheckButton,
     pub swap_check_box: gtk::CheckButton,
     pub temperature_check_box: Option<gtk::CheckButton>,
@@ -87,6 +108,7 @@ impl DisplaySysInfo {
         let mut cpu_usage_history = Graph::new();
         let mut ram_usage_history = Graph::new();
         let mut temperature_usage_history = Graph::new();
+        let mut network_history = Graph::new();
         let mut check_box3 = None;
 
         vertical_layout.set_spacing(5);
@@ -98,6 +120,7 @@ impl DisplaySysInfo {
         non_graph_layout2.set_column_homogeneous(true);
         non_graph_layout2.set_margin_right(5);
         let non_graph_layout3 = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let non_graph_layout4 = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 7);
         procs.push(gtk::ProgressBar::new());
@@ -171,12 +194,36 @@ impl DisplaySysInfo {
             temperature_usage_history.attach_to(&vertical_layout);
         }
 
+
+        let check_box4 = create_header("Network usage", &vertical_layout);
+        // input data
+        let in_usage = gtk::Label::new(format_number(0).as_str());
+        let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        horizontal_layout.pack_start(&gtk::Label::new("Input data"), true, false, 0);
+        horizontal_layout.pack_start(&in_usage, true, false, 0);
+        horizontal_layout.set_homogeneous(true);
+        non_graph_layout4.add(&horizontal_layout);
+        network_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                             "Input data", None);
+        // output data
+        let out_usage = gtk::Label::new(format_number(0).as_str());
+        let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        horizontal_layout.pack_start(&gtk::Label::new("Output data"), true, false, 0);
+        horizontal_layout.pack_start(&out_usage, true, false, 0);
+        horizontal_layout.set_homogeneous(true);
+        non_graph_layout4.add(&horizontal_layout);
+        network_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                             "Output data", None);
+
+
         let area = cpu_usage_history.area.clone();
         let area2 = ram_usage_history.area.clone();
         let area3 = temperature_usage_history.area.clone();
+        let area4 = network_history.area.clone();
         let cpu_usage_history = connect_graph(cpu_usage_history);
         let ram_usage_history = connect_graph(ram_usage_history);
         let temperature_usage_history = connect_graph(temperature_usage_history);
+        let network_history = connect_graph(network_history);
 
         scroll.add(&vertical_layout);
         let scroll : Widget = scroll.upcast();
@@ -186,6 +233,8 @@ impl DisplaySysInfo {
             procs: Rc::new(RefCell::new(procs)),
             ram: ram.clone(),
             swap: swap.clone(),
+            out_usage: out_usage.clone(),
+            in_usage: in_usage.clone(),
             vertical_layout: vertical_layout,
             components: components,
             cpu_usage_history: cpu_usage_history.clone(),
@@ -194,6 +243,7 @@ impl DisplaySysInfo {
             swap_check_box: check_box2.clone(),
             temperature_usage_history: temperature_usage_history.clone(),
             temperature_check_box: check_box3.clone(),
+            network_history: network_history.clone(),
         };
         tmp.update_ram_display(&sys1.borrow(), false);
 
@@ -204,6 +254,7 @@ impl DisplaySysInfo {
             area.set_size_request(w, 200);
             area2.set_size_request(w, 200);
             area3.set_size_request(w, 200);
+            area4.set_size_request(w, 200);
             false
         });
 
@@ -221,6 +272,10 @@ impl DisplaySysInfo {
                 show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
             }));
         }
+        check_box4.clone().upcast::<gtk::ToggleButton>()
+                  .connect_toggled(clone!(non_graph_layout4, network_history => move |c| {
+            show_if_necessary(c, &network_history.borrow(), &non_graph_layout4);
+        }));
 
         scroll.connect_show(clone!(cpu_usage_history, ram_usage_history => move |_| {
             show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
@@ -231,6 +286,8 @@ impl DisplaySysInfo {
                 show_if_necessary(&check_box3.clone().upcast::<gtk::ToggleButton>(),
                                   &temperature_usage_history.borrow(), &non_graph_layout3);
             }
+            show_if_necessary(&check_box4.clone().upcast::<gtk::ToggleButton>(),
+                              &network_history.borrow(), &non_graph_layout4);
         }));
         tmp
     }
@@ -300,6 +357,15 @@ impl DisplaySysInfo {
                 label.set_text(&format!("{:.1} °C", component.temperature));
             }
         }
+
+        // network part
+        let mut t = self.network_history.borrow_mut();
+        self.in_usage.set_text(format_number(sys.get_network().get_income()).as_str());
+        self.out_usage.set_text(format_number(sys.get_network().get_outcome()).as_str());
+        t.data[0].move_start();
+        *t.data[0].get_mut(0).unwrap() = sys.get_network().get_income() as f64;
+        t.data[1].move_start();
+        *t.data[1].get_mut(0).unwrap() = sys.get_network().get_outcome() as f64;
     }
 
     pub fn update_process_display(&mut self, sys: &sysinfo::System) {
