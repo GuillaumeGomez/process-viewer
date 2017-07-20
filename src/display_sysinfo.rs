@@ -122,6 +122,7 @@ impl DisplaySysInfo {
         let non_graph_layout3 = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let non_graph_layout4 = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
+
         vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 7);
         procs.push(gtk::ProgressBar::new());
         {
@@ -143,6 +144,10 @@ impl DisplaySysInfo {
             vertical_layout.add(p);
         }
 
+
+        //
+        // PROCESS PART
+        //
         let check_box = create_header("Process usage", &vertical_layout);
         for (i, pro) in sys1.borrow().get_processor_list().iter().skip(1).enumerate() {
             let i = i + 1;
@@ -161,6 +166,10 @@ impl DisplaySysInfo {
         vertical_layout.add(&non_graph_layout);
         cpu_usage_history.attach_to(&vertical_layout);
 
+
+        //
+        // MEMORY PART
+        //
         let check_box2 = create_header("Memory usage", &vertical_layout);
         let ram = create_progress_bar(&non_graph_layout2, 0, "RAM", "");
         let swap = create_progress_bar(&non_graph_layout2, 1, "Swap", "");
@@ -173,6 +182,9 @@ impl DisplaySysInfo {
         ram_usage_history.attach_to(&vertical_layout);
 
 
+        //
+        // TEMPERATURES PART
+        //
         if sys1.borrow().get_components_list().len() > 0 {
             check_box3 = Some(create_header("Components' temperature", &vertical_layout));
             for component in sys1.borrow().get_components_list() {
@@ -195,6 +207,9 @@ impl DisplaySysInfo {
         }
 
 
+        //
+        // NETWORK PART
+        //
         let check_box4 = create_header("Network usage", &vertical_layout);
         // input data
         let in_usage = gtk::Label::new(format_number(0).as_str());
@@ -214,8 +229,13 @@ impl DisplaySysInfo {
         non_graph_layout4.add(&horizontal_layout);
         network_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
                              "Output data", None);
+        vertical_layout.add(&non_graph_layout4);
+        network_history.attach_to(&vertical_layout);
 
 
+        //
+        // Putting everyting into places now.
+        //
         let area = cpu_usage_history.area.clone();
         let area2 = ram_usage_history.area.clone();
         let area3 = temperature_usage_history.area.clone();
