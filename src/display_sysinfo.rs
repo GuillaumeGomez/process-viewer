@@ -66,7 +66,7 @@ fn format_number(mut nb: u64) -> String {
     }
     nb /= 1024;
     if nb < 100000 {
-        format!("{} kB", nb / 1024)
+        format!("{} kB", nb)
     } else if nb < 10000000 {
         format!("{} MB", nb / 1024)
     } else if nb < 10000000000 {
@@ -231,6 +231,7 @@ impl DisplaySysInfo {
                              "Output data", None);
         vertical_layout.add(&non_graph_layout4);
         network_history.attach_to(&vertical_layout);
+        network_history.area.set_margin_bottom(20);
 
 
         //
