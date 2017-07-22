@@ -1,5 +1,6 @@
 use std::ops::Index;
 
+#[derive(Debug)]
 pub struct RotateVec<T> {
     data: Vec<T>,
     start: usize,

@@ -46,10 +46,10 @@ impl Procs {
             Type::F32,       // CPU_f32
         ]);
 
-        append_column("pid", &mut columns, &left_tree);
-        append_column("process name", &mut columns, &left_tree);
-        append_column("cpu usage", &mut columns, &left_tree);
-        append_column("memory usage (in kB)", &mut columns, &left_tree);
+        append_column("pid", &mut columns, &left_tree, None);
+        append_column("process name", &mut columns, &left_tree, Some(200));
+        append_column("cpu usage", &mut columns, &left_tree, None);
+        append_column("memory usage (in kB)", &mut columns, &left_tree, None);
 
         // When we click the "name" column the order is defined by the
         // "name_lowercase" effectively making the built-in comparator ignore case.
@@ -117,13 +117,18 @@ impl Procs {
     }
 }
 
-fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk::TreeView) {
+fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk::TreeView,
+                 max_width: Option<i32>) {
     let id = v.len() as i32;
     let renderer = gtk::CellRendererText::new();
 
     let column = gtk::TreeViewColumn::new();
     column.set_title(title);
     column.set_resizable(true);
+    if let Some(max_width) = max_width {
+        column.set_max_width(max_width);
+        column.set_expand(true);
+    }
     column.pack_start(&renderer, true);
     column.add_attribute(&renderer, "text", id);
     column.set_clickable(true);
