@@ -1,5 +1,5 @@
 use gtk;
-use gtk::prelude::{BoxExt, WidgetExt};
+use gtk::prelude::{BoxExt, NotebookExtManual, WidgetExt};
 
 pub struct NoteBook {
     pub notebook: gtk::Notebook,

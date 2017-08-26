@@ -1,19 +1,21 @@
 #![crate_type = "bin"]
 
 extern crate cairo;
-extern crate pango_sys;
 extern crate gdk;
+extern crate gdk_pixbuf;
 extern crate glib;
 extern crate gtk;
-extern crate gtk_sys;
 extern crate libc;
+extern crate pango;
 extern crate sysinfo;
 
 use sysinfo::*;
 
+use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
-use gtk::{AboutDialog, Button, Dialog, Entry, IconSize, Image, Label, MenuBar, MenuItem,
-          MessageDialog};
+use gtk::{
+    AboutDialog, Button, Dialog, Entry, IconSize, Image, Label, MenuBar, MenuItem, MessageDialog,
+};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -233,6 +235,7 @@ fn main() {
 
     window.add(&v_box);
     window.show_all();
+    window.activate();
 
     let list_store = procs.list_store.clone();
     let run1 = running_since.clone();
@@ -279,10 +282,15 @@ fn main() {
         let p = AboutDialog::new();
         p.set_authors(&["Guillaume Gomez"]);
         p.set_website_label(Some("my website"));
-        p.set_website(Some("http://guillaume-gomez.fr/"));
+        p.set_website(Some("https://guillaume-gomez.fr/"));
         p.set_comments(Some("A process viewer GUI wrote with gtk-rs"));
         p.set_copyright(Some("This is under MIT license"));
         p.set_transient_for(Some(&window3));
+        p.set_program_name("process-viewer");
+        let logo = Pixbuf::new_from_file("assets/eye.png");
+        if let Ok(logo) = logo {
+            p.set_logo(Some(&logo));
+        }
         p.run();
         p.destroy();
     });

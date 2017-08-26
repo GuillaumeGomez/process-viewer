@@ -13,14 +13,15 @@ readme = "README.md"
 keywords = ["GUI", "process", "viewer", "gtk"]
 
 [dependencies]
-gtk-sys = "0.3.1"
-pango-sys = "0.3.1"
-gtk = "0.1.0"
-glib = "0.1.0"
-cairo-rs = "0.1.0"
-gdk = "0.5.0"
+cairo-rs = "0.2"
+gdk = "0.6"
+gdk-pixbuf = "0.2"
+glib = "0.3"
+gtk = "0.2"
 libc = "0.2"
+pango = "0.2"
 sysinfo = "0.3"
 
 [[bin]]
 name = "process_viewer"
+path = "src/process_viewer.rs"

@@ -1,9 +1,7 @@
 use glib::object::Cast;
-use glib::translate::ToGlibPtr;
-use gtk::{self, BoxExt, ButtonExt, ContainerExt, DialogExt, ScrolledWindowExt};
+use gtk::{self, BoxExt, ButtonExt, ContainerExt, DialogExt, LabelExt, ScrolledWindowExt};
 use gtk::{WidgetExt, WindowExt};
-use gtk_sys;
-use pango_sys::PangoWrapMode;
+use pango;
 use sysinfo;
 
 fn fomat_time(t: u64) -> String {
@@ -78,14 +76,13 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
     let label = gtk::Label::new(text.as_str());
     label.set_selectable(true);
     label.set_line_wrap(true);
-    //label.set_line_wrap_mode(gtk::WrapMode::Char);
-    unsafe { gtk_sys::gtk_label_set_line_wrap_mode(label.to_glib_none().0, PangoWrapMode::Char) };
+    label.set_line_wrap_mode(pango::WrapMode::Char);
     scroll.add(&label);
     vertical_layout.pack_start(&scroll, true, true, 0);
     vertical_layout.pack_start(&close_button, false, true, 0);
     vertical_layout.set_spacing(10);
     area.pack_start(&vertical_layout, true, true, 0);
-    popup.set_size_request(500, 700);
+
     let popup = popup.upcast::<gtk::Window>();
     popup.set_resizable(false);
     popup.show_all();
