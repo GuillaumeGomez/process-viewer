@@ -1,8 +1,7 @@
 use cairo;
-use gtk::{self, DrawingArea, StateFlags};
+use gtk::{self, BoxExt, ContainerExt, DrawingArea, ScrolledWindowExt, StateFlags, WidgetExt};
 use std::cell::RefCell;
-use gtk::prelude::*;
-use gdk;
+use gdk::{self, WindowExt};
 
 use std::time::Instant;
 

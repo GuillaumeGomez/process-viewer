@@ -1,9 +1,10 @@
 use gdk;
 use glib::object::Cast;
 use glib::translate::ToGlib;
-use gtk::{self, BoxExt, ContainerExt};
-use gtk::{ToggleButtonExt, Widget, WindowExt};
-use gtk::prelude::{Inhibit, WidgetExt};
+use gtk::{
+    self, BoxExt, ContainerExt, GridExt, Inhibit, LabelExt, ProgressBarExt, ToggleButtonExt, Widget,
+    WidgetExt, WindowExt,
+};
 use sysinfo::{self, NetworkExt, ProcessorExt, SystemExt};
 
 use std::cell::RefCell;
@@ -271,6 +272,11 @@ impl DisplaySysInfo {
         win.add_events(gdk::EventType::Configure.to_glib() as i32);
         // ugly way to resize drawing area, I should find a better way
         win.connect_configure_event(move |w, _| {
+            // To silence the annying warning:
+            // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+            // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+            // allocate?"
+            w.get_preferred_width();
             let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
             area.set_size_request(w, 200);
             area2.set_size_request(w, 200);
