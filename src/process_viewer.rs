@@ -174,6 +174,11 @@ fn main() {
 
     window.set_title("Process viewer");
     window.set_position(gtk::WindowPosition::Center);
+    // To silence the annying warning:
+    // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+    // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+    // allocate?"
+    window.get_preferred_width();
     window.set_default_size(500, 700);
 
     window.connect_delete_event(|_, _| {
@@ -310,6 +315,11 @@ fn main() {
         content_area.add(&v_box);
         let window2 = window.clone();
         d.set_transient_for(Some(&window2));
+        // To silence the annying warning:
+        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+        // allocate?"
+        d.get_preferred_width();
         d.set_size_request(400, 70);
         d.show_all();
 
