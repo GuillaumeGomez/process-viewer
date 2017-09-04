@@ -101,7 +101,7 @@ pub struct DisplaySysInfo {
 
 impl DisplaySysInfo {
     pub fn new(sys1: Rc<RefCell<sysinfo::System>>, note: &mut NoteBook,
-               win: &gtk::Window) -> DisplaySysInfo {
+               win: &gtk::ApplicationWindow) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
         let scroll = gtk::ScrolledWindow::new(None, None);

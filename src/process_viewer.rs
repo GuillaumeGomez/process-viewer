@@ -3,6 +3,7 @@
 extern crate cairo;
 extern crate gdk;
 extern crate gdk_pixbuf;
+extern crate gio;
 extern crate glib;
 extern crate gtk;
 extern crate libc;
@@ -12,9 +13,16 @@ extern crate sysinfo;
 use sysinfo::*;
 
 use gdk_pixbuf::Pixbuf;
-use gtk::prelude::*;
+use gio::{ActionMapExt, ApplicationExt, MenuExt, SimpleActionExt};
+use glib::IsA;
 use gtk::{
-    AboutDialog, Button, Dialog, Entry, IconSize, Image, Label, MenuBar, MenuItem, MessageDialog,
+    AboutDialog, Button, Dialog, EditableSignals, Entry, IconSize, Image, Inhibit, Label, MenuBar,
+    MenuItem, MessageDialog,
+};
+use gtk::{
+    AboutDialogExt, BoxExt, ButtonExt, CheckMenuItemExt, ContainerExt, DialogExt, EntryExt,
+    GtkApplicationExt, ListStoreExt, ListStoreExtManual, MenuItemExt, MenuShellExt, ToggleButtonExt,
+    TreeModelExt, TreeSortableExtManual, TreeViewExt, WidgetExt, WindowExt,
 };
 
 use std::cell::RefCell;
@@ -121,7 +129,7 @@ fn start_detached_process(line: &str) -> Option<String> {
     }
 }
 
-fn run_command(input: &Entry, window: &gtk::Window, d: &Dialog) {
+fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
     if let Some(text) = input.get_text() {
         let x = if let Some(x) = start_detached_process(&text) {
             x
@@ -151,10 +159,29 @@ fn create_image_menu_item(label: &str, icon: &str) -> MenuItem {
     item
 }
 
-fn main() {
-    gtk::init().expect("GTK couldn't start normally");
+fn build_ui(application: &gtk::Application) {
+    let menu = gio::Menu::new();
+    let menu_bar = gio::Menu::new();
+    let more_menu = gio::Menu::new();
+    let settings_menu = gio::Menu::new();
+    let temperature_setting = gtk::CheckMenuItem::new_with_label("Display temperature in °F");
+    let graph_setting = gtk::CheckMenuItem::new_with_label("Display graphs");
+    let r_settings_menu = gtk::Menu::new_from_model(&settings_menu);
 
-    let window = gtk::Window::new(gtk::WindowType::Toplevel);
+    menu.append("Launch new executable", "app.new-task");
+    menu.append("Quit", "app.quit");
+
+    r_settings_menu.append(&temperature_setting);
+    r_settings_menu.append(&graph_setting);
+    menu_bar.append_submenu("_Setting", &settings_menu);
+
+    more_menu.append("About", "app.about");
+    menu_bar.append_submenu("?", &more_menu);
+
+    application.set_app_menu(&menu);
+    application.set_menubar(&menu_bar);
+
+    let window = gtk::ApplicationWindow::new(application);
     let sys = sysinfo::System::new();
     let start_time = unsafe { if let Some(p) = sys.get_process(libc::getpid()) {
         p.start_time
@@ -197,18 +224,6 @@ fn main() {
     let mut display_tab = DisplaySysInfo::new(sys.clone(), &mut note, &window);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let menu_bar = MenuBar::new();
-    let menu = gtk::Menu::new();
-    let more_menu = gtk::Menu::new();
-    let settings_menu = gtk::Menu::new();
-    let file = gtk::MenuItem::new_with_mnemonic("_File");
-    let new_task = create_image_menu_item("Launch new executable", "system-run");
-    let quit = create_image_menu_item("Quit", "application-exit");
-    let settings = gtk::MenuItem::new_with_mnemonic("_Settings");
-    let temperature_setting = gtk::CheckMenuItem::new_with_label("Display temperature in °F");
-    let graph_setting = gtk::CheckMenuItem::new_with_label("Display graphs");
-    let more = gtk::MenuItem::new_with_label("?");
-    let about = create_image_menu_item("About", "help-about");
 
     let ram_check_box = display_tab.ram_check_box.clone();
     let swap_check_box = display_tab.swap_check_box.clone();
@@ -222,19 +237,7 @@ fn main() {
         }
     });
 
-    menu.append(&new_task);
-    menu.append(&quit);
-    file.set_submenu(Some(&menu));
-    menu_bar.append(&file);
-    settings_menu.append(&temperature_setting);
-    settings_menu.append(&graph_setting);
-    settings.set_submenu(Some(&settings_menu));
-    menu_bar.append(&settings);
-    more_menu.append(&about);
-    more.set_submenu(Some(&more_menu));
-    menu_bar.append(&more);
-
-    v_box.pack_start(&menu_bar, false, false, 0);
+    //v_box.pack_start(&menu_bar, false, false, 0);
     v_box.pack_start(&note.notebook, true, true, 0);
     //v_box.set_size_request(v_box.get_preferred_width().1, 600);
 
@@ -279,11 +282,15 @@ fn main() {
         }
     });
 
-    quit.connect_activate(|_| {
-        gtk::main_quit();
+    let window2 = window.clone();
+    let quit = gio::SimpleAction::new("quit", None);
+    quit.connect_activate(move |_, _| {
+        window2.destroy();
     });
     let window3 = window.clone();
-    about.connect_activate(move |_| {
+    window3.present();
+    let about = gio::SimpleAction::new("about", None);
+    about.connect_activate(move |_, _| {
         let p = AboutDialog::new();
         p.set_authors(&["Guillaume Gomez"]);
         p.set_website_label(Some("my website"));
@@ -299,7 +306,8 @@ fn main() {
         p.run();
         p.destroy();
     });
-    new_task.connect_activate(move |_| {
+    let new_task = gio::SimpleAction::new("new-task", None);
+    new_task.connect_activate(move |_, _| {
         let d = Dialog::new();
         d.set_title("Launch new executable");
         let content_area = d.get_content_area();
@@ -348,5 +356,24 @@ fn main() {
         });
     });
 
-    gtk::main();
+    application.add_action(&about);
+    application.add_action(&new_task);
+    application.add_action(&quit);
+    application.connect_activate(move |_| {});
+}
+
+fn main() {
+    let application = gtk::Application::new("Process-viewer.myapp", gio::ApplicationFlags::empty())
+                                       .expect("Initialization failed...");
+
+    application.connect_startup(move |app| {
+        build_ui(app);
+    });
+
+    let original = ::std::env::args().collect::<Vec<_>>();
+    let mut tmp = Vec::with_capacity(original.len());
+    for i in 0..original.len() {
+        tmp.push(original[i].as_str());
+    }
+    application.run(&tmp);
 }

@@ -33,7 +33,7 @@ fn fomat_time(t: u64) -> String {
             t % 60)
 }
 
-pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
+pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::ApplicationWindow,
                              start_time: u64, running_since: u64) {
     let flags = gtk::DIALOG_DESTROY_WITH_PARENT |
                 gtk::DIALOG_USE_HEADER_BAR;
