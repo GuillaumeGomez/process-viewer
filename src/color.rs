@@ -35,7 +35,7 @@ impl Color {
     pub fn generate(index: usize) -> Color {
         let n = (index as f64).cbrt() as isize;
         let mut index = index as isize - (n * n * n);
-        let mut p = &mut [n, n, n];
+        let p = &mut [n, n, n];
 
         if index == 0 {
             return Color::new(apply(p[0]), apply(p[1]), apply(p[2]));

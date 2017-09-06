@@ -394,7 +394,7 @@ impl DisplaySysInfo {
 
     pub fn update_process_display(&mut self, sys: &sysinfo::System) {
         let v = &*self.procs.borrow_mut();
-        let mut h = &mut *self.cpu_usage_history.borrow_mut();
+        let h = &mut *self.cpu_usage_history.borrow_mut();
 
         for (i, pro) in sys.get_processor_list().iter().enumerate() {
             v[i].set_text(format!("{:.1} %", pro.get_cpu_usage() * 100.).as_str());

@@ -13,16 +13,13 @@ extern crate sysinfo;
 use sysinfo::*;
 
 use gdk_pixbuf::Pixbuf;
-use gio::{ActionMapExt, ApplicationExt, MenuExt, SimpleActionExt};
-use glib::IsA;
+use gio::{ActionExt, ActionMapExt, ApplicationExt, MenuExt, SimpleActionExt};
+use glib::{IsA, ToVariant};
+use gtk::{AboutDialog, Button, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 use gtk::{
-    AboutDialog, Button, Dialog, EditableSignals, Entry, IconSize, Image, Inhibit, Label, MenuBar,
-    MenuItem, MessageDialog,
-};
-use gtk::{
-    AboutDialogExt, BoxExt, ButtonExt, CheckMenuItemExt, ContainerExt, DialogExt, EntryExt,
-    GtkApplicationExt, ListStoreExt, ListStoreExtManual, MenuItemExt, MenuShellExt, ToggleButtonExt,
-    TreeModelExt, TreeSortableExtManual, TreeViewExt, WidgetExt, WindowExt,
+    AboutDialogExt, BoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt, GtkApplicationExt,
+    ListStoreExt, ListStoreExtManual, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
+    TreeViewExt, WidgetExt, WindowExt,
 };
 
 use std::cell::RefCell;
@@ -147,32 +144,17 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
     }
 }
 
-fn create_image_menu_item(label: &str, icon: &str) -> MenuItem {
-    let item = gtk::MenuItem::new();
-    let _box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    let image = Image::new_from_icon_name(icon, IconSize::Menu.into());
-    let label = Label::new(Some(label));
-
-    _box.add(&image);
-    _box.add(&label);
-    item.add(&_box);
-    item
-}
-
 fn build_ui(application: &gtk::Application) {
     let menu = gio::Menu::new();
     let menu_bar = gio::Menu::new();
     let more_menu = gio::Menu::new();
     let settings_menu = gio::Menu::new();
-    let temperature_setting = gtk::CheckMenuItem::new_with_label("Display temperature in °F");
-    let graph_setting = gtk::CheckMenuItem::new_with_label("Display graphs");
-    let r_settings_menu = gtk::Menu::new_from_model(&settings_menu);
 
     menu.append("Launch new executable", "app.new-task");
     menu.append("Quit", "app.quit");
 
-    r_settings_menu.append(&temperature_setting);
-    r_settings_menu.append(&graph_setting);
+    settings_menu.append("Display temperature in °F", "app.temperature");
+    settings_menu.append("Display graphs", "app.graphs");
     menu_bar.append_submenu("_Setting", &settings_menu);
 
     more_menu.append("About", "app.about");
@@ -228,18 +210,34 @@ fn build_ui(application: &gtk::Application) {
     let ram_check_box = display_tab.ram_check_box.clone();
     let swap_check_box = display_tab.swap_check_box.clone();
     let temperature_check_box = display_tab.temperature_check_box.clone();
-    graph_setting.connect_toggled(move |g| {
-        let is_active = g.get_active();
-        ram_check_box.set_active(is_active);
-        swap_check_box.set_active(is_active);
-        if let Some(ref temperature_check_box) = temperature_check_box {
-            temperature_check_box.set_active(is_active);
-        }
-    });
 
-    //v_box.pack_start(&menu_bar, false, false, 0);
+    let graphs = gio::SimpleAction::new_stateful("graphs", None, &false.to_variant());
+    graphs.connect_activate(move |g, _| {
+        let mut is_active = false;
+        if let Some(g) = g.get_state() {
+            is_active = g.get().expect("couldn't get bool");
+            ram_check_box.set_active(!is_active);
+            swap_check_box.set_active(!is_active);
+            if let Some(ref temperature_check_box) = temperature_check_box {
+                temperature_check_box.set_active(!is_active);
+            }
+        }
+        // We need to change the toggle state ourselves. `gio` dark magic.
+        g.change_state(&(!is_active).to_variant());
+    });
+    let temperature = gio::SimpleAction::new_stateful("temperature", None, &false.to_variant());
+    temperature.connect_activate(move |g, _| {
+        let mut is_active = false;
+        if let Some(g) = g.get_state() {
+            is_active = g.get().expect("couldn't get graph state");
+        }
+        // We need to change the toggle state ourselves. `gio` dark magic.
+        g.change_state(&(!is_active).to_variant());
+    });
+    application.add_action(&temperature);
+
+    // I think it's now useless to have this one...
     v_box.pack_start(&note.notebook, true, true, 0);
-    //v_box.set_size_request(v_box.get_preferred_width().1, 600);
 
     window.add(&v_box);
     window.show_all();
@@ -255,7 +253,10 @@ fn build_ui(application: &gtk::Application) {
         list_store.set_unsorted();
 
         // we update the tree view
-        update_window(&list_store, &sys, &mut display_tab, temperature_setting.get_active());
+        if let Some(temperature) = temperature.get_state() {
+            update_window(&list_store, &sys, &mut display_tab,
+                          temperature.get::<bool>().expect("couldn't get temperature state"));
+        }
 
         // we re-enable the sorting
         if let Some((col, order)) = sorted {
@@ -357,6 +358,7 @@ fn build_ui(application: &gtk::Application) {
     });
 
     application.add_action(&about);
+    application.add_action(&graphs);
     application.add_action(&new_task);
     application.add_action(&quit);
     application.connect_activate(move |_| {});
