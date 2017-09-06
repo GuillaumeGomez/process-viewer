@@ -33,7 +33,7 @@ fn fomat_time(t: u64) -> String {
             t % 60)
 }
 
-pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
+pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::ApplicationWindow,
                              start_time: u64, running_since: u64) {
     let flags = gtk::DIALOG_DESTROY_WITH_PARENT |
                 gtk::DIALOG_USE_HEADER_BAR;
@@ -82,6 +82,12 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Window,
     vertical_layout.pack_start(&close_button, false, true, 0);
     vertical_layout.set_spacing(10);
     area.pack_start(&vertical_layout, true, true, 0);
+    // To silence the annying warning:
+    // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+    // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+    // allocate?"
+    popup.get_preferred_width();
+    popup.set_size_request(500, 700);
 
     let popup = popup.upcast::<gtk::Window>();
     popup.set_resizable(false);

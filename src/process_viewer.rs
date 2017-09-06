@@ -3,6 +3,7 @@
 extern crate cairo;
 extern crate gdk;
 extern crate gdk_pixbuf;
+extern crate gio;
 extern crate glib;
 extern crate gtk;
 extern crate libc;
@@ -12,9 +13,13 @@ extern crate sysinfo;
 use sysinfo::*;
 
 use gdk_pixbuf::Pixbuf;
-use gtk::prelude::*;
+use gio::{ActionExt, ActionMapExt, ApplicationExt, MenuExt, SimpleActionExt};
+use glib::{IsA, ToVariant};
+use gtk::{AboutDialog, Button, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 use gtk::{
-    AboutDialog, Button, Dialog, Entry, IconSize, Image, Label, MenuBar, MenuItem, MessageDialog,
+    AboutDialogExt, BoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt, GtkApplicationExt,
+    ListStoreExt, ListStoreExtManual, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
+    TreeViewExt, WidgetExt, WindowExt,
 };
 
 use std::cell::RefCell;
@@ -121,7 +126,7 @@ fn start_detached_process(line: &str) -> Option<String> {
     }
 }
 
-fn run_command(input: &Entry, window: &gtk::Window, d: &Dialog) {
+fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
     if let Some(text) = input.get_text() {
         let x = if let Some(x) = start_detached_process(&text) {
             x
@@ -139,22 +144,26 @@ fn run_command(input: &Entry, window: &gtk::Window, d: &Dialog) {
     }
 }
 
-fn create_image_menu_item(label: &str, icon: &str) -> MenuItem {
-    let item = gtk::MenuItem::new();
-    let _box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    let image = Image::new_from_icon_name(icon, IconSize::Menu.into());
-    let label = Label::new(Some(label));
+fn build_ui(application: &gtk::Application) {
+    let menu = gio::Menu::new();
+    let menu_bar = gio::Menu::new();
+    let more_menu = gio::Menu::new();
+    let settings_menu = gio::Menu::new();
 
-    _box.add(&image);
-    _box.add(&label);
-    item.add(&_box);
-    item
-}
+    menu.append("Launch new executable", "app.new-task");
+    menu.append("Quit", "app.quit");
 
-fn main() {
-    gtk::init().expect("GTK couldn't start normally");
+    settings_menu.append("Display temperature in °F", "app.temperature");
+    settings_menu.append("Display graphs", "app.graphs");
+    menu_bar.append_submenu("_Setting", &settings_menu);
 
-    let window = gtk::Window::new(gtk::WindowType::Toplevel);
+    more_menu.append("About", "app.about");
+    menu_bar.append_submenu("?", &more_menu);
+
+    application.set_app_menu(&menu);
+    application.set_menubar(&menu_bar);
+
+    let window = gtk::ApplicationWindow::new(application);
     let sys = sysinfo::System::new();
     let start_time = unsafe { if let Some(p) = sys.get_process(libc::getpid()) {
         p.start_time
@@ -174,6 +183,11 @@ fn main() {
 
     window.set_title("Process viewer");
     window.set_position(gtk::WindowPosition::Center);
+    // To silence the annying warning:
+    // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+    // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+    // allocate?"
+    window.get_preferred_width();
     window.set_default_size(500, 700);
 
     window.connect_delete_event(|_, _| {
@@ -192,46 +206,38 @@ fn main() {
     let mut display_tab = DisplaySysInfo::new(sys.clone(), &mut note, &window);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let menu_bar = MenuBar::new();
-    let menu = gtk::Menu::new();
-    let more_menu = gtk::Menu::new();
-    let settings_menu = gtk::Menu::new();
-    let file = gtk::MenuItem::new_with_mnemonic("_File");
-    let new_task = create_image_menu_item("Launch new executable", "system-run");
-    let quit = create_image_menu_item("Quit", "application-exit");
-    let settings = gtk::MenuItem::new_with_mnemonic("_Settings");
-    let temperature_setting = gtk::CheckMenuItem::new_with_label("Display temperature in °F");
-    let graph_setting = gtk::CheckMenuItem::new_with_label("Display graphs");
-    let more = gtk::MenuItem::new_with_label("?");
-    let about = create_image_menu_item("About", "help-about");
 
     let ram_check_box = display_tab.ram_check_box.clone();
     let swap_check_box = display_tab.swap_check_box.clone();
     let temperature_check_box = display_tab.temperature_check_box.clone();
-    graph_setting.connect_toggled(move |g| {
-        let is_active = g.get_active();
-        ram_check_box.set_active(is_active);
-        swap_check_box.set_active(is_active);
-        if let Some(ref temperature_check_box) = temperature_check_box {
-            temperature_check_box.set_active(is_active);
+
+    let graphs = gio::SimpleAction::new_stateful("graphs", None, &false.to_variant());
+    graphs.connect_activate(move |g, _| {
+        let mut is_active = false;
+        if let Some(g) = g.get_state() {
+            is_active = g.get().expect("couldn't get bool");
+            ram_check_box.set_active(!is_active);
+            swap_check_box.set_active(!is_active);
+            if let Some(ref temperature_check_box) = temperature_check_box {
+                temperature_check_box.set_active(!is_active);
+            }
         }
+        // We need to change the toggle state ourselves. `gio` dark magic.
+        g.change_state(&(!is_active).to_variant());
     });
+    let temperature = gio::SimpleAction::new_stateful("temperature", None, &false.to_variant());
+    temperature.connect_activate(move |g, _| {
+        let mut is_active = false;
+        if let Some(g) = g.get_state() {
+            is_active = g.get().expect("couldn't get graph state");
+        }
+        // We need to change the toggle state ourselves. `gio` dark magic.
+        g.change_state(&(!is_active).to_variant());
+    });
+    application.add_action(&temperature);
 
-    menu.append(&new_task);
-    menu.append(&quit);
-    file.set_submenu(Some(&menu));
-    menu_bar.append(&file);
-    settings_menu.append(&temperature_setting);
-    settings_menu.append(&graph_setting);
-    settings.set_submenu(Some(&settings_menu));
-    menu_bar.append(&settings);
-    more_menu.append(&about);
-    more.set_submenu(Some(&more_menu));
-    menu_bar.append(&more);
-
-    v_box.pack_start(&menu_bar, false, false, 0);
+    // I think it's now useless to have this one...
     v_box.pack_start(&note.notebook, true, true, 0);
-    //v_box.set_size_request(v_box.get_preferred_width().1, 600);
 
     window.add(&v_box);
     window.show_all();
@@ -247,7 +253,10 @@ fn main() {
         list_store.set_unsorted();
 
         // we update the tree view
-        update_window(&list_store, &sys, &mut display_tab, temperature_setting.get_active());
+        if let Some(temperature) = temperature.get_state() {
+            update_window(&list_store, &sys, &mut display_tab,
+                          temperature.get::<bool>().expect("couldn't get temperature state"));
+        }
 
         // we re-enable the sorting
         if let Some((col, order)) = sorted {
@@ -274,11 +283,15 @@ fn main() {
         }
     });
 
-    quit.connect_activate(|_| {
-        gtk::main_quit();
+    let window2 = window.clone();
+    let quit = gio::SimpleAction::new("quit", None);
+    quit.connect_activate(move |_, _| {
+        window2.destroy();
     });
     let window3 = window.clone();
-    about.connect_activate(move |_| {
+    window3.present();
+    let about = gio::SimpleAction::new("about", None);
+    about.connect_activate(move |_, _| {
         let p = AboutDialog::new();
         p.set_authors(&["Guillaume Gomez"]);
         p.set_website_label(Some("my website"));
@@ -294,7 +307,8 @@ fn main() {
         p.run();
         p.destroy();
     });
-    new_task.connect_activate(move |_| {
+    let new_task = gio::SimpleAction::new("new-task", None);
+    new_task.connect_activate(move |_, _| {
         let d = Dialog::new();
         d.set_title("Launch new executable");
         let content_area = d.get_content_area();
@@ -310,6 +324,11 @@ fn main() {
         content_area.add(&v_box);
         let window2 = window.clone();
         d.set_transient_for(Some(&window2));
+        // To silence the annying warning:
+        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+        // allocate?"
+        d.get_preferred_width();
         d.set_size_request(400, 70);
         d.show_all();
 
@@ -338,5 +357,26 @@ fn main() {
         });
     });
 
-    gtk::main();
+    application.add_action(&about);
+    application.add_action(&graphs);
+    application.add_action(&new_task);
+    application.add_action(&quit);
+    application.connect_activate(move |_| {});
+}
+
+fn main() {
+    let application = gtk::Application::new("com.github.GuillaumeGomez.process-viewer",
+                                            gio::ApplicationFlags::empty())
+                                       .expect("Initialization failed...");
+
+    application.connect_startup(move |app| {
+        build_ui(app);
+    });
+
+    let original = ::std::env::args().collect::<Vec<_>>();
+    let mut tmp = Vec::with_capacity(original.len());
+    for i in 0..original.len() {
+        tmp.push(original[i].as_str());
+    }
+    application.run(&tmp);
 }
