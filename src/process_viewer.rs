@@ -365,7 +365,8 @@ fn build_ui(application: &gtk::Application) {
 }
 
 fn main() {
-    let application = gtk::Application::new("Process-viewer.myapp", gio::ApplicationFlags::empty())
+    let application = gtk::Application::new("com.github.GuillaumeGomez.process-viewer",
+                                            gio::ApplicationFlags::empty())
                                        .expect("Initialization failed...");
 
     application.connect_startup(move |app| {
