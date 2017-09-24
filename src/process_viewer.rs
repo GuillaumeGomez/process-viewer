@@ -190,8 +190,8 @@ fn build_ui(application: &gtk::Application) {
     window.get_preferred_width();
     window.set_default_size(500, 700);
 
-    window.connect_delete_event(|_, _| {
-        gtk::main_quit();
+    window.connect_delete_event(|w, _| {
+        w.destroy();
         Inhibit(false)
     });
 
