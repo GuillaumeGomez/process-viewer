@@ -7,8 +7,17 @@ A process viewer GUI in rust. It provides current status of your processes (cpu 
 It can be run on the following platforms:
 
  * Linux
+ * Raspberry
  * Mac OSX
 
+### Running on Raspberry
+
+It'll be difficult to build on Raspberry. A good way-around is to be build on Linux before sending it to your Raspberry:
+
+```bash
+rustup target add armv7-unknown-linux-gnueabihf
+cargo build --target=armv7-unknown-linux-gnueabihf
+```
 
 ## Donations
 
