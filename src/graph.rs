@@ -114,13 +114,13 @@ impl Graph {
                     }
                 }
             }
-            if self.data.len() > 0 && self.data[0].len() > 0 {
+            if !self.data.is_empty() && !self.data[0].is_empty() {
                 let len = self.data[0].len() - 1;
-                let step = (width - 2.0) / (len as f64);
+                let step = (width - 2.0) / len as f64;
                 current = 1.0;
                 let mut index = len;
                 while current > 0.0 && index > 0 {
-                    for (ref entry, ref color) in self.data.iter().zip(self.colors.iter()) {
+                    for (entry, color) in self.data.iter().zip(self.colors.iter()) {
                         c.set_source_rgb(color.r, color.g, color.b);
                         c.move_to(current + step, height - entry[index - 1] / max * height - 2.0);
                         c.line_to(current, height - entry[index] / max * height - 2.0);
@@ -133,22 +133,20 @@ impl Graph {
             if let Some(ref cmax) = self.max {
                 *cmax.borrow_mut() = max;
             }
-        } else {
-            if self.data.len() > 0 && self.data[0].len() > 0 {
-                let len = self.data[0].len() - 1;
-                let step = (width - 2.0) / (len as f64);
-                current = 1.0;
-                let mut index = len;
-                while current > 0.0 && index > 0 {
-                    for (ref entry, ref color) in self.data.iter().zip(self.colors.iter()) {
-                        c.set_source_rgb(color.r, color.g, color.b);
-                        c.move_to(current + step, height - entry[index - 1] * height - 2.0);
-                        c.line_to(current, height - entry[index] * height - 2.0);
-                        c.stroke();
-                    }
-                    current += step;
-                    index -= 1;
+        } else if !self.data.is_empty() && !self.data[0].is_empty() {
+            let len = self.data[0].len() - 1;
+            let step = (width - 2.0) / (len as f64);
+            current = 1.0;
+            let mut index = len;
+            while current > 0.0 && index > 0 {
+                for (entry, color) in self.data.iter().zip(self.colors.iter()) {
+                    c.set_source_rgb(color.r, color.g, color.b);
+                    c.move_to(current + step, height - entry[index - 1] * height - 2.0);
+                    c.line_to(current, height - entry[index] * height - 2.0);
+                    c.stroke();
                 }
+                current += step;
+                index -= 1;
             }
         }
     }

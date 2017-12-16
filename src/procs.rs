@@ -32,7 +32,7 @@ impl Procs {
         let current_pid = Rc::new(Cell::new(None));
         let kill_button = gtk::Button::new_with_label("End task");
         let info_button = gtk::Button::new_with_label("More information");
-        let current_pid1 = current_pid.clone();
+        let current_pid1 = Rc::clone(&current_pid);
         let kill_button1 = kill_button.clone();
         let info_button1 = info_button.clone();
 
@@ -61,7 +61,7 @@ impl Procs {
         // we want the order to be numerical not lexicographical.
         columns[2].set_sort_column_id(5);
 
-        for (_, pro) in proc_list {
+        for pro in proc_list.values() {
             create_and_fill_model(&list_store, pro.pid, &format!("{:?}", &pro.cmd), &pro.name,
                                   pro.cpu_usage, pro.memory);
         }

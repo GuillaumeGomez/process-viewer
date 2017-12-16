@@ -13,17 +13,18 @@ extern crate sysinfo;
 use sysinfo::*;
 
 use gdk_pixbuf::Pixbuf;
-use gio::{ActionExt, ActionMapExt, ApplicationExt, MenuExt, SimpleActionExt};
+use gio::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual, MenuExt, SimpleActionExt};
 use glib::{IsA, ToVariant};
 use gtk::{AboutDialog, Button, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 use gtk::{
     AboutDialogExt, BoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt, GtkApplicationExt,
     ListStoreExt, ListStoreExtManual, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
-    TreeViewExt, WidgetExt, WindowExt,
+    TreeViewExt, WidgetExt, GtkWindowExt,
 };
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::env::args;
 use std::process::{Command, Stdio};
 use std::os::unix::process::CommandExt;
 use std::rc::Rc;
@@ -49,7 +50,7 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
     let entries: &HashMap<i32, Process> = system.get_process_list();
     let mut seen: HashSet<i32> = HashSet::new();
 
-    if let Some(mut iter) = list.get_iter_first() {
+    if let Some(iter) = list.get_iter_first() {
         let mut valid = true;
         while valid {
             if let Some(pid) = list.get_value(&iter, 0).get::<i32>() {
@@ -57,10 +58,10 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
                     list.set(&iter,
                              &[2, 3, 5],
                              &[&format!("{:.1}", p.cpu_usage), &p.memory, &p.cpu_usage]);
-                    valid = list.iter_next(&mut iter);
+                    valid = list.iter_next(&iter);
                     seen.insert(pid);
                 } else {
-                    valid = list.remove(&mut iter);
+                    valid = list.remove(&iter);
                 }
             }
         }
@@ -110,16 +111,16 @@ fn start_detached_process(line: &str) -> Option<String> {
     let args = parse_entry(line);
     let command = args[0].clone();
 
-    if let Err(_) = Command::new(&command)
-                            .args(&args)
-                            .before_exec(|| {
-                                unsafe { libc::setsid() };
-                                Ok(())
-                            })
-                            .stdin(Stdio::null())
-                            .stderr(Stdio::null())
-                            .stdout(Stdio::null())
-                            .spawn() {
+    let cmd = Command::new(&command).args(&args)
+                                    .before_exec(|| {
+                                        unsafe { libc::setsid() };
+                                        Ok(())
+                                    })
+                                    .stdin(Stdio::null())
+                                    .stderr(Stdio::null())
+                                    .stdout(Stdio::null())
+                                    .spawn();
+    if cmd.is_err() {
         Some(format!("Failed to start '{}'", &command))
     } else {
         None
@@ -135,7 +136,7 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
         };
         d.destroy();
         let m = MessageDialog::new(Some(window),
-                                   gtk::DIALOG_DESTROY_WITH_PARENT,
+                                   gtk::DialogFlags::DESTROY_WITH_PARENT,
                                    gtk::MessageType::Info,
                                    gtk::ButtonsType::Ok,
                                    &x);
@@ -174,11 +175,11 @@ fn build_ui(application: &gtk::Application) {
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
     let procs = Procs::new(sys.borrow().get_process_list(), &mut note);
-    let current_pid = procs.current_pid.clone();
-    let current_pid2 = procs.current_pid.clone();
-    let sys1 = sys.clone();
-    let sys2 = sys.clone();
-    let sys3 = sys.clone();
+    let current_pid = Rc::clone(&procs.current_pid);
+    let current_pid2 = Rc::clone(&procs.current_pid);
+    let sys1 = Rc::clone(&sys);
+    let sys2 = Rc::clone(&sys);
+    let sys3 = Rc::clone(&sys);
     let info_button = procs.info_button.clone();
 
     window.set_title("Process viewer");
@@ -203,7 +204,7 @@ fn build_ui(application: &gtk::Application) {
         }
     });
 
-    let mut display_tab = DisplaySysInfo::new(sys.clone(), &mut note, &window);
+    let mut display_tab = DisplaySysInfo::new(&sys, &mut note, &window);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
@@ -244,8 +245,8 @@ fn build_ui(application: &gtk::Application) {
     window.activate();
 
     let list_store = procs.list_store.clone();
-    let run1 = running_since.clone();
-    let run2 = running_since.clone();
+    let run1 = Rc::clone(&running_since);
+    let run2 = Rc::clone(&running_since);
     gtk::timeout_add(1000, move || {
         *run1.borrow_mut() += 1;
         // first part, deactivate sorting
@@ -268,8 +269,8 @@ fn build_ui(application: &gtk::Application) {
     info_button.connect_clicked(move |_| {
         let sys = sys2.borrow();
         if let Some(process) = current_pid2.get().and_then(|pid| sys.get_process(pid)) {
-            process_dialog::create_process_dialog(&process, &window1, start_time,
-                                                  run2.borrow().clone());
+            process_dialog::create_process_dialog(process, &window1, start_time,
+                                                  *run2.borrow());
         }
     });
     let window2 = window.clone();
@@ -278,8 +279,8 @@ fn build_ui(application: &gtk::Application) {
         let iter = model.get_iter(path).unwrap();
         let sys = sys3.borrow();
         if let Some(process) = sys.get_process(model.get_value(&iter, 0).get().unwrap()) {
-            process_dialog::create_process_dialog(&process, &window2, start_time,
-                                                  running_since.borrow().clone());
+            process_dialog::create_process_dialog(process, &window2, start_time,
+                                                  *running_since.borrow());
         }
     });
 
@@ -337,7 +338,7 @@ fn build_ui(application: &gtk::Application) {
         let input2 = input.clone();
         input.connect_changed(move |_| {
             match input2.get_text() {
-                Some(ref x) if x.len() > 0 => run2.set_sensitive(true),
+                Some(ref x) if !x.is_empty() => run2.set_sensitive(true),
                 _ => run2.set_sensitive(false),
             }
         });
@@ -373,10 +374,5 @@ fn main() {
         build_ui(app);
     });
 
-    let original = ::std::env::args().collect::<Vec<_>>();
-    let mut tmp = Vec::with_capacity(original.len());
-    for i in 0..original.len() {
-        tmp.push(original[i].as_str());
-    }
-    application.run(&tmp);
+    application.run(&args().collect::<Vec<_>>());
 }
