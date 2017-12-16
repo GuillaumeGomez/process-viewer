@@ -1,18 +1,28 @@
 language: rust
 matrix:
   include:
-    #- os: linux
-    #  rust: stable
-    #  dist: trusty
     - os: linux
+      env: TARGET=armv7-unknown-linux-gnueabihf
+      rust: stable
+      dist: trusty
+    - os: linux
+      env: TARGET=x86_64-apple-darwin
+      rust: stable
+      dist: trusty
+    - os: linux
+      env: TARGET=armv7-unknown-linux-gnueabihf
       rust: nightly
       dist: trusty
-    #- os: osx
-    #  rust: stable
+    - os: linux
+      env: TARGET=x86_64-apple-darwin
+      rust: nightly
+      dist: trusty
+    - os: osx
+      rust: stable
     - os: osx
       rust: nightly
 sudo: true
-env:
+-env:
   global:
     - LD_LIBRARY_PATH=/usr/local/lib
 addons:
@@ -24,4 +34,6 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gtk+3 cairo atk; fi
 script:
   - rustc --version
+  - cargo install clippy || touch clippy_failed
   - RUST_BACKTRACE=1 cargo build
+  - if [ ! -f clippy_failed ]; then cargo clippy; fi

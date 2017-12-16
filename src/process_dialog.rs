@@ -1,13 +1,13 @@
 use glib::object::Cast;
 use gtk::{self, BoxExt, ButtonExt, ContainerExt, DialogExt, LabelExt, ScrolledWindowExt};
-use gtk::{WidgetExt, WindowExt};
+use gtk::{WidgetExt, GtkWindowExt};
 use pango;
 use sysinfo;
 
 fn fomat_time(t: u64) -> String {
     format!("{}{}{}{}s",
             {
-                let days = t / 86400;
+                let days = t / 86_400;
                 if days > 0 {
                     format!("{}d ", days)
                 } else {
@@ -15,7 +15,7 @@ fn fomat_time(t: u64) -> String {
                 }
             },
             {
-                let hours = t / 3600 % 60;
+                let hours = t / 3_600 % 60;
                 if hours > 0 {
                     format!("{}h ", hours)
                 } else {
@@ -35,8 +35,8 @@ fn fomat_time(t: u64) -> String {
 
 pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::ApplicationWindow,
                              start_time: u64, running_since: u64) {
-    let flags = gtk::DIALOG_DESTROY_WITH_PARENT |
-                gtk::DIALOG_USE_HEADER_BAR;
+    let flags = gtk::DialogFlags::DESTROY_WITH_PARENT |
+                gtk::DialogFlags::USE_HEADER_BAR;
     let scroll = gtk::ScrolledWindow::new(None, None);
     let close_button = gtk::Button::new_with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -70,7 +70,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Applicati
                             process.memory,
                             process.cpu_usage,
                             fomat_time(running_since));
-    for env in process.environ.iter() {
+    for env in &process.environ {
         text.push_str(&format!("\n{:?}", env));
     }
     let label = gtk::Label::new(text.as_str());

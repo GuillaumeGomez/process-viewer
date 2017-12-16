@@ -18,6 +18,10 @@ impl<T> RotateVec<T> {
         self.data.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     pub fn move_start(&mut self) {
         if self.start > 0 {
             self.start -= 1;
@@ -47,7 +51,7 @@ impl<T> RotateVec<T> {
 impl<T> Index<usize> for RotateVec<T> {
     type Output = T;
 
-    fn index<'a>(&'a self, index: usize) -> &'a T {
+    fn index(&self, index: usize) -> &T {
         &self.data[self.get_real_pos(index)]
     }
 }

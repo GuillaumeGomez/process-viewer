@@ -7,7 +7,7 @@ pub struct Color {
 }
 
 fn convert(v: u8) -> f64 {
-    v as f64 / 255.0
+    f64::from(v) / 255.0
 }
 
 fn apply(i: isize) -> u8 {
@@ -15,12 +15,12 @@ fn apply(i: isize) -> u8 {
     let mut v = 0;
 
     for _ in 0..8 {
-        v = v | (value & 1);
-        v = v << 1;
-        value = value >> 1;
+        v |= value & 1;
+        v <<= 1;
+        value >>= 1;
     }
-    v = v >> 1;
-    v as u8 & 255
+    v >>= 1;
+    v as u8
 }
 
 impl Color {
@@ -42,7 +42,7 @@ impl Color {
         }
         index -= 1;
         let v = (index % 3) as usize;
-        index = index / 3;
+        index /= 3;
 
         if index < n {
             p[v] = index % n;

@@ -3,7 +3,7 @@ use glib::object::Cast;
 use glib::translate::ToGlib;
 use gtk::{
     self, BoxExt, ContainerExt, GridExt, Inhibit, LabelExt, ProgressBarExt, ToggleButtonExt, Widget,
-    WidgetExt, WindowExt,
+    WidgetExt, GtkWindowExt,
 };
 use sysinfo::{self, NetworkExt, ProcessorExt, SystemExt};
 
@@ -66,11 +66,11 @@ fn format_number(mut nb: u64) -> String {
         return format!("{} B", nb);
     }
     nb /= 1024;
-    if nb < 100000 {
+    if nb < 100_000 {
         format!("{} kB", nb)
-    } else if nb < 10000000 {
+    } else if nb < 10_000_000 {
         format!("{} MB", nb / 1024)
-    } else if nb < 10000000000 {
+    } else if nb < 10_000_000_000 {
         format!("{} GB", nb / 1_048_576)
     } else {
         format!("{} TB", nb / 1_073_741_824)
@@ -100,7 +100,7 @@ pub struct DisplaySysInfo {
 }
 
 impl DisplaySysInfo {
-    pub fn new(sys1: Rc<RefCell<sysinfo::System>>, note: &mut NoteBook,
+    pub fn new(sys1: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook,
                win: &gtk::ApplicationWindow) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
@@ -137,7 +137,7 @@ impl DisplaySysInfo {
             if !processor_list.is_empty() {
                 let pro = &processor_list[0];
                 p.set_text(format!("{:.2} %", pro.get_cpu_usage() * 100.).as_str());
-                p.set_fraction(pro.get_cpu_usage() as f64);
+                p.set_fraction(f64::from(pro.get_cpu_usage()));
             } else {
                 p.set_text(Some("0.0 %"));
                 p.set_fraction(0.);
@@ -158,7 +158,7 @@ impl DisplaySysInfo {
 
             p.set_text(format!("{:.2} %", pro.get_cpu_usage() * 100.).as_str());
             p.set_show_text(true);
-            p.set_fraction(pro.get_cpu_usage() as f64);
+            p.set_fraction(f64::from(pro.get_cpu_usage()));
             non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
             non_graph_layout.attach(p, 1, i as i32 - 1, 11, 1);
             cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
@@ -186,7 +186,7 @@ impl DisplaySysInfo {
         //
         // TEMPERATURES PART
         //
-        if sys1.borrow().get_components_list().len() > 0 {
+        if !sys1.borrow().get_components_list().is_empty() {
             check_box3 = Some(create_header("Components' temperature", &vertical_layout));
             for component in sys1.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
@@ -259,13 +259,13 @@ impl DisplaySysInfo {
             in_usage: in_usage.clone(),
             vertical_layout: vertical_layout,
             components: components,
-            cpu_usage_history: cpu_usage_history.clone(),
-            ram_usage_history: ram_usage_history.clone(),
+            cpu_usage_history: Rc::clone(&cpu_usage_history),
+            ram_usage_history: Rc::clone(&ram_usage_history),
             ram_check_box: check_box.clone(),
             swap_check_box: check_box2.clone(),
-            temperature_usage_history: temperature_usage_history.clone(),
+            temperature_usage_history: Rc::clone(&temperature_usage_history),
             temperature_check_box: check_box3.clone(),
-            network_history: network_history.clone(),
+            network_history: Rc::clone(&network_history),
         };
         tmp.update_ram_display(&sys1.borrow(), false);
 
@@ -321,14 +321,14 @@ impl DisplaySysInfo {
 
     pub fn update_ram_display(&mut self, sys: &sysinfo::System, display_fahrenheit: bool) {
         let disp = |total, used| {
-            if total < 100000 {
+            if total < 100_000 {
                 format!("{} / {} kB", used, total)
-            } else if total < 10000000 {
-                format!("{:.2} / {} MB", used as f64 / 1024f64, total / 1024)
-            } else if total < 10000000000 {
-                format!("{:.2} / {} GB", used as f64 / 1048576f64, total / 1048576)
+            } else if total < 10_000_000 {
+                format!("{:.2} / {} MB", used as f64 / 1_024f64, total / 1_024)
+            } else if total < 10_000_000_000 {
+                format!("{:.2} / {} GB", used as f64 / 1_048_576f64, total / 1_048_576)
             } else {
-                format!("{:.2} / {} TB", used as f64 / 1073741824f64, total / 1073741824)
+                format!("{:.2} / {} TB", used as f64 / 1_073_741_824f64, total / 1_073_741_824)
             }
         };
 
@@ -370,10 +370,10 @@ impl DisplaySysInfo {
                                             .iter().zip(self.components.iter()).enumerate() {
             t.data[pos].move_start();
             if let Some(t) = t.data[pos].get_mut(0) {
-                *t = component.temperature as f64;
+                *t = f64::from(component.temperature);
             }
             if let Some(t) = t.data[pos].get_mut(0) {
-                *t = component.temperature as f64;
+                *t = f64::from(component.temperature);
             }
             if display_fahrenheit {
                 label.set_text(&format!("{:.1} °F", component.temperature * 1.8 + 32.));
@@ -399,11 +399,11 @@ impl DisplaySysInfo {
         for (i, pro) in sys.get_processor_list().iter().enumerate() {
             v[i].set_text(format!("{:.1} %", pro.get_cpu_usage() * 100.).as_str());
             v[i].set_show_text(true);
-            v[i].set_fraction(pro.get_cpu_usage() as f64);
+            v[i].set_fraction(f64::from(pro.get_cpu_usage()));
             if i > 0 {
                 h.data[i - 1].move_start();
                 if let Some(h) = h.data[i - 1].get_mut(0) {
-                    *h = pro.get_cpu_usage() as f64;
+                    *h = f64::from(pro.get_cpu_usage());
                 }
             }
         }
@@ -417,12 +417,12 @@ impl DisplaySysInfo {
 fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
     let area = graph.area.clone();
     let graph = Rc::new(RefCell::new(graph));
-    let c_graph = graph.clone();
+    let c_graph = Rc::clone(&graph);
     area.connect_draw(move |w, c| {
         let graph = c_graph.borrow();
-        graph.draw(&c,
-                   w.get_allocated_width() as f64,
-                   w.get_allocated_height() as f64);
+        graph.draw(c,
+                   f64::from(w.get_allocated_width()),
+                   f64::from(w.get_allocated_height()));
         Inhibit(false)
     });
     graph
