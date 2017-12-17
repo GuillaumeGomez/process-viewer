@@ -1,6 +1,14 @@
 # process-viewer [![Build Status](https://travis-ci.org/GuillaumeGomez/process-viewer.png?branch=master)](https://travis-ci.org/GuillaumeGomez/process-viewer)
 A process viewer GUI in rust. It provides current status of your processes (cpu and memory usage) and your system (usage of every core and of your RAM, and the temperature of your components if this information is available).
 
+Please run it in release mode to have good performance:
+
+```bash
+cargo run --release
+```
+
+## Screenshots
+
 ![screenshot](http://guillaume-gomez.fr/image/screen1.png)
 ![screenshot](http://guillaume-gomez.fr/image/screen2.png)
 
