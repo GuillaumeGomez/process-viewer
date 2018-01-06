@@ -96,6 +96,7 @@ pub struct DisplaySysInfo {
     network_history: Rc<RefCell<Graph>>,
     pub ram_check_box: gtk::CheckButton,
     pub swap_check_box: gtk::CheckButton,
+    pub network_check_box: gtk::CheckButton,
     pub temperature_check_box: Option<gtk::CheckButton>,
 }
 
@@ -266,13 +267,14 @@ impl DisplaySysInfo {
             temperature_usage_history: Rc::clone(&temperature_usage_history),
             temperature_check_box: check_box3.clone(),
             network_history: Rc::clone(&network_history),
+            network_check_box: check_box4.clone(),
         };
         tmp.update_ram_display(&sys1.borrow(), false);
 
         win.add_events(gdk::EventType::Configure.to_glib() as i32);
         // ugly way to resize drawing area, I should find a better way
         win.connect_configure_event(move |w, _| {
-            // To silence the annying warning:
+            // To silence the annoying warning:
             // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
             // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
             // allocate?"
@@ -332,11 +334,11 @@ impl DisplaySysInfo {
             }
         };
 
-        let total = sys.get_total_memory();
+        let total_ram = sys.get_total_memory();
         let used = sys.get_used_memory();
-        self.ram.set_text(disp(total, used).as_str());
-        if total != 0 {
-            self.ram.set_fraction(used as f64 / total as f64);
+        self.ram.set_text(disp(total_ram, used).as_str());
+        if total_ram != 0 {
+            self.ram.set_fraction(used as f64 / total_ram as f64);
         } else {
             self.ram.set_fraction(0.0);
         }
@@ -344,13 +346,13 @@ impl DisplaySysInfo {
             let mut r = self.ram_usage_history.borrow_mut();
             r.data[0].move_start();
             if let Some(p) = r.data[0].get_mut(0) {
-                *p = used as f64 / total as f64;
+                *p = used as f64 / total_ram as f64;
             }
         }
 
-        let total = sys.get_total_swap();
+        let total = ::std::cmp::max(sys.get_total_swap(), total_ram);
         let used = sys.get_used_swap();
-        self.swap.set_text(disp(total, used).as_str());
+        self.swap.set_text(disp(sys.get_total_swap(), used).as_str());
 
         let mut fraction = if total != 0 { used as f64 / total as f64 } else { 0f64 };
         if fraction.is_nan() {
@@ -367,7 +369,9 @@ impl DisplaySysInfo {
 
         let mut t = self.temperature_usage_history.borrow_mut();
         for (pos, (component, label)) in sys.get_components_list()
-                                            .iter().zip(self.components.iter()).enumerate() {
+                                            .iter()
+                                            .zip(self.components.iter())
+                                            .enumerate() {
             t.data[pos].move_start();
             if let Some(t) = t.data[pos].get_mut(0) {
                 *t = f64::from(component.temperature);
@@ -387,9 +391,9 @@ impl DisplaySysInfo {
         self.in_usage.set_text(format_number(sys.get_network().get_income()).as_str());
         self.out_usage.set_text(format_number(sys.get_network().get_outcome()).as_str());
         t.data[0].move_start();
-        *t.data[0].get_mut(0).unwrap() = sys.get_network().get_income() as f64;
+        *t.data[0].get_mut(0).expect("cannot get data 0") = sys.get_network().get_income() as f64;
         t.data[1].move_start();
-        *t.data[1].get_mut(0).unwrap() = sys.get_network().get_outcome() as f64;
+        *t.data[1].get_mut(0).expect("cannot get data 1") = sys.get_network().get_outcome() as f64;
     }
 
     pub fn update_process_display(&mut self, sys: &sysinfo::System) {

@@ -35,16 +35,17 @@ fn fomat_time(t: u64) -> String {
 
 pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::ApplicationWindow,
                              start_time: u64, running_since: u64) {
-    let flags = gtk::DialogFlags::DESTROY_WITH_PARENT |
-                gtk::DialogFlags::USE_HEADER_BAR;
     let scroll = gtk::ScrolledWindow::new(None, None);
     let close_button = gtk::Button::new_with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+
+    let flags = gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::USE_HEADER_BAR;
     let popup = gtk::Dialog::new_with_buttons(Some(&format!("Information about {}", process.name)),
                                               Some(window),
                                               flags,
                                               &[]);
+
     let area = popup.get_content_area();
     let running_since = if start_time > process.start_time {
         start_time - process.start_time + running_since

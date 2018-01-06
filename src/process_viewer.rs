@@ -1,3 +1,9 @@
+// 
+// Process viewer
+// 
+// Copyright (c) 2017 Guillaume Gomez
+//
+
 #![crate_type = "bin"]
 
 extern crate cairo;
@@ -26,6 +32,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::env::args;
 use std::process::{Command, Stdio};
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::rc::Rc;
 
@@ -47,13 +54,13 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
     system.refresh_all();
     info.update_ram_display(&system, display_fahrenheit);
     info.update_process_display(&system);
-    let entries: &HashMap<i32, Process> = system.get_process_list();
-    let mut seen: HashSet<i32> = HashSet::new();
+    let entries: &HashMap<Pid, Process> = system.get_process_list();
+    let mut seen: HashSet<Pid> = HashSet::new();
 
     if let Some(iter) = list.get_iter_first() {
         let mut valid = true;
         while valid {
-            if let Some(pid) = list.get_value(&iter, 0).get::<i32>() {
+            if let Some(pid) = list.get_value(&iter, 0).get::<u32>().map(|x| x as Pid) {
                 if let Some(p) = entries.get(&(pid)) {
                     list.set(&iter,
                              &[2, 3, 5],
@@ -69,7 +76,7 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
 
     for (pid, pro) in entries.iter() {
         if !seen.contains(pid) {
-            create_and_fill_model(list, pro.pid, &format!("{:?}", &pro.cmd), &pro.name,
+            create_and_fill_model(list, pro.pid.as_u32(), &format!("{:?}", &pro.cmd), &pro.name,
                                   pro.cpu_usage, pro.memory);
         }
     }
@@ -107,19 +114,27 @@ fn parse_entry(line: &str) -> Vec<String> {
     }
 }
 
+#[cfg(unix)]
+fn build_command(c: &mut Command) -> &mut Command {
+    c.before_exec(|| {
+        unsafe { libc::setsid() };
+        Ok(())
+    })
+}
+
+#[cfg(windows)]
+fn build_command(c: &mut Command) -> &mut Command {
+    c
+}
+
 fn start_detached_process(line: &str) -> Option<String> {
     let args = parse_entry(line);
     let command = args[0].clone();
 
-    let cmd = Command::new(&command).args(&args)
-                                    .before_exec(|| {
-                                        unsafe { libc::setsid() };
-                                        Ok(())
-                                    })
-                                    .stdin(Stdio::null())
-                                    .stderr(Stdio::null())
-                                    .stdout(Stdio::null())
-                                    .spawn();
+    let cmd = build_command(Command::new(&command).args(&args)).stdin(Stdio::null())
+                                                               .stderr(Stdio::null())
+                                                               .stdout(Stdio::null())
+                                                               .spawn();
     if cmd.is_err() {
         Some(format!("Failed to start '{}'", &command))
     } else {
@@ -166,7 +181,7 @@ fn build_ui(application: &gtk::Application) {
 
     let window = gtk::ApplicationWindow::new(application);
     let sys = sysinfo::System::new();
-    let start_time = unsafe { if let Some(p) = sys.get_process(libc::getpid()) {
+    let start_time = unsafe { if let Some(p) = sys.get_process(libc::getpid() as Pid) {
         p.start_time
     } else {
         0
@@ -210,6 +225,7 @@ fn build_ui(application: &gtk::Application) {
 
     let ram_check_box = display_tab.ram_check_box.clone();
     let swap_check_box = display_tab.swap_check_box.clone();
+    let network_check_box = display_tab.network_check_box.clone();
     let temperature_check_box = display_tab.temperature_check_box.clone();
 
     let graphs = gio::SimpleAction::new_stateful("graphs", None, &false.to_variant());
@@ -219,6 +235,7 @@ fn build_ui(application: &gtk::Application) {
             is_active = g.get().expect("couldn't get bool");
             ram_check_box.set_active(!is_active);
             swap_check_box.set_active(!is_active);
+            network_check_box.set_active(!is_active);
             if let Some(ref temperature_check_box) = temperature_check_box {
                 temperature_check_box.set_active(!is_active);
             }
@@ -275,10 +292,13 @@ fn build_ui(application: &gtk::Application) {
     });
     let window2 = window.clone();
     procs.left_tree.connect_row_activated(move |tree_view, path, _| {
-        let model = tree_view.get_model().unwrap();
-        let iter = model.get_iter(path).unwrap();
+        let model = tree_view.get_model().expect("couldn't get model");
+        let iter = model.get_iter(path).expect("couldn't get iter");
         let sys = sys3.borrow();
-        if let Some(process) = sys.get_process(model.get_value(&iter, 0).get().unwrap()) {
+        if let Some(process) = sys.get_process(model.get_value(&iter, 0)
+                                                    .get::<u32>()
+                                                    .map(|x| x as Pid)
+                                                    .expect("failed to get value from model")) {
             process_dialog::create_process_dialog(process, &window2, start_time,
                                                   *running_since.borrow());
         }

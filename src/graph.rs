@@ -59,7 +59,7 @@ impl Graph {
             Color::generate(self.data.len() + 11)
         };
         let l = gtk::Label::new(Some(s));
-        l.override_color(StateFlags::from_bits(0).unwrap(), &c.to_gdk());
+        l.override_color(StateFlags::from_bits(0).expect("from_bits failed"), &c.to_gdk());
         self.vertical_layout.add(&l);
         self.colors.push(c);
         self.data.push(d);
@@ -153,7 +153,8 @@ impl Graph {
 
     pub fn invalidate(&self) {
         if let Some(t_win) = self.area.get_window() {
-            let (x, y) = self.area.translate_coordinates(&self.area, 0, 0).unwrap();
+            let (x, y) = self.area.translate_coordinates(&self.area, 0, 0)
+                                  .expect("translate_coordinates failed");
             let rect = gdk::Rectangle { x: x, y: y,
                 width: self.area.get_allocated_width(), height: self.area.get_allocated_height() };
             t_win.invalidate_rect(&rect, true);

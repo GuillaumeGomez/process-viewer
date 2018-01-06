@@ -6,12 +6,17 @@ It can be run on the following platforms:
  * Linux
  * Raspberry
  * Mac OSX
+ * Windows
 
 Please run it in release mode to have good performance:
 
 ```bash
 cargo run --release
 ```
+
+### Building/running on Windows
+
+You'll need to follow the [gtk-rs installation guide](http://gtk-rs.org/docs/requirements.html#windows). If you still have issues to run the generated binary, just copy the `.dll`s into the executable's folder.
 
 ### Running on Raspberry
 
