@@ -5,7 +5,7 @@ use gtk::{
     self, BoxExt, ContainerExt, GridExt, Inhibit, LabelExt, ProgressBarExt, ToggleButtonExt, Widget,
     WidgetExt, GtkWindowExt,
 };
-use sysinfo::{self, NetworkExt, ProcessorExt, SystemExt};
+use sysinfo::{self, ComponentExt, NetworkExt, ProcessorExt, SystemExt};
 
 use std::cell::RefCell;
 use std::iter;
@@ -192,8 +192,9 @@ impl DisplaySysInfo {
             for component in sys1.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
-                let temp = gtk::Label::new(format!("{:.1} °C", component.temperature).as_str());
-                horizontal_layout.pack_start(&gtk::Label::new(component.label.as_str()),
+                let temp = gtk::Label::new(format!("{:.1} °C",
+                                                   component.get_temperature()).as_str());
+                horizontal_layout.pack_start(&gtk::Label::new(component.get_label()),
                                              true, false, 0);
                 horizontal_layout.pack_start(&temp, true, false, 0);
                 horizontal_layout.set_homogeneous(true);
@@ -202,7 +203,7 @@ impl DisplaySysInfo {
                 temperature_usage_history.push(RotateVec::new(iter::repeat(0f64)
                                                                    .take(61)
                                                                    .collect()),
-                                               &component.label, None);
+                                               component.get_label(), None);
             }
             vertical_layout.add(&non_graph_layout3);
             temperature_usage_history.attach_to(&vertical_layout);
@@ -374,15 +375,15 @@ impl DisplaySysInfo {
                                             .enumerate() {
             t.data[pos].move_start();
             if let Some(t) = t.data[pos].get_mut(0) {
-                *t = f64::from(component.temperature);
+                *t = f64::from(component.get_temperature());
             }
             if let Some(t) = t.data[pos].get_mut(0) {
-                *t = f64::from(component.temperature);
+                *t = f64::from(component.get_temperature());
             }
             if display_fahrenheit {
-                label.set_text(&format!("{:.1} °F", component.temperature * 1.8 + 32.));
+                label.set_text(&format!("{:.1} °F", component.get_temperature() * 1.8 + 32.));
             } else {
-                label.set_text(&format!("{:.1} °C", component.temperature));
+                label.set_text(&format!("{:.1} °C", component.get_temperature()));
             }
         }
 
