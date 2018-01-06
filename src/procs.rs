@@ -17,7 +17,7 @@ use std::rc::Rc;
 pub struct Procs {
     pub left_tree: gtk::TreeView,
     pub scroll: gtk::ScrolledWindow,
-    pub current_pid: Rc<Cell<Option<i32>>>,
+    pub current_pid: Rc<Cell<Option<Pid>>>,
     pub kill_button: gtk::Button,
     pub info_button: gtk::Button,
     pub vertical_layout: gtk::Box,
@@ -26,7 +26,7 @@ pub struct Procs {
 }
 
 impl Procs {
-    pub fn new(proc_list: &HashMap<i32, Process>, note: &mut NoteBook) -> Procs {
+    pub fn new(proc_list: &HashMap<Pid, Process>, note: &mut NoteBook) -> Procs {
         let left_tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None, None);
         let current_pid = Rc::new(Cell::new(None));
@@ -40,7 +40,7 @@ impl Procs {
 
         let list_store = gtk::ListStore::new(&[
             // The first four columns of the model are going to be visible in the view.
-            Type::I32,       // pid
+            Type::U32,       // pid
             Type::String,    // name
             Type::String,    // CPU
             Type::U32,       // mem
@@ -62,8 +62,8 @@ impl Procs {
         columns[2].set_sort_column_id(5);
 
         for pro in proc_list.values() {
-            create_and_fill_model(&list_store, pro.pid, &format!("{:?}", &pro.cmd), &pro.name,
-                                  pro.cpu_usage, pro.memory);
+            create_and_fill_model(&list_store, pro.pid.as_u32(), &format!("{:?}", &pro.cmd),
+                                  &pro.name, pro.cpu_usage, pro.memory);
         }
 
         left_tree.set_model(Some(&list_store));
@@ -75,14 +75,15 @@ impl Procs {
         /*let list_store1 = list_store.clone();
 
         filter.set_modify_func(|_, iter, value| {
-            list_store1.get_value(&iter, 4).get::<String>().unwrap()
-                       .contains(value.get::<String>().unwrap().to_lowercase())
+            list_store1.get_value(&iter, 4).get::<String>()
+                                           .expect("get_value from list_store failed")
+                       .contains(value.get::<String>().expect("contains.get failed").to_lowercase())
         });*/
 
         left_tree.connect_cursor_changed(move |tree_view| {
             let selection = tree_view.get_selection();
             let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
-                if let Some(x) = model.get_value(&iter, 0).get() {
+                if let Some(x) = model.get_value(&iter, 0).get::<u32>().map(|x| x as Pid) {
                     (Some(x), true)
                 } else {
                     (None, false)
@@ -113,7 +114,7 @@ impl Procs {
             current_pid: current_pid,
             kill_button: kill_button,
             info_button: info_button,
-            vertical_layout: vertical_layout.downcast::<gtk::Box>().unwrap(),
+            vertical_layout: vertical_layout.downcast::<gtk::Box>().expect("downcast failed"),
             list_store: list_store,
             columns: columns,
         }
@@ -140,7 +141,7 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
     v.push(column);
 }
 
-pub fn create_and_fill_model(list_store: &gtk::ListStore, pid: i32, cmdline: &str, name: &str,
+pub fn create_and_fill_model(list_store: &gtk::ListStore, pid: u32, cmdline: &str, name: &str,
                              cpu: f32, memory: u64) {
     if cmdline.len() < 1 {
         return;

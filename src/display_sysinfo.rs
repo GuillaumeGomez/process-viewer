@@ -5,7 +5,7 @@ use gtk::{
     self, BoxExt, ContainerExt, GridExt, Inhibit, LabelExt, ProgressBarExt, ToggleButtonExt, Widget,
     WidgetExt, GtkWindowExt,
 };
-use sysinfo::{self, NetworkExt, ProcessorExt, SystemExt};
+use sysinfo::{self, ComponentExt, NetworkExt, ProcessorExt, SystemExt};
 
 use std::cell::RefCell;
 use std::iter;
@@ -96,6 +96,7 @@ pub struct DisplaySysInfo {
     network_history: Rc<RefCell<Graph>>,
     pub ram_check_box: gtk::CheckButton,
     pub swap_check_box: gtk::CheckButton,
+    pub network_check_box: gtk::CheckButton,
     pub temperature_check_box: Option<gtk::CheckButton>,
 }
 
@@ -191,8 +192,9 @@ impl DisplaySysInfo {
             for component in sys1.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
-                let temp = gtk::Label::new(format!("{:.1} °C", component.temperature).as_str());
-                horizontal_layout.pack_start(&gtk::Label::new(component.label.as_str()),
+                let temp = gtk::Label::new(format!("{:.1} °C",
+                                                   component.get_temperature()).as_str());
+                horizontal_layout.pack_start(&gtk::Label::new(component.get_label()),
                                              true, false, 0);
                 horizontal_layout.pack_start(&temp, true, false, 0);
                 horizontal_layout.set_homogeneous(true);
@@ -201,7 +203,7 @@ impl DisplaySysInfo {
                 temperature_usage_history.push(RotateVec::new(iter::repeat(0f64)
                                                                    .take(61)
                                                                    .collect()),
-                                               &component.label, None);
+                                               component.get_label(), None);
             }
             vertical_layout.add(&non_graph_layout3);
             temperature_usage_history.attach_to(&vertical_layout);
@@ -266,13 +268,14 @@ impl DisplaySysInfo {
             temperature_usage_history: Rc::clone(&temperature_usage_history),
             temperature_check_box: check_box3.clone(),
             network_history: Rc::clone(&network_history),
+            network_check_box: check_box4.clone(),
         };
         tmp.update_ram_display(&sys1.borrow(), false);
 
         win.add_events(gdk::EventType::Configure.to_glib() as i32);
         // ugly way to resize drawing area, I should find a better way
         win.connect_configure_event(move |w, _| {
-            // To silence the annying warning:
+            // To silence the annoying warning:
             // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
             // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
             // allocate?"
@@ -332,11 +335,11 @@ impl DisplaySysInfo {
             }
         };
 
-        let total = sys.get_total_memory();
+        let total_ram = sys.get_total_memory();
         let used = sys.get_used_memory();
-        self.ram.set_text(disp(total, used).as_str());
-        if total != 0 {
-            self.ram.set_fraction(used as f64 / total as f64);
+        self.ram.set_text(disp(total_ram, used).as_str());
+        if total_ram != 0 {
+            self.ram.set_fraction(used as f64 / total_ram as f64);
         } else {
             self.ram.set_fraction(0.0);
         }
@@ -344,13 +347,13 @@ impl DisplaySysInfo {
             let mut r = self.ram_usage_history.borrow_mut();
             r.data[0].move_start();
             if let Some(p) = r.data[0].get_mut(0) {
-                *p = used as f64 / total as f64;
+                *p = used as f64 / total_ram as f64;
             }
         }
 
-        let total = sys.get_total_swap();
+        let total = ::std::cmp::max(sys.get_total_swap(), total_ram);
         let used = sys.get_used_swap();
-        self.swap.set_text(disp(total, used).as_str());
+        self.swap.set_text(disp(sys.get_total_swap(), used).as_str());
 
         let mut fraction = if total != 0 { used as f64 / total as f64 } else { 0f64 };
         if fraction.is_nan() {
@@ -367,18 +370,20 @@ impl DisplaySysInfo {
 
         let mut t = self.temperature_usage_history.borrow_mut();
         for (pos, (component, label)) in sys.get_components_list()
-                                            .iter().zip(self.components.iter()).enumerate() {
+                                            .iter()
+                                            .zip(self.components.iter())
+                                            .enumerate() {
             t.data[pos].move_start();
             if let Some(t) = t.data[pos].get_mut(0) {
-                *t = f64::from(component.temperature);
+                *t = f64::from(component.get_temperature());
             }
             if let Some(t) = t.data[pos].get_mut(0) {
-                *t = f64::from(component.temperature);
+                *t = f64::from(component.get_temperature());
             }
             if display_fahrenheit {
-                label.set_text(&format!("{:.1} °F", component.temperature * 1.8 + 32.));
+                label.set_text(&format!("{:.1} °F", component.get_temperature() * 1.8 + 32.));
             } else {
-                label.set_text(&format!("{:.1} °C", component.temperature));
+                label.set_text(&format!("{:.1} °C", component.get_temperature()));
             }
         }
 
@@ -387,9 +392,9 @@ impl DisplaySysInfo {
         self.in_usage.set_text(format_number(sys.get_network().get_income()).as_str());
         self.out_usage.set_text(format_number(sys.get_network().get_outcome()).as_str());
         t.data[0].move_start();
-        *t.data[0].get_mut(0).unwrap() = sys.get_network().get_income() as f64;
+        *t.data[0].get_mut(0).expect("cannot get data 0") = sys.get_network().get_income() as f64;
         t.data[1].move_start();
-        *t.data[1].get_mut(0).unwrap() = sys.get_network().get_outcome() as f64;
+        *t.data[1].get_mut(0).expect("cannot get data 1") = sys.get_network().get_outcome() as f64;
     }
 
     pub fn update_process_display(&mut self, sys: &sysinfo::System) {
