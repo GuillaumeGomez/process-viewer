@@ -2,7 +2,7 @@ use glib::object::Cast;
 use gtk::{self, BoxExt, ButtonExt, ContainerExt, DialogExt, LabelExt, ScrolledWindowExt};
 use gtk::{WidgetExt, GtkWindowExt};
 use pango;
-use sysinfo;
+use sysinfo::{self, ProcessExt};
 
 fn fomat_time(t: u64) -> String {
     format!("{}{}{}{}s",
@@ -41,16 +41,16 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Applicati
     scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
 
     let flags = gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::USE_HEADER_BAR;
-    let popup = gtk::Dialog::new_with_buttons(Some(&format!("Information about {}", process.name)),
+    let popup = gtk::Dialog::new_with_buttons(Some(&format!("Information about {}", process.name())),
                                               Some(window),
                                               flags,
                                               &[]);
 
     let area = popup.get_content_area();
-    let running_since = if start_time > process.start_time {
-        start_time - process.start_time + running_since
+    let running_since = if start_time > process.start_time() {
+        start_time - process.start_time() + running_since
     } else {
-        start_time + running_since - process.start_time
+        start_time + running_since - process.start_time()
     };
     let mut text = format!("name: {}\n\
                             pid: {}\n\
@@ -62,16 +62,16 @@ pub fn create_process_dialog(process: &sysinfo::Process, window: &gtk::Applicati
                             cpu usage: {}%\n\n\
                             Running since {}\n\n\
                             environment:",
-                            process.name,
-                            process.pid,
-                            process.cmd,
-                            process.exe,
-                            process.cwd,
-                            process.root,
-                            process.memory,
-                            process.cpu_usage,
+                            process.name(),
+                            process.pid(),
+                            process.cmd(),
+                            process.exe(),
+                            process.cwd(),
+                            process.root(),
+                            process.memory(),
+                            process.cpu_usage(),
                             fomat_time(running_since));
-    for env in &process.environ {
+    for env in process.environ() {
         text.push_str(&format!("\n{:?}", env));
     }
     let label = gtk::Label::new(text.as_str());
