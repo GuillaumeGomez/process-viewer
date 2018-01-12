@@ -64,7 +64,7 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
                 if let Some(p) = entries.get(&(pid)) {
                     list.set(&iter,
                              &[2, 3, 5],
-                             &[&format!("{:.1}", p.cpu_usage), &p.memory, &p.cpu_usage]);
+                             &[&format!("{:.1}", p.cpu_usage()), &p.memory(), &p.cpu_usage()]);
                     valid = list.iter_next(&iter);
                     seen.insert(pid);
                 } else {
@@ -76,8 +76,8 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
 
     for (pid, pro) in entries.iter() {
         if !seen.contains(pid) {
-            create_and_fill_model(list, pro.pid.as_u32(), &format!("{:?}", &pro.cmd), &pro.name,
-                                  pro.cpu_usage, pro.memory);
+            create_and_fill_model(list, pro.pid().as_u32(), &format!("{:?}", &pro.cmd()), &pro.name(),
+                                  pro.cpu_usage(), pro.memory());
         }
     }
 }
@@ -182,7 +182,7 @@ fn build_ui(application: &gtk::Application) {
     let window = gtk::ApplicationWindow::new(application);
     let sys = sysinfo::System::new();
     let start_time = unsafe { if let Some(p) = sys.get_process(libc::getpid() as Pid) {
-        p.start_time
+        p.start_time()
     } else {
         0
     }};

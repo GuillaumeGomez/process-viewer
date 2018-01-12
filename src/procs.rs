@@ -62,8 +62,8 @@ impl Procs {
         columns[2].set_sort_column_id(5);
 
         for pro in proc_list.values() {
-            create_and_fill_model(&list_store, pro.pid.as_u32(), &format!("{:?}", &pro.cmd),
-                                  &pro.name, pro.cpu_usage, pro.memory);
+            create_and_fill_model(&list_store, pro.pid().as_u32(), &format!("{:?}", &pro.cmd()),
+                                  &pro.name(), pro.cpu_usage(), pro.memory());
         }
 
         left_tree.set_model(Some(&list_store));
