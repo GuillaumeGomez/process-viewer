@@ -1,6 +1,6 @@
 [package]
 name = "process_viewer"
-version = "0.0.14"
+version = "0.0.15"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 
 description = "A process viewer GUI"
