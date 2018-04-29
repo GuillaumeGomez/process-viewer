@@ -25,7 +25,7 @@ use gtk::{AboutDialog, Button, Dialog, EditableSignals, Entry, Inhibit, MessageD
 use gtk::{
     AboutDialogExt, BoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt, GtkApplicationExt,
     ListStoreExt, ListStoreExtManual, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
-    TreeViewExt, WidgetExt, GtkWindowExt,
+    TreeViewExt, WidgetExt, GtkWindowExt, GtkWindowExtManual,
 };
 
 use std::cell::RefCell;
@@ -382,7 +382,7 @@ fn build_ui(application: &gtk::Application) {
     application.add_action(&graphs);
     application.add_action(&new_task);
     application.add_action(&quit);
-    application.connect_activate(move |_| {});
+    application.connect_activate(|_| {});
 }
 
 fn main() {
