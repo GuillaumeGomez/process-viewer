@@ -1,6 +1,6 @@
 [package]
 name = "process_viewer"
-version = "0.0.16"
+version = "0.0.17"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 
 description = "A process viewer GUI"
@@ -27,5 +27,5 @@ libc = "0.2"
 name = "process_viewer"
 path = "src/process_viewer.rs"
 
-[replace]
-"gtk:0.4.0" = { path = "../gtk" }
+[features]
+default = ["gio/v2_34"]

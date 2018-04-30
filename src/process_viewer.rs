@@ -19,8 +19,9 @@ extern crate sysinfo;
 use sysinfo::*;
 
 use gdk_pixbuf::Pixbuf;
-use gio::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual, MenuExt, SimpleActionExt};
-use glib::{IsA, ToVariant};
+use gio::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual, MemoryInputStream, MenuExt,
+          SimpleActionExt};
+use glib::{Bytes, IsA, ToVariant};
 use gtk::{AboutDialog, Button, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 use gtk::{
     AboutDialogExt, BoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt, GtkApplicationExt,
@@ -321,7 +322,9 @@ fn build_ui(application: &gtk::Application) {
         p.set_copyright(Some("This is under MIT license"));
         p.set_transient_for(Some(&window3));
         p.set_program_name("process-viewer");
-        let logo = Pixbuf::new_from_file("assets/eye.png");
+        let memory_stream = MemoryInputStream::new_from_bytes(
+                                &Bytes::from_static(include_bytes!("../assets/eye.png")));
+        let logo = Pixbuf::new_from_stream(&memory_stream, None);
         if let Ok(logo) = logo {
             p.set_logo(Some(&logo));
         }
