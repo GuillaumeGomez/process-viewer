@@ -1,8 +1,9 @@
 use glib::object::Cast;
 use gtk::{self, Type, Widget};
 use gtk::{
-    BoxExt, CellLayoutExt, ContainerExt, GridExt, ListStoreExtManual, TreeModelExt,
-    TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
+    BoxExt, CellLayoutExt, CellRendererExt, ContainerExt, GridExt,
+    ListStoreExtManual, TreeModelExt, TreeSelectionExt, TreeViewColumnExt,
+    TreeViewExt, WidgetExt,
 };
 
 use sysinfo::*;
@@ -125,6 +126,10 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
                  max_width: Option<i32>) {
     let id = v.len() as i32;
     let renderer = gtk::CellRendererText::new();
+
+    if title != "process name" {
+    	renderer.set_property_xalign(1.0);
+    }
 
     let column = gtk::TreeViewColumn::new();
     column.set_title(title);
