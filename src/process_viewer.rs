@@ -25,7 +25,7 @@ use glib::{Bytes, IsA, ToVariant};
 use gtk::{AboutDialog, Button, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 use gtk::{
     AboutDialogExt, BoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt, GtkApplicationExt,
-    ListStoreExt, ListStoreExtManual, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
+    GtkListStoreExt, GtkListStoreExtManual, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
     TreeViewExt, WidgetExt, GtkWindowExt, GtkWindowExtManual,
 };
 
