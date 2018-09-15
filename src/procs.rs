@@ -2,7 +2,7 @@ use glib::object::Cast;
 use gtk::{self, Type, Widget};
 use gtk::{
     BoxExt, CellLayoutExt, CellRendererExt, ContainerExt, GridExt,
-    ListStoreExtManual, TreeModelExt, TreeSelectionExt, TreeViewColumnExt,
+    GtkListStoreExtManual, TreeModelExt, TreeSelectionExt, TreeViewColumnExt,
     TreeViewExt, WidgetExt,
 };
 
