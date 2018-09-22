@@ -32,14 +32,18 @@ use gtk::{
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::env::args;
-use std::process::{Command, Stdio};
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
+use std::process::{Command, Stdio};
 use std::rc::Rc;
+use std::time::SystemTime;
 
 use display_sysinfo::DisplaySysInfo;
 use notebook::NoteBook;
 use procs::{create_and_fill_model, Procs};
+
+#[macro_use]
+mod utils;
 
 mod color;
 mod display_sysinfo;
@@ -47,7 +51,6 @@ mod graph;
 mod notebook;
 mod process_dialog;
 mod procs;
-mod utils;
 
 fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
                  info: &mut DisplaySysInfo, display_fahrenheit: bool) {
@@ -161,6 +164,27 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
     }
 }
 
+fn create_new_proc_diag(process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
+                        pid: Pid,
+                        sys: &sysinfo::System,
+                        window: &gtk::ApplicationWindow,
+                        running_since: u64,
+                        starting_time: u64,
+) {
+    if process_dialogs.borrow().get(&pid).is_none() {
+        if let Some(process) = sys.get_process(pid) {
+            let diag = process_dialog::create_process_dialog(process,
+                                                             window,
+                                                             running_since,
+                                                             starting_time);
+            diag.popup.connect_destroy(clone!(process_dialogs => move |_| {
+                process_dialogs.borrow_mut().remove(&pid);
+            }));
+            process_dialogs.borrow_mut().insert(pid, diag);
+        }
+    }
+}
+
 fn build_ui(application: &gtk::Application) {
     let menu = gio::Menu::new();
     let menu_bar = gio::Menu::new();
@@ -182,20 +206,14 @@ fn build_ui(application: &gtk::Application) {
 
     let window = gtk::ApplicationWindow::new(application);
     let sys = sysinfo::System::new();
-    let start_time = unsafe { if let Some(p) = sys.get_process(libc::getpid() as Pid) {
-        p.start_time()
-    } else {
-        0
-    }};
+    let start_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
+                                      .expect("couldn't get start time")
+                                      .as_secs();
     let running_since = Rc::new(RefCell::new(0));
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
     let procs = Procs::new(sys.borrow().get_process_list(), &mut note);
     let current_pid = Rc::clone(&procs.current_pid);
-    let current_pid2 = Rc::clone(&procs.current_pid);
-    let sys1 = Rc::clone(&sys);
-    let sys2 = Rc::clone(&sys);
-    let sys3 = Rc::clone(&sys);
     let info_button = procs.info_button.clone();
 
     window.set_title("Process viewer");
@@ -213,12 +231,12 @@ fn build_ui(application: &gtk::Application) {
     });
 
     sys.borrow_mut().refresh_all();
-    procs.kill_button.connect_clicked(move |_| {
-        let sys = sys1.borrow();
+    procs.kill_button.connect_clicked(clone!(current_pid, sys => move |_| {
+        let sys = sys.borrow();
         if let Some(process) = current_pid.get().and_then(|pid| sys.get_process(pid)) {
             process.kill(Signal::Kill);
         }
-    });
+    }));
 
     let mut display_tab = DisplaySysInfo::new(&sys, &mut note, &window);
 
@@ -262,11 +280,11 @@ fn build_ui(application: &gtk::Application) {
     window.show_all();
     window.activate();
 
+    let process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>> =
+        Rc::new(RefCell::new(HashMap::new()));
     let list_store = procs.list_store.clone();
-    let run1 = Rc::clone(&running_since);
-    let run2 = Rc::clone(&running_since);
-    gtk::timeout_add(1000, move || {
-        *run1.borrow_mut() += 1;
+    gtk::timeout_add(1000, clone!(running_since, sys, process_dialogs => move || {
+        *running_since.borrow_mut() += 1;
         // first part, deactivate sorting
         let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
         list_store.set_unsorted();
@@ -281,46 +299,55 @@ fn build_ui(application: &gtk::Application) {
         if let Some((col, order)) = sorted {
             list_store.set_sort_column_id(col, order);
         }
-        glib::Continue(true)
-    });
-    let window1 = window.clone();
-    info_button.connect_clicked(move |_| {
-        let sys = sys2.borrow();
-        if let Some(process) = current_pid2.get().and_then(|pid| sys.get_process(pid)) {
-            process_dialog::create_process_dialog(process, &window1, start_time,
-                                                  *run2.borrow());
+        let dialogs = process_dialogs.borrow();
+        let running_since = *running_since.borrow();
+        for dialog in dialogs.values() {
+            // TODO: handle dead process?
+            if let Some(process) = sys.borrow().get_process(dialog.pid) {
+                dialog.update(process, running_since, start_time);
+            }
         }
-    });
-    let window2 = window.clone();
-    procs.left_tree.connect_row_activated(move |tree_view, path, _| {
+        glib::Continue(true)
+    }));
+
+    info_button.connect_clicked(
+        clone!(current_pid, window, running_since, process_dialogs, sys => move |_| {
+            if let Some(pid) = current_pid.get() {
+                create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
+                                     *running_since.borrow(),
+                                     start_time);
+            }
+        }
+    ));
+
+    procs.left_tree.connect_row_activated(clone!(window, sys => move |tree_view, path, _| {
         let model = tree_view.get_model().expect("couldn't get model");
         let iter = model.get_iter(path).expect("couldn't get iter");
-        let sys = sys3.borrow();
-        if let Some(process) = sys.get_process(model.get_value(&iter, 0)
-                                                    .get::<u32>()
-                                                    .map(|x| x as Pid)
-                                                    .expect("failed to get value from model")) {
-            process_dialog::create_process_dialog(process, &window2, start_time,
-                                                  *running_since.borrow());
+        let pid = model.get_value(&iter, 0)
+                       .get::<u32>()
+                       .map(|x| x as Pid)
+                       .expect("failed to get value from model");
+        if process_dialogs.borrow().get(&pid).is_none() {
+            create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
+                                 *running_since.borrow(),
+                                 start_time);
         }
-    });
+    }));
 
-    let window2 = window.clone();
     let quit = gio::SimpleAction::new("quit", None);
-    quit.connect_activate(move |_, _| {
-        window2.destroy();
-    });
-    let window3 = window.clone();
-    window3.present();
+    quit.connect_activate(clone!(window => move |_, _| {
+        window.destroy();
+    }));
+    window.present();
     let about = gio::SimpleAction::new("about", None);
-    about.connect_activate(move |_, _| {
+    about.connect_activate(clone!(window => move |_, _| {
         let p = AboutDialog::new();
         p.set_authors(&["Guillaume Gomez"]);
         p.set_website_label(Some("my website"));
         p.set_website(Some("https://guillaume-gomez.fr/"));
         p.set_comments(Some("A process viewer GUI wrote with gtk-rs"));
         p.set_copyright(Some("This is under MIT license"));
-        p.set_transient_for(Some(&window3));
+        p.set_transient_for(Some(&window));
         p.set_program_name("process-viewer");
         let memory_stream = MemoryInputStream::new_from_bytes(
                                 &Bytes::from_static(include_bytes!("../assets/eye.png")));
@@ -330,12 +357,12 @@ fn build_ui(application: &gtk::Application) {
         }
         p.run();
         p.destroy();
-    });
+    }));
     let new_task = gio::SimpleAction::new("new-task", None);
     new_task.connect_activate(move |_, _| {
-        let d = Dialog::new();
-        d.set_title("Launch new executable");
-        let content_area = d.get_content_area();
+        let dialog = Dialog::new();
+        dialog.set_title("Launch new executable");
+        let content_area = dialog.get_content_area();
         let input = Entry::new();
         let run = Button::new_with_label("Run");
         let cancel = Button::new_with_label("Cancel");
@@ -346,39 +373,31 @@ fn build_ui(application: &gtk::Application) {
         v_box.pack_start(&input, true, true, 0);
         v_box.pack_start(&h_box, true, true, 0);
         content_area.add(&v_box);
-        let window2 = window.clone();
-        d.set_transient_for(Some(&window2));
+        dialog.set_transient_for(Some(&window));
         // To silence the annying warning:
         // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
         // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
         // allocate?"
-        d.get_preferred_width();
-        d.set_size_request(400, 70);
-        d.show_all();
+        dialog.get_preferred_width();
+        dialog.set_size_request(400, 70);
+        dialog.show_all();
 
         run.set_sensitive(false);
-        let run2 = run.clone();
-        let input2 = input.clone();
-        input.connect_changed(move |_| {
-            match input2.get_text() {
-                Some(ref x) if !x.is_empty() => run2.set_sensitive(true),
-                _ => run2.set_sensitive(false),
+        input.connect_changed(clone!(run => move |input| {
+            match input.get_text() {
+                Some(ref x) if !x.is_empty() => run.set_sensitive(true),
+                _ => run.set_sensitive(false),
             }
-        });
-        let d2 = d.clone();
-        cancel.connect_clicked(move |_| {
-            d2.destroy();
-        });
-        let window3 = window.clone();
-        let input3 = input.clone();
-        let d3 = d.clone();
-        input.connect_activate(move |_| {
-            run_command(&input3, &window3, &d3);
-        });
-        let window4 = window.clone();
-        run.connect_clicked(move |_| {
-            run_command(&input, &window4, &d);
-        });
+        }));
+        cancel.connect_clicked(clone!(dialog => move |_| {
+            dialog.destroy();
+        }));
+        input.connect_activate(clone!(window, dialog => move |input| {
+            run_command(input, &window, &dialog);
+        }));
+        run.connect_clicked(clone!(window => move |_| {
+            run_command(&input, &window, &dialog);
+        }));
     });
 
     application.add_action(&about);

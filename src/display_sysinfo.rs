@@ -15,23 +15,6 @@ use graph::Graph;
 use notebook::NoteBook;
 use utils::RotateVec;
 
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ => move || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
-}
-
 fn create_header(label_text: &str, parent_layout: &gtk::Box) -> gtk::CheckButton {
     let check_box = gtk::CheckButton::new_with_label("Graph view");
     let label = gtk::Label::new(Some(label_text));
@@ -422,14 +405,13 @@ impl DisplaySysInfo {
 fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
     let area = graph.area.clone();
     let graph = Rc::new(RefCell::new(graph));
-    let c_graph = Rc::clone(&graph);
-    area.connect_draw(move |w, c| {
-        let graph = c_graph.borrow();
-        graph.draw(c,
+    area.connect_draw(clone!(graph => move |w, c| {
+        graph.borrow()
+             .draw(c,
                    f64::from(w.get_allocated_width()),
                    f64::from(w.get_allocated_height()));
         Inhibit(false)
-    });
+    }));
     graph
 }
 

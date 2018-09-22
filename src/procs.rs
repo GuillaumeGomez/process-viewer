@@ -33,9 +33,6 @@ impl Procs {
         let current_pid = Rc::new(Cell::new(None));
         let kill_button = gtk::Button::new_with_label("End task");
         let info_button = gtk::Button::new_with_label("More information");
-        let current_pid1 = Rc::clone(&current_pid);
-        let kill_button1 = kill_button.clone();
-        let info_button1 = info_button.clone();
 
         let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
 
@@ -81,21 +78,23 @@ impl Procs {
                        .contains(value.get::<String>().expect("contains.get failed").to_lowercase())
         });*/
 
-        left_tree.connect_cursor_changed(move |tree_view| {
-            let selection = tree_view.get_selection();
-            let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
-                if let Some(x) = model.get_value(&iter, 0).get::<u32>().map(|x| x as Pid) {
-                    (Some(x), true)
+        left_tree.connect_cursor_changed(
+            clone!(current_pid, kill_button, info_button => move |tree_view| {
+                let selection = tree_view.get_selection();
+                let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
+                    if let Some(x) = model.get_value(&iter, 0).get::<u32>().map(|x| x as Pid) {
+                        (Some(x), true)
+                    } else {
+                        (None, false)
+                    }
                 } else {
                     (None, false)
-                }
-            } else {
-                (None, false)
-            };
-            current_pid1.set(pid);
-            kill_button1.set_sensitive(ret);
-            info_button1.set_sensitive(ret);
-        });
+                };
+                current_pid.set(pid);
+                kill_button.set_sensitive(ret);
+                info_button.set_sensitive(ret);
+            }
+        ));
         kill_button.set_sensitive(false);
         info_button.set_sensitive(false);
 
