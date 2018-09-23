@@ -4,6 +4,8 @@ use gtk::{WidgetExt, GtkWindowExt};
 use pango;
 use sysinfo::{self, Pid, ProcessExt};
 
+use utils::format_number;
+
 pub struct ProcDialog {
     working_directory: gtk::Label,
     memory_usage: gtk::Label,
@@ -15,8 +17,10 @@ pub struct ProcDialog {
 
 impl ProcDialog {
     pub fn update(&self, process: &sysinfo::Process, running_since: u64, start_time: u64) {
-        self.working_directory.set_text(&format!("current working directory: {}", process.cwd()));
-        self.memory_usage.set_text(&format!("memory usage: {} kB", process.memory()));
+        self.working_directory.set_text(&format!("current working directory: {}",
+                                                 process.cwd().display()));
+        self.memory_usage.set_text(&format!("memory usage: {}",
+                                            format_number(process.memory() << 10))); // * 1_024
         self.cpu_usage.set_text(&format!("cpu usage: {:.1}%", process.cpu_usage()));
         let running_since = compute_running_since(process, start_time, running_since);
         self.run_time.set_text(&format!("Running since: {}", format_time(running_since)));
@@ -98,19 +102,20 @@ pub fn create_process_dialog(
 
     create_and_add_new_label(&labels, &format!("name: {}", process.name()));
     create_and_add_new_label(&labels, &format!("pid: {}", process.pid()));
-    create_and_add_new_label(&labels, &format!("command: {:?}", process.cmd()));
-    create_and_add_new_label(&labels, &format!("executable path: {}", process.exe()));
-    let working_directory = create_and_add_new_label(&labels,
-                                                     &format!("current working directory: {}",
-                                                              process.cwd()));
-    create_and_add_new_label(&labels, &format!("root directory: {}", process.root()));
     let memory_usage = create_and_add_new_label(&labels,
-                                                &format!("memory usage: {} kB", process.memory()));
+                                                &format!("memory usage: {}",
+                                                         format_number(process.memory() << 10)));
     let cpu_usage = create_and_add_new_label(&labels,
                                              &format!("cpu usage: {:.1}%", process.cpu_usage()));
     let run_time = create_and_add_new_label(&labels,
                                             &format!("Running since: {}",
                                                      format_time(running_since)));
+    create_and_add_new_label(&labels, &format!("command: {:?}", process.cmd()));
+    create_and_add_new_label(&labels, &format!("executable path: {}", process.exe().display()));
+    let working_directory = create_and_add_new_label(&labels,
+                                                     &format!("current working directory: {}",
+                                                              process.cwd().display()));
+    create_and_add_new_label(&labels, &format!("root directory: {}", process.root().display()));
     let mut text = format!("environment:");
     for env in process.environ() {
         text.push_str(&format!("\n{:?}", env));

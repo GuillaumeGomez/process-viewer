@@ -20,7 +20,7 @@ gio = "0.5"
 glib = "0.6"
 gtk = "0.5"
 pango = "0.5"
-sysinfo = "0.5"
+sysinfo = "0.6"
 libc = "0.2"
 
 [[bin]]

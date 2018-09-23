@@ -1,5 +1,5 @@
 use glib::object::Cast;
-use gtk::{self, Type, Widget};
+use gtk::{self, Type};
 use gtk::{
     BoxExt, CellLayoutExt, CellRendererExt, ContainerExt, GridExt,
     GtkListStoreExtManual, TreeModelExt, TreeSelectionExt, TreeViewColumnExt,
@@ -105,7 +105,6 @@ impl Procs {
         horizontal_layout.set_column_homogeneous(true);
         vertical_layout.pack_start(&horizontal_layout, false, true, 0);
 
-        let vertical_layout : Widget = vertical_layout.upcast();
         note.create_tab("Process list", &vertical_layout);
 
         Procs {
@@ -127,7 +126,7 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
     let renderer = gtk::CellRendererText::new();
 
     if title != "process name" {
-    	renderer.set_property_xalign(1.0);
+        renderer.set_property_xalign(1.0);
     }
 
     let column = gtk::TreeViewColumn::new();
