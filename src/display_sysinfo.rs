@@ -2,7 +2,7 @@ use gdk;
 use glib::object::Cast;
 use glib::translate::ToGlib;
 use gtk::{
-    self, BoxExt, ContainerExt, GridExt, Inhibit, LabelExt, ProgressBarExt, ToggleButtonExt, Widget,
+    self, BoxExt, ContainerExt, GridExt, Inhibit, LabelExt, ProgressBarExt, ToggleButtonExt,
     WidgetExt, GtkWindowExt,
 };
 use sysinfo::{self, ComponentExt, NetworkExt, ProcessorExt, SystemExt};
@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 use graph::Graph;
 use notebook::NoteBook;
-use utils::RotateVec;
+use utils::{format_number, RotateVec};
 
 fn create_header(label_text: &str, parent_layout: &gtk::Box) -> gtk::CheckButton {
     let check_box = gtk::CheckButton::new_with_label("Graph view");
@@ -32,8 +32,8 @@ fn create_header(label_text: &str, parent_layout: &gtk::Box) -> gtk::CheckButton
     check_box
 }
 
-fn create_progress_bar(non_graph_layout: &gtk::Grid, line: i32, label: &str,
-                       text: &str) -> gtk::ProgressBar {
+pub fn create_progress_bar(non_graph_layout: &gtk::Grid, line: i32, label: &str,
+                           text: &str) -> gtk::ProgressBar {
     let p = gtk::ProgressBar::new();
     let l = gtk::Label::new(Some(label));
 
@@ -42,22 +42,6 @@ fn create_progress_bar(non_graph_layout: &gtk::Grid, line: i32, label: &str,
     non_graph_layout.attach(&l, 0, line, 1, 1);
     non_graph_layout.attach(&p, 1, line, 11, 1);
     p
-}
-
-fn format_number(mut nb: u64) -> String {
-    if nb < 1000 {
-        return format!("{} B", nb);
-    }
-    nb /= 1024;
-    if nb < 100_000 {
-        format!("{} kB", nb)
-    } else if nb < 10_000_000 {
-        format!("{} MB", nb / 1024)
-    } else if nb < 10_000_000_000 {
-        format!("{} GB", nb / 1_048_576)
-    } else {
-        format!("{} TB", nb / 1_073_741_824)
-    }
 }
 
 #[allow(dead_code)]
@@ -84,7 +68,7 @@ pub struct DisplaySysInfo {
 }
 
 impl DisplaySysInfo {
-    pub fn new(sys1: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook,
+    pub fn new(sys: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook,
                win: &gtk::ApplicationWindow) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
@@ -112,7 +96,7 @@ impl DisplaySysInfo {
         procs.push(gtk::ProgressBar::new());
         {
             let p: &gtk::ProgressBar = &procs[0];
-            let s = sys1.borrow();
+            let s = sys.borrow();
 
             p.set_margin_right(5);
             p.set_margin_left(5);
@@ -134,7 +118,7 @@ impl DisplaySysInfo {
         // PROCESS PART
         //
         let check_box = create_header("Process usage", &vertical_layout);
-        for (i, pro) in sys1.borrow().get_processor_list().iter().skip(1).enumerate() {
+        for (i, pro) in sys.borrow().get_processor_list().iter().skip(1).enumerate() {
             let i = i + 1;
             procs.push(gtk::ProgressBar::new());
             let p: &gtk::ProgressBar = &procs[i];
@@ -170,9 +154,9 @@ impl DisplaySysInfo {
         //
         // TEMPERATURES PART
         //
-        if !sys1.borrow().get_components_list().is_empty() {
+        if !sys.borrow().get_components_list().is_empty() {
             check_box3 = Some(create_header("Components' temperature", &vertical_layout));
-            for component in sys1.borrow().get_components_list() {
+            for component in sys.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
                 let temp = gtk::Label::new(format!("{:.1} °C",
@@ -233,7 +217,6 @@ impl DisplaySysInfo {
         let network_history = connect_graph(network_history);
 
         scroll.add(&vertical_layout);
-        let scroll : Widget = scroll.upcast();
         note.create_tab("System usage", &scroll);
 
         let mut tmp = DisplaySysInfo {
@@ -253,7 +236,7 @@ impl DisplaySysInfo {
             network_history: Rc::clone(&network_history),
             network_check_box: check_box4.clone(),
         };
-        tmp.update_ram_display(&sys1.borrow(), false);
+        tmp.update_ram_display(&sys.borrow(), false);
 
         win.add_events(gdk::EventType::Configure.to_glib() as i32);
         // ugly way to resize drawing area, I should find a better way
@@ -281,7 +264,8 @@ impl DisplaySysInfo {
         }));
         if let Some(ref check_box3) = check_box3 {
             check_box3.clone().upcast::<gtk::ToggleButton>()
-                 .connect_toggled(clone!(non_graph_layout3, temperature_usage_history => move |c| {
+                      .connect_toggled(
+                          clone!(non_graph_layout3, temperature_usage_history => move |c| {
                 show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
             }));
         }
@@ -310,11 +294,12 @@ impl DisplaySysInfo {
             if total < 100_000 {
                 format!("{} / {} kB", used, total)
             } else if total < 10_000_000 {
-                format!("{:.2} / {} MB", used as f64 / 1_024f64, total / 1_024)
+                format!("{:.2} / {} MB", used as f64 / 1_024f64, total >> 10) // / 1024
             } else if total < 10_000_000_000 {
-                format!("{:.2} / {} GB", used as f64 / 1_048_576f64, total / 1_048_576)
+                format!("{:.2} / {} GB", used as f64 / 1_048_576f64, total >> 20) // / 1_048_576
             } else {
-                format!("{:.2} / {} TB", used as f64 / 1_073_741_824f64, total / 1_073_741_824)
+                format!("{:.2} / {} TB",
+                        used as f64 / 1_073_741_824f64, total >> 30) // / 1_073_741_824
             }
         };
 

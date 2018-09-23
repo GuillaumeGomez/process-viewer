@@ -1,4 +1,4 @@
-use gtk;
+use gtk::{self, IsA};
 use gtk::prelude::{BoxExt, NotebookExtManual, WidgetExt};
 
 pub struct NoteBook {
@@ -14,7 +14,7 @@ impl NoteBook {
         }
     }
 
-    pub fn create_tab(&mut self, title: &str, widget: &gtk::Widget) -> Option<u32> {
+    pub fn create_tab<T: IsA<gtk::Widget>>(&mut self, title: &str, widget: &T) -> Option<u32> {
         let label = gtk::Label::new(Some(title));
         let tab = gtk::Box::new(gtk::Orientation::Horizontal, 0);
 

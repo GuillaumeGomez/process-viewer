@@ -46,6 +46,7 @@ use procs::{create_and_fill_model, Procs};
 mod utils;
 
 mod color;
+mod disk_info;
 mod display_sysinfo;
 mod graph;
 mod notebook;
@@ -80,7 +81,8 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
 
     for (pid, pro) in entries.iter() {
         if !seen.contains(pid) {
-            create_and_fill_model(list, pro.pid().as_u32(), &format!("{:?}", &pro.cmd()), &pro.name(),
+            create_and_fill_model(list, pro.pid().as_u32(),
+                                  &format!("{:?}", &pro.cmd()), &pro.name(),
                                   pro.cpu_usage(), pro.memory());
         }
     }
@@ -239,6 +241,7 @@ fn build_ui(application: &gtk::Application) {
     }));
 
     let mut display_tab = DisplaySysInfo::new(&sys, &mut note, &window);
+    disk_info::create_disk_info(&sys, &mut note);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
