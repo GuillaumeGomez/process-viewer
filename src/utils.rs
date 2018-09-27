@@ -1,4 +1,28 @@
+use graph::Graph;
+
+use gtk::{Inhibit, WidgetExt};
+
+use std::cell::RefCell;
 use std::ops::Index;
+use std::rc::Rc;
+
+#[macro_export]
+macro_rules! clone {
+    (@param _) => ( _ );
+    (@param $x:ident) => ( $x );
+    ($($n:ident),+ => move || $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+            move || $body
+        }
+    );
+    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+            move |$(clone!(@param $p),)+| $body
+        }
+    );
+}
 
 #[derive(Debug)]
 pub struct RotateVec<T> {
@@ -64,28 +88,23 @@ pub fn format_number(mut nb: u64) -> String {
     }
 }
 
+pub fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
+    let area = graph.area.clone();
+    let graph = Rc::new(RefCell::new(graph));
+    area.connect_draw(clone!(graph => move |w, c| {
+        graph.borrow()
+             .draw(c,
+                   f64::from(w.get_allocated_width()),
+                   f64::from(w.get_allocated_height()));
+        Inhibit(false)
+    }));
+    graph
+}
+
 impl<T> Index<usize> for RotateVec<T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &T {
         &self.data[self.get_real_pos(index)]
     }
-}
-
-#[macro_export]
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ => move || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
 }

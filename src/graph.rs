@@ -17,11 +17,15 @@ pub struct Graph {
     horizontal_layout: gtk::Box,
     pub area: DrawingArea,
     max: Option<RefCell<f64>>,
+    keep_max: bool,
 }
 
 impl Graph {
     // If `max` is `None`, the graph will expect values between 0 and 1.
-    pub fn new(max: Option<f64>) -> Graph {
+    //
+    // If `keep_max` is set to `true`, then this value will never go down, meaning that graphs
+    // won't rescale down. It is not taken into account if `max` is `None`.
+    pub fn new(max: Option<f64>, keep_max: bool) -> Graph {
         let g = Graph {
             elapsed: Instant::now(),
             colors: vec!(),
@@ -31,6 +35,7 @@ impl Graph {
             horizontal_layout: gtk::Box::new(gtk::Orientation::Horizontal, 0),
             area: DrawingArea::new(),
             max: if let Some(max) = max { Some(RefCell::new(max)) } else { None },
+            keep_max,
         };
         g.scroll_layout.set_min_content_width(90);
         g.scroll_layout.add(&g.vertical_layout);
@@ -104,8 +109,8 @@ impl Graph {
         }
         c.stroke();
 
-        if self.max.is_some() {
-            let mut max = 1.;
+        if let Some(ref self_max) = self.max {
+            let mut max = if self.keep_max { *self_max.borrow() } else { 1. };
             let len = self.data[0].len() - 1;
             for x in 0..len {
                 for entry in &self.data {
@@ -130,8 +135,8 @@ impl Graph {
                     index -= 1;
                 }
             }
-            if let Some(ref cmax) = self.max {
-                *cmax.borrow_mut() = max;
+            if max > *self_max.borrow() || !self.keep_max {
+                *self_max.borrow_mut() = max;
             }
         } else if !self.data.is_empty() && !self.data[0].is_empty() {
             let len = self.data[0].len() - 1;

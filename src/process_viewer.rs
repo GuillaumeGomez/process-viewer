@@ -174,11 +174,13 @@ fn create_new_proc_diag(process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog
                         starting_time: u64,
 ) {
     if process_dialogs.borrow().get(&pid).is_none() {
+        let total_memory = sys.get_total_memory();
         if let Some(process) = sys.get_process(pid) {
             let diag = process_dialog::create_process_dialog(process,
                                                              window,
                                                              running_since,
-                                                             starting_time);
+                                                             starting_time,
+                                                             total_memory);
             diag.popup.connect_destroy(clone!(process_dialogs => move |_| {
                 process_dialogs.borrow_mut().remove(&pid);
             }));

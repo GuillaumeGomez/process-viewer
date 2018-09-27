@@ -2,7 +2,7 @@ use gdk;
 use glib::object::Cast;
 use glib::translate::ToGlib;
 use gtk::{
-    self, BoxExt, ContainerExt, GridExt, Inhibit, LabelExt, ProgressBarExt, ToggleButtonExt,
+    self, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, ToggleButtonExt,
     WidgetExt, GtkWindowExt,
 };
 use sysinfo::{self, ComponentExt, NetworkExt, ProcessorExt, SystemExt};
@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 use graph::Graph;
 use notebook::NoteBook;
-use utils::{format_number, RotateVec};
+use utils::{connect_graph, format_number, RotateVec};
 
 fn create_header(label_text: &str, parent_layout: &gtk::Box) -> gtk::CheckButton {
     let check_box = gtk::CheckButton::new_with_label("Graph view");
@@ -74,13 +74,15 @@ impl DisplaySysInfo {
         let mut procs = Vec::new();
         let scroll = gtk::ScrolledWindow::new(None, None);
         let mut components = vec!();
-        let mut cpu_usage_history = Graph::new(None);
-        let mut ram_usage_history = Graph::new(None);
-        let mut temperature_usage_history = Graph::new(Some(1.));
-        let mut network_history = Graph::new(Some(1.));
+        let mut cpu_usage_history = Graph::new(None, false);
+        let mut ram_usage_history = Graph::new(None, false);
+        let mut temperature_usage_history = Graph::new(Some(1.), false);
+        let mut network_history = Graph::new(Some(1.), false);
         let mut check_box3 = None;
 
         vertical_layout.set_spacing(5);
+        vertical_layout.set_margin_top(10);
+        vertical_layout.set_margin_bottom(10);
 
         let non_graph_layout = gtk::Grid::new();
         non_graph_layout.set_column_homogeneous(true);
@@ -239,7 +241,7 @@ impl DisplaySysInfo {
         tmp.update_ram_display(&sys.borrow(), false);
 
         win.add_events(gdk::EventType::Configure.to_glib() as i32);
-        // ugly way to resize drawing area, I should find a better way
+        // TODO: ugly way to resize drawing area, I should find a better way
         win.connect_configure_event(move |w, _| {
             // To silence the annoying warning:
             // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
@@ -385,19 +387,6 @@ impl DisplaySysInfo {
         self.temperature_usage_history.borrow().invalidate();
         self.network_history.borrow().invalidate();
     }
-}
-
-fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
-    let area = graph.area.clone();
-    let graph = Rc::new(RefCell::new(graph));
-    area.connect_draw(clone!(graph => move |w, c| {
-        graph.borrow()
-             .draw(c,
-                   f64::from(w.get_allocated_width()),
-                   f64::from(w.get_allocated_height()));
-        Inhibit(false)
-    }));
-    graph
 }
 
 fn show_if_necessary<T: WidgetExt>(check_box: &gtk::ToggleButton, proc_horizontal_layout: &Graph,

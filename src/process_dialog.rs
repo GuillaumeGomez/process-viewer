@@ -6,8 +6,15 @@ use gtk::{WidgetExt, GtkWindowExt};
 use pango;
 use sysinfo::{self, Pid, ProcessExt};
 
-use utils::format_number;
+use std::cell::RefCell;
+use std::iter;
+use std::rc::Rc;
 
+use graph::Graph;
+use notebook::NoteBook;
+use utils::{connect_graph, format_number, RotateVec};
+
+#[allow(dead_code)]
 pub struct ProcDialog {
     working_directory: gtk::Label,
     memory_usage: gtk::Label,
@@ -15,6 +22,9 @@ pub struct ProcDialog {
     run_time: gtk::Label,
     pub popup: gtk::Window,
     pub pid: Pid,
+    notebook: NoteBook,
+    ram_usage_history: Rc<RefCell<Graph>>,
+    cpu_usage_history: Rc<RefCell<Graph>>,
 }
 
 impl ProcDialog {
@@ -24,6 +34,15 @@ impl ProcDialog {
         self.cpu_usage.set_text(&format!("{:.1}%", process.cpu_usage()));
         let running_since = compute_running_since(process, start_time, running_since);
         self.run_time.set_text(&format_time(running_since));
+
+        let mut t = self.ram_usage_history.borrow_mut();
+        t.data[0].move_start();
+        *t.data[0].get_mut(0).expect("cannot get data 0") = process.memory() as f64;
+        t.invalidate();
+        let mut t = self.cpu_usage_history.borrow_mut();
+        t.data[0].move_start();
+        *t.data[0].get_mut(0).expect("cannot get data 0") = process.cpu_usage() as f64;
+        t.invalidate();
     }
 }
 
@@ -96,12 +115,10 @@ pub fn create_process_dialog(
     process: &sysinfo::Process,
     window: &gtk::ApplicationWindow,
     running_since: u64,
-    start_time: u64
+    start_time: u64,
+    total_memory: u64,
 ) -> ProcDialog {
-    let scroll = gtk::ScrolledWindow::new(None, None);
-    let close_button = gtk::Button::new_with_label("Close");
-    let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+    let mut notebook = NoteBook::new();
 
     let flags = gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::USE_HEADER_BAR;
     let popup = gtk::Dialog::new_with_buttons(
@@ -109,8 +126,16 @@ pub fn create_process_dialog(
                     Some(window),
                     flags,
                     &[]);
+
+    //
+    // PROCESS INFO TAB
+    //
+    let scroll = gtk::ScrolledWindow::new(None, None);
+    let close_button = gtk::Button::new_with_label("Close");
+    let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+
     let running_since = compute_running_since(process, start_time, running_since);
-    let area = popup.get_content_area();
 
     let labels = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
@@ -136,16 +161,57 @@ pub fn create_process_dialog(
     }
     create_and_add_new_label(&labels, "environment", &text);
 
-    scroll.add(&labels);
     vertical_layout.pack_start(&scroll, true, true, 0);
     vertical_layout.pack_start(&close_button, false, true, 0);
-    area.pack_start(&vertical_layout, true, true, 0);
+    scroll.add(&labels);
+
+    notebook.create_tab("Information", &vertical_layout);
+
+    //
+    // GRAPH TAB
+    //
+    let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    vertical_layout.set_spacing(5);
+    vertical_layout.set_margin_top(10);
+    vertical_layout.set_margin_bottom(10);
+    let scroll = gtk::ScrolledWindow::new(None, None);
+    let mut cpu_usage_history = Graph::new(Some(100.), false);
+    let mut ram_usage_history = Graph::new(Some(total_memory as f64), true);
+
+    let r_area = ram_usage_history.area.clone();
+    let c_area = cpu_usage_history.area.clone();
+    cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                           "process usage", None);
+    cpu_usage_history.attach_to(&vertical_layout);
+    cpu_usage_history.invalidate();
+    let cpu_usage_history = connect_graph(cpu_usage_history);
+
+    ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                           "memory usage", None);
+    ram_usage_history.attach_to(&vertical_layout);
+    ram_usage_history.invalidate();
+    let ram_usage_history = connect_graph(ram_usage_history);
+
+    scroll.add(&vertical_layout);
+    scroll.connect_show(clone!(ram_usage_history, cpu_usage_history => move |_| {
+        ram_usage_history.borrow().show_all();
+        cpu_usage_history.borrow().show_all();
+    }));
+    notebook.create_tab("Resources usage", &scroll);
+
+
+    let area = popup.get_content_area();
+    area.set_margin_top(0);
+    area.set_margin_bottom(0);
+    area.set_margin_left(0);
+    area.set_margin_right(0);
+    area.pack_start(&notebook.notebook, true, true, 0);
     // To silence the annoying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
     popup.get_preferred_width();
-    popup.set_size_request(500, 500);
+    popup.set_size_request(500, 600);
 
     let popup = popup.upcast::<gtk::Window>();
     popup.set_resizable(true);
@@ -154,6 +220,19 @@ pub fn create_process_dialog(
     close_button.connect_clicked(move |_| {
         pop.destroy();
     });
+
+    // TODO: ugly way to resize drawing area, I should find a better way
+    popup.connect_configure_event(clone!(r_area, c_area => move |w, _| {
+        // To silence the annoying warning:
+        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+        // allocate?"
+        w.get_preferred_width();
+        let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
+        r_area.set_size_request(w, 200);
+        c_area.set_size_request(w, 200);
+        false
+    }));
 
     if let Some(adjust) = scroll.get_vadjustment() {
         adjust.set_value(0.);
@@ -166,5 +245,8 @@ pub fn create_process_dialog(
         run_time,
         popup,
         pid: process.pid(),
+        notebook,
+        ram_usage_history,
+        cpu_usage_history,
     }
 }
