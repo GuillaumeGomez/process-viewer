@@ -9,7 +9,7 @@ use gtk::{self, BoxExt, ButtonExt, ContainerExt, GridExt, LabelExt, ProgressBarE
 use sysinfo::{self, DiskExt, SystemExt};
 
 fn update_disk(label: &gtk::Label, p: &gtk::ProgressBar, disk: &sysinfo::Disk) {
-    label.set_text(format!("{} mounted at \"{}\"",
+    label.set_text(format!("{} mounted on \"{}\"",
                            disk.get_name()
                                .to_str()
                                .unwrap_or_else(|| ""),
