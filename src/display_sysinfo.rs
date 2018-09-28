@@ -75,7 +75,27 @@ impl DisplaySysInfo {
         let scroll = gtk::ScrolledWindow::new(None, None);
         let mut components = vec!();
         let mut cpu_usage_history = Graph::new(None, false);
-        let mut ram_usage_history = Graph::new(None, false);
+        let mut ram_usage_history = Graph::new(Some(sys.borrow().get_total_memory() as f64), true);
+        ram_usage_history.set_label_callbacks(Some(Box::new(|v| {
+            return if v < 100_000. {
+                [format!("{} kB", v),
+                 format!("{} kB", v / 2.),
+                 format!("0 kB")]
+            } else if v < 10_000_000. {
+                [format!("{:.1} MB", v / 1_024f64),
+                 format!("{:.1} MB", v / 2_048f64),
+                 format!("0 MB")]
+            } else if v < 10_000_000_000. {
+                [format!("{:.1} GB", v / 1_048_576f64),
+                 format!("{:.1} GB", v / 2_097_152f64),
+                 format!("0 GB")]
+            } else {
+                [format!("{:.1} TB", v / 1_073_741_824f64),
+                 format!("{:.1} TB", v / 1_073_741_824f64),
+                 format!("0 TB")]
+            }
+        })));
+        ram_usage_history.set_labels_width(70);
         let mut temperature_usage_history = Graph::new(Some(1.), false);
         let mut network_history = Graph::new(Some(1.), false);
         let mut check_box3 = None;
@@ -317,7 +337,7 @@ impl DisplaySysInfo {
             let mut r = self.ram_usage_history.borrow_mut();
             r.data[0].move_start();
             if let Some(p) = r.data[0].get_mut(0) {
-                *p = used as f64 / total_ram as f64;
+                *p = used as f64;
             }
         }
 
@@ -334,7 +354,7 @@ impl DisplaySysInfo {
             let mut r = self.ram_usage_history.borrow_mut();
             r.data[1].move_start();
             if let Some(p) = r.data[1].get_mut(0) {
-                *p = used as f64 / total as f64;
+                *p = used as f64;
             }
         }
 

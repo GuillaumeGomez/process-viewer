@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::iter;
 use std::rc::Rc;
 
-use graph::Graph;
+use graph::{Connecter, Graph};
 use notebook::NoteBook;
 use utils::{connect_graph, format_number, RotateVec};
 
@@ -85,7 +85,7 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
 
     let label = gtk::Label::new(None);
     label.set_justify(gtk::Justification::Left);
-    label.set_markup(&format!("<b>{}:</b>", title));
+    label.set_markup(&format!("<b>{}:</b> ", title));
 
     let text = gtk::Label::new(text);
     text.set_selectable(true);
@@ -161,9 +161,10 @@ pub fn create_process_dialog(
     }
     create_and_add_new_label(&labels, "environment", &text);
 
+    scroll.add(&labels);
+
     vertical_layout.pack_start(&scroll, true, true, 0);
     vertical_layout.pack_start(&close_button, false, true, 0);
-    scroll.add(&labels);
 
     notebook.create_tab("Information", &vertical_layout);
 
@@ -200,7 +201,6 @@ pub fn create_process_dialog(
     }));
     notebook.create_tab("Resources usage", &scroll);
 
-
     let area = popup.get_content_area();
     area.set_margin_top(0);
     area.set_margin_bottom(0);
@@ -226,18 +226,8 @@ pub fn create_process_dialog(
         adjust.set_value(0.);
         scroll.set_vadjustment(&adjust);
     }
-    // TODO: ugly way to resize drawing area, I should find a better way
-    scroll.connect_configure_event(clone!(ram_usage_history, cpu_usage_history => move |w, _| {
-        // To silence the annoying warning:
-        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-        // allocate?"
-        //w.get_preferred_width();
-        let w = w.get_allocated_width();
-        ram_usage_history.borrow().send_size_request(w);
-        cpu_usage_history.borrow().send_size_request(w);
-        false
-    }));
+    ram_usage_history.connect_to_window_events();
+    cpu_usage_history.connect_to_window_events();
 
     ProcDialog {
         working_directory,
