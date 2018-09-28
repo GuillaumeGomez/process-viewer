@@ -178,8 +178,9 @@ pub fn create_process_dialog(
     let mut cpu_usage_history = Graph::new(Some(100.), false);
     let mut ram_usage_history = Graph::new(Some(total_memory as f64), true);
 
-    let r_area = ram_usage_history.area.clone();
-    let c_area = cpu_usage_history.area.clone();
+    cpu_usage_history.set_display_labels(false);
+    ram_usage_history.set_display_labels(false);
+
     cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
                            "process usage", None);
     cpu_usage_history.attach_to(&vertical_layout);
@@ -221,23 +222,23 @@ pub fn create_process_dialog(
         pop.destroy();
     });
 
-    // TODO: ugly way to resize drawing area, I should find a better way
-    popup.connect_configure_event(clone!(r_area, c_area => move |w, _| {
-        // To silence the annoying warning:
-        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-        // allocate?"
-        w.get_preferred_width();
-        let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
-        r_area.set_size_request(w, 200);
-        c_area.set_size_request(w, 200);
-        false
-    }));
-
     if let Some(adjust) = scroll.get_vadjustment() {
         adjust.set_value(0.);
         scroll.set_vadjustment(&adjust);
     }
+    // TODO: ugly way to resize drawing area, I should find a better way
+    scroll.connect_configure_event(clone!(ram_usage_history, cpu_usage_history => move |w, _| {
+        // To silence the annoying warning:
+        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+        // allocate?"
+        //w.get_preferred_width();
+        let w = w.get_allocated_width();
+        ram_usage_history.borrow().send_size_request(w);
+        cpu_usage_history.borrow().send_size_request(w);
+        false
+    }));
+
     ProcDialog {
         working_directory,
         memory_usage,

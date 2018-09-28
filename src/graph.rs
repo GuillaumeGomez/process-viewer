@@ -18,6 +18,7 @@ pub struct Graph {
     pub area: DrawingArea,
     max: Option<RefCell<f64>>,
     keep_max: bool,
+    display_labels: RefCell<bool>,
 }
 
 impl Graph {
@@ -36,6 +37,7 @@ impl Graph {
             area: DrawingArea::new(),
             max: if let Some(max) = max { Some(RefCell::new(max)) } else { None },
             keep_max,
+            display_labels: RefCell::new(true),
         };
         g.scroll_layout.set_min_content_width(90);
         g.scroll_layout.add(&g.vertical_layout);
@@ -45,12 +47,34 @@ impl Graph {
         g
     }
 
+    pub fn set_display_labels(&self, display_labels: bool) {
+        *self.display_labels.borrow_mut() = display_labels;
+        if display_labels == true {
+            self.scroll_layout.show_all();
+        } else {
+            self.scroll_layout.hide();
+        }
+        self.invalidate();
+    }
+
+    pub fn send_size_request(&self, width: i32) {
+        self.area.set_size_request(
+            if *self.display_labels.borrow() == true {
+                width - if width >= 130 { 130 } else { width }
+            } else {
+                width
+            }, 200);
+    }
+
     pub fn hide(&self) {
         self.horizontal_layout.hide();
     }
 
     pub fn show_all(&self) {
         self.horizontal_layout.show_all();
+        if *self.display_labels.borrow() == false {
+            self.scroll_layout.hide();
+        }
     }
 
     pub fn attach_to(&self, to: &gtk::Box) {
