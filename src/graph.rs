@@ -9,6 +9,8 @@ use std::time::Instant;
 use color::Color;
 use utils::RotateVec;
 
+const LEFT_WIDTH: f64 = 31.;
+
 pub struct Graph {
     elapsed: Instant,
     colors: Vec<Color>,
@@ -21,7 +23,7 @@ pub struct Graph {
     keep_max: bool,
     display_labels: RefCell<bool>,
     initial_diff: Option<i32>,
-    label_callbacks: Option<Box<Fn(f64) -> [String; 3]>>,
+    label_callbacks: Option<Box<Fn(f64) -> [String; 4]>>,
     labels_layout_width: i32,
 }
 
@@ -60,7 +62,7 @@ impl Graph {
         self.labels_layout_width = labels_layout_width as i32;
     }
 
-    pub fn set_label_callbacks(&mut self, label_callbacks: Option<Box<Fn(f64) -> [String; 3]>>) {
+    pub fn set_label_callbacks(&mut self, label_callbacks: Option<Box<Fn(f64) -> [String; 4]>>) {
         self.label_callbacks = label_callbacks;
     }
 
@@ -105,20 +107,29 @@ impl Graph {
     fn draw_labels(&self, c: &cairo::Context, max: f64, height: f64) {
         if let Some(ref call) = self.label_callbacks {
             let entries = call(max);
+            let font_size = 8.;
+
             c.set_source_rgb(0., 0., 0.);
-            c.move_to(0.0, 8.0);
-            c.set_font_size(8.);
+            c.set_font_size(font_size);
+
+            c.move_to(LEFT_WIDTH - 4. - entries[0].len() as f64 * 4., font_size);
             c.show_text(entries[0].as_str());
-            c.move_to(0.0, height / 2. - 5.);
+
+            c.move_to(LEFT_WIDTH - 4. - entries[1].len() as f64 * 4., height / 2.);
             c.show_text(entries[1].as_str());
-            c.move_to(0.0, height - 2.);
+
+            c.move_to(LEFT_WIDTH - 4. - entries[2].len() as f64 * 4., height - 2.);
             c.show_text(entries[2].as_str());
+
+            c.move_to(font_size - 1., height / 2. + 4. * (entries[3].len() >> 1) as f64);
+            c.rotate(-1.5708);
+            c.show_text(entries[3].as_str());
         }
     }
 
     pub fn draw(&self, c: &cairo::Context, width: f64, height: f64) {
         let x_start = if self.label_callbacks.is_some() {
-            31.
+            LEFT_WIDTH
         } else {
             1.0
         };
@@ -180,8 +191,8 @@ impl Graph {
                 while current > x_start && index > 0 {
                     for (entry, color) in self.data.iter().zip(self.colors.iter()) {
                         c.set_source_rgb(color.r, color.g, color.b);
-                        c.move_to(current + step, height - entry[index - 1] / max * height - 2.0);
-                        c.line_to(current, height - entry[index] / max * height - 2.0);
+                        c.move_to(current + step, height - entry[index - 1] / max * (height - 1.0));
+                        c.line_to(current, height - entry[index] / max * (height - 1.0));
                         c.stroke();
                     }
                     current += step;
@@ -200,13 +211,14 @@ impl Graph {
             while current > x_start && index > 0 {
                 for (entry, color) in self.data.iter().zip(self.colors.iter()) {
                     c.set_source_rgb(color.r, color.g, color.b);
-                    c.move_to(current + step, height - entry[index - 1] * height - 2.0);
-                    c.line_to(current, height - entry[index] * height - 2.0);
+                    c.move_to(current + step, height - entry[index - 1] * (height - 1.0));
+                    c.line_to(current, height - entry[index] * (height - 1.0));
                     c.stroke();
                 }
                 current += step;
                 index -= 1;
             }
+            // To be called in last to avoid having to restore state (rotation).
             self.draw_labels(c, 100., height);
         }
     }

@@ -175,6 +175,8 @@ pub fn create_process_dialog(
     vertical_layout.set_spacing(5);
     vertical_layout.set_margin_top(10);
     vertical_layout.set_margin_bottom(10);
+    vertical_layout.set_margin_left(5);
+    vertical_layout.set_margin_right(5);
     let scroll = gtk::ScrolledWindow::new(None, None);
     let mut cpu_usage_history = Graph::new(Some(100.), false);
     let mut ram_usage_history = Graph::new(Some(total_memory as f64), true);
@@ -183,13 +185,41 @@ pub fn create_process_dialog(
     ram_usage_history.set_display_labels(false);
 
     cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                           "process usage", None);
+                           "", None);
+    cpu_usage_history.set_label_callbacks(Some(Box::new(|_| {
+        ["100".to_string(), "50".to_string(), "0".to_string(), "%".to_string()]
+    })));
+    vertical_layout.add(&gtk::Label::new("Process usage"));
     cpu_usage_history.attach_to(&vertical_layout);
     cpu_usage_history.invalidate();
     let cpu_usage_history = connect_graph(cpu_usage_history);
 
     ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                           "memory usage", None);
+                           "", None);
+    ram_usage_history.set_label_callbacks(Some(Box::new(|v| {
+        if v < 100_000. {
+            [v.to_string(),
+             format!("{}", v / 2.),
+             "0".to_string(),
+             "kB".to_string()]
+        } else if v < 10_000_000. {
+            [format!("{:.1}", v / 1_024f64),
+             format!("{:.1}", v / 2_048f64),
+             "0".to_string(),
+             "MB".to_string()]
+        } else if v < 10_000_000_000. {
+            [format!("{:.1}", v / 1_048_576f64),
+             format!("{:.1}", v / 2_097_152f64),
+             "0".to_string(),
+             "GB".to_string()]
+        } else {
+            [format!("{:.1}", v / 1_073_741_824f64),
+             format!("{:.1}", v / 1_073_741_824f64),
+             "0".to_string(),
+             "TB".to_string()]
+        }
+    })));
+    vertical_layout.add(&gtk::Label::new("Memory usage"));
     ram_usage_history.attach_to(&vertical_layout);
     ram_usage_history.invalidate();
     let ram_usage_history = connect_graph(ram_usage_history);
