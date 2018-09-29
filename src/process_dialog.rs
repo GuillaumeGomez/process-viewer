@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::iter;
 use std::rc::Rc;
 
-use graph::Graph;
+use graph::{Connecter, Graph};
 use notebook::NoteBook;
 use utils::{connect_graph, format_number, RotateVec};
 
@@ -85,7 +85,7 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
 
     let label = gtk::Label::new(None);
     label.set_justify(gtk::Justification::Left);
-    label.set_markup(&format!("<b>{}:</b>", title));
+    label.set_markup(&format!("<b>{}:</b> ", title));
 
     let text = gtk::Label::new(text);
     text.set_selectable(true);
@@ -161,9 +161,10 @@ pub fn create_process_dialog(
     }
     create_and_add_new_label(&labels, "environment", &text);
 
+    scroll.add(&labels);
+
     vertical_layout.pack_start(&scroll, true, true, 0);
     vertical_layout.pack_start(&close_button, false, true, 0);
-    scroll.add(&labels);
 
     notebook.create_tab("Information", &vertical_layout);
 
@@ -174,20 +175,51 @@ pub fn create_process_dialog(
     vertical_layout.set_spacing(5);
     vertical_layout.set_margin_top(10);
     vertical_layout.set_margin_bottom(10);
+    vertical_layout.set_margin_left(5);
+    vertical_layout.set_margin_right(5);
     let scroll = gtk::ScrolledWindow::new(None, None);
     let mut cpu_usage_history = Graph::new(Some(100.), false);
     let mut ram_usage_history = Graph::new(Some(total_memory as f64), true);
 
-    let r_area = ram_usage_history.area.clone();
-    let c_area = cpu_usage_history.area.clone();
+    cpu_usage_history.set_display_labels(false);
+    ram_usage_history.set_display_labels(false);
+
     cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                           "process usage", None);
+                           "", None);
+    cpu_usage_history.set_label_callbacks(Some(Box::new(|_| {
+        ["100".to_string(), "50".to_string(), "0".to_string(), "%".to_string()]
+    })));
+    vertical_layout.add(&gtk::Label::new("Process usage"));
     cpu_usage_history.attach_to(&vertical_layout);
     cpu_usage_history.invalidate();
     let cpu_usage_history = connect_graph(cpu_usage_history);
 
     ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                           "memory usage", None);
+                           "", None);
+    ram_usage_history.set_label_callbacks(Some(Box::new(|v| {
+        if v < 100_000. {
+            [v.to_string(),
+             format!("{}", v / 2.),
+             "0".to_string(),
+             "kB".to_string()]
+        } else if v < 10_000_000. {
+            [format!("{:.1}", v / 1_024f64),
+             format!("{:.1}", v / 2_048f64),
+             "0".to_string(),
+             "MB".to_string()]
+        } else if v < 10_000_000_000. {
+            [format!("{:.1}", v / 1_048_576f64),
+             format!("{:.1}", v / 2_097_152f64),
+             "0".to_string(),
+             "GB".to_string()]
+        } else {
+            [format!("{:.1}", v / 1_073_741_824f64),
+             format!("{:.1}", v / 1_073_741_824f64),
+             "0".to_string(),
+             "TB".to_string()]
+        }
+    })));
+    vertical_layout.add(&gtk::Label::new("Memory usage"));
     ram_usage_history.attach_to(&vertical_layout);
     ram_usage_history.invalidate();
     let ram_usage_history = connect_graph(ram_usage_history);
@@ -198,7 +230,6 @@ pub fn create_process_dialog(
         cpu_usage_history.borrow().show_all();
     }));
     notebook.create_tab("Resources usage", &scroll);
-
 
     let area = popup.get_content_area();
     area.set_margin_top(0);
@@ -221,23 +252,13 @@ pub fn create_process_dialog(
         pop.destroy();
     });
 
-    // TODO: ugly way to resize drawing area, I should find a better way
-    popup.connect_configure_event(clone!(r_area, c_area => move |w, _| {
-        // To silence the annoying warning:
-        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-        // allocate?"
-        w.get_preferred_width();
-        let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
-        r_area.set_size_request(w, 200);
-        c_area.set_size_request(w, 200);
-        false
-    }));
-
     if let Some(adjust) = scroll.get_vadjustment() {
         adjust.set_value(0.);
         scroll.set_vadjustment(&adjust);
     }
+    ram_usage_history.connect_to_window_events();
+    cpu_usage_history.connect_to_window_events();
+
     ProcDialog {
         working_directory,
         memory_usage,

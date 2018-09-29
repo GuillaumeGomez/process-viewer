@@ -74,10 +74,85 @@ impl DisplaySysInfo {
         let mut procs = Vec::new();
         let scroll = gtk::ScrolledWindow::new(None, None);
         let mut components = vec!();
+
+        // CPU
         let mut cpu_usage_history = Graph::new(None, false);
-        let mut ram_usage_history = Graph::new(None, false);
+        cpu_usage_history.set_label_callbacks(Some(Box::new(|_| {
+            ["100".to_string(), "50".to_string(), "0".to_string(), "%".to_string()]
+        })));
+
+        // RAM
+        let mut ram_usage_history = Graph::new(Some(sys.borrow().get_total_memory() as f64), true);
+        ram_usage_history.set_label_callbacks(Some(Box::new(|v| {
+            if v < 100_000. {
+                [v.to_string(),
+                 format!("{}", v / 2.),
+                 "0".to_string(),
+                 "kB".to_string()]
+            } else if v < 10_000_000. {
+                [format!("{:.1}", v / 1_024f64),
+                 format!("{:.1}", v / 2_048f64),
+                 "0".to_string(),
+                 "MB".to_string()]
+            } else if v < 10_000_000_000. {
+                [format!("{:.1}", v / 1_048_576f64),
+                 format!("{:.1}", v / 2_097_152f64),
+                 "0".to_string(),
+                 "GB".to_string()]
+            } else {
+                [format!("{:.1}", v / 1_073_741_824f64),
+                 format!("{:.1}", v / 1_073_741_824f64),
+                 "0".to_string(),
+                 "TB".to_string()]
+            }
+        })));
+        ram_usage_history.set_labels_width(70);
+
+        // TEMPERATURE
         let mut temperature_usage_history = Graph::new(Some(1.), false);
+        temperature_usage_history.set_label_callbacks(Some(Box::new(|v| {
+            [format!("{:.1}", v),
+             format!("{:.1}", v / 2.),
+             "0".to_string(),
+             "°C".to_string()]
+        })));
+        temperature_usage_history.set_labels_width(70);
+        // NETWORK
         let mut network_history = Graph::new(Some(1.), false);
+        network_history.set_label_callbacks(Some(Box::new(|v| {
+            let v = v as u64;
+            if v < 1000 {
+                return [v.to_string(),
+                        (v >> 1).to_string(),
+                        "0".to_string(),
+                        "B/sec".to_string()];
+            }
+            let nb = v >> 10; // / 1_024
+            if nb < 100_000 {
+                [nb.to_string(),
+                 (nb >> 1).to_string(),
+                 "0".to_string(),
+                 "kB/sec".to_string()]
+            } else if nb < 10_000_000 {
+                [(nb >> 10).to_string(),
+                 (nb >> 11).to_string(),
+                 "0".to_string(),
+                 "MB/sec".to_string()]
+            } else if nb < 10_000_000_000 {
+                [(nb >> 20).to_string(),
+                 (nb >> 21).to_string(),
+                 "0".to_string(),
+                 "GB/sec".to_string()]
+            } else {
+                [(nb >> 30).to_string(),
+                 (nb >> 31).to_string(),
+                 "0".to_string(),
+                 "TB/sec".to_string()]
+            }
+        })));
+        network_history.set_labels_width(70);
+
+
         let mut check_box3 = None;
 
         vertical_layout.set_spacing(5);
@@ -317,7 +392,7 @@ impl DisplaySysInfo {
             let mut r = self.ram_usage_history.borrow_mut();
             r.data[0].move_start();
             if let Some(p) = r.data[0].get_mut(0) {
-                *p = used as f64 / total_ram as f64;
+                *p = used as f64;
             }
         }
 
@@ -334,7 +409,7 @@ impl DisplaySysInfo {
             let mut r = self.ram_usage_history.borrow_mut();
             r.data[1].move_start();
             if let Some(p) = r.data[1].get_mut(0) {
-                *p = used as f64 / total as f64;
+                *p = used as f64;
             }
         }
 

@@ -41,7 +41,7 @@ impl Procs {
             Type::U32,       // pid
             Type::String,    // name
             Type::String,    // CPU
-            Type::U32,       // mem
+            Type::U64,       // mem
             // These two will serve as keys when sorting by process name and CPU usage.
             Type::String,    // name_lowercase
             Type::F32,       // CPU_f32
@@ -136,6 +136,7 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
         column.set_max_width(max_width);
         column.set_expand(true);
     }
+    column.set_min_width(10);
     column.pack_start(&renderer, true);
     column.add_attribute(&renderer, "text", id);
     column.set_clickable(true);
@@ -146,7 +147,7 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
 
 pub fn create_and_fill_model(list_store: &gtk::ListStore, pid: u32, cmdline: &str, name: &str,
                              cpu: f32, memory: u64) {
-    if cmdline.len() < 1 {
+    if cmdline.len() < 1 || name.len() < 1 {
         return;
     }
     list_store.insert_with_values(None,
