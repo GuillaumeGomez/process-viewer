@@ -161,8 +161,15 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
                                    gtk::MessageType::Info,
                                    gtk::ButtonsType::Ok,
                                    &x);
-        m.run();
-        m.destroy();
+        m.set_modal(true);
+        m.connect_response(|dialog, response| {
+            if response == gtk::ResponseType::DeleteEvent.into() ||
+               response == gtk::ResponseType::Close.into() ||
+               response == gtk::ResponseType::Ok.into() {
+                dialog.destroy();
+            }
+        });
+        m.show_all();
     }
 }
 
@@ -360,8 +367,14 @@ fn build_ui(application: &gtk::Application) {
         if let Ok(logo) = logo {
             p.set_logo(Some(&logo));
         }
-        p.run();
-        p.destroy();
+        p.set_modal(true);
+        p.connect_response(|dialog, response| {
+            if response == gtk::ResponseType::DeleteEvent.into() ||
+               response == gtk::ResponseType::Close.into() {
+                dialog.destroy();
+            }
+        });
+        p.show_all();
     }));
     let new_task = gio::SimpleAction::new("new-task", None);
     new_task.connect_activate(move |_, _| {
