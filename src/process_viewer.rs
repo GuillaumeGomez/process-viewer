@@ -434,5 +434,6 @@ fn main() {
         build_ui(app);
     });
 
+    glib::set_application_name("process-viewer");
     application.run(&args().collect::<Vec<_>>());
 }
