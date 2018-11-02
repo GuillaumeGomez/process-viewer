@@ -289,8 +289,6 @@ fn build_ui(application: &gtk::Application) {
     v_box.pack_start(&note.notebook, true, true, 0);
 
     window.add(&v_box);
-    window.show_all();
-    window.activate();
 
     let process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>> =
         Rc::new(RefCell::new(HashMap::new()));
@@ -350,7 +348,6 @@ fn build_ui(application: &gtk::Application) {
     quit.connect_activate(clone!(window => move |_, _| {
         window.destroy();
     }));
-    window.present();
     let about = gio::SimpleAction::new("about", None);
     about.connect_activate(clone!(window => move |_, _| {
         let p = AboutDialog::new();
@@ -377,7 +374,7 @@ fn build_ui(application: &gtk::Application) {
         p.show_all();
     }));
     let new_task = gio::SimpleAction::new("new-task", None);
-    new_task.connect_activate(move |_, _| {
+    new_task.connect_activate(clone!(window => move |_, _| {
         let dialog = Dialog::new();
         dialog.set_title("Launch new executable");
         let content_area = dialog.get_content_area();
@@ -416,13 +413,17 @@ fn build_ui(application: &gtk::Application) {
         run.connect_clicked(clone!(window => move |_| {
             run_command(&input, &window, &dialog);
         }));
-    });
+    }));
 
     application.add_action(&about);
     application.add_action(&graphs);
     application.add_action(&new_task);
     application.add_action(&quit);
-    application.connect_activate(|_| {});
+
+    application.connect_activate(move |_| {
+        window.show_all();
+        window.present();
+    });
 }
 
 fn main() {
