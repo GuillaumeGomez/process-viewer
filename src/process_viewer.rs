@@ -430,7 +430,7 @@ fn main() {
                                             gio::ApplicationFlags::empty())
                                        .expect("Initialization failed...");
 
-    application.connect_startup(move |app| {
+    application.connect_activate(move |app| {
         build_ui(app);
     });
 
