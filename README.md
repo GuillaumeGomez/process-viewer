@@ -14,6 +14,11 @@ Please run it in release mode to have good performance:
 cargo run --release
 ```
 
+### Building/running on Linux, MacOS and Ubuntu-based Distros
+
+Running ```process-viewer``` on Gnome-based Ubuntu (>=17.10) should work out of the box.  
+For Debian, Ubuntu-derivatives, Fedora and MacOS refer to the [gtk-rs installation guide](http://gtk-rs.org/docs/requirements.html).
+
 ### Building/running on Windows
 
 You'll need to follow the [gtk-rs installation guide](http://gtk-rs.org/docs/requirements.html#windows). If you still have issues to run the generated binary, just copy the `.dll`s into the executable's folder.
