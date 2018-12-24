@@ -1,6 +1,6 @@
 [package]
 name = "process_viewer"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 
 description = "A process viewer GUI"
@@ -20,7 +20,7 @@ gio = "0.5"
 glib = "0.6"
 gtk = "0.5"
 pango = "0.5"
-sysinfo = "0.6"
+sysinfo = "0.8"
 libc = "0.2"
 
 [[bin]]
