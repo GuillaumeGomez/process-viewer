@@ -29,7 +29,7 @@ pub struct Procs {
 impl Procs {
     pub fn new(proc_list: &HashMap<Pid, Process>, note: &mut NoteBook) -> Procs {
         let left_tree = gtk::TreeView::new();
-        let scroll = gtk::ScrolledWindow::new(None, None);
+        let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
         let current_pid = Rc::new(Cell::new(None));
         let kill_button = gtk::Button::new_with_label("End task");
         let info_button = gtk::Button::new_with_label("More information");

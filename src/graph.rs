@@ -38,7 +38,7 @@ impl Graph {
             colors: vec!(),
             data: vec!(),
             vertical_layout: gtk::Box::new(gtk::Orientation::Vertical, 0),
-            scroll_layout: gtk::ScrolledWindow::new(None, None),
+            scroll_layout: gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>),
             horizontal_layout: gtk::Box::new(gtk::Orientation::Horizontal, 0),
             area: DrawingArea::new(),
             max: if let Some(max) = max { Some(RefCell::new(max)) } else { None },
@@ -52,7 +52,7 @@ impl Graph {
         g.scroll_layout.add(&g.vertical_layout);
         g.horizontal_layout.pack_start(&g.area, true, true, 0);
         g.horizontal_layout.pack_start(&g.scroll_layout, false, true, 10);
-        g.horizontal_layout.set_margin_left(5);
+        g.horizontal_layout.set_margin_start(5);
         g
     }
 
@@ -239,7 +239,7 @@ impl Graph {
             None => {
                 if let Some(parent) = self.area.get_parent() {
                     parent.get_allocation().width -
-                        parent.get_margin_left() - parent.get_margin_right()
+                        parent.get_margin_start() - parent.get_margin_end()
                 } else {
                     eprintln!("<Graph::send_size_request> A parent is required if no width is \
                                provided...");

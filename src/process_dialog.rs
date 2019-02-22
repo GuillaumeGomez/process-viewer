@@ -80,8 +80,8 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
 
     horizontal_layout.set_margin_top(5);
     horizontal_layout.set_margin_bottom(5);
-    horizontal_layout.set_margin_right(5);
-    horizontal_layout.set_margin_left(5);
+    horizontal_layout.set_margin_end(5);
+    horizontal_layout.set_margin_start(5);
 
     let label = gtk::Label::new(None);
     label.set_justify(gtk::Justification::Left);
@@ -122,7 +122,7 @@ pub fn create_process_dialog(
 
     let flags = gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::USE_HEADER_BAR;
     let popup = gtk::Dialog::new_with_buttons(
-                    Some(&format!("Information about {}", process.name())),
+                    format!("Information about {}", process.name()).as_str(),
                     Some(window),
                     flags,
                     &[]);
@@ -130,7 +130,7 @@ pub fn create_process_dialog(
     //
     // PROCESS INFO TAB
     //
-    let scroll = gtk::ScrolledWindow::new(None, None);
+    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
     let close_button = gtk::Button::new_with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
@@ -175,9 +175,9 @@ pub fn create_process_dialog(
     vertical_layout.set_spacing(5);
     vertical_layout.set_margin_top(10);
     vertical_layout.set_margin_bottom(10);
-    vertical_layout.set_margin_left(5);
-    vertical_layout.set_margin_right(5);
-    let scroll = gtk::ScrolledWindow::new(None, None);
+    vertical_layout.set_margin_start(5);
+    vertical_layout.set_margin_end(5);
+    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
     let mut cpu_usage_history = Graph::new(Some(100.), false);
     let mut ram_usage_history = Graph::new(Some(total_memory as f64), true);
 
@@ -234,8 +234,8 @@ pub fn create_process_dialog(
     let area = popup.get_content_area();
     area.set_margin_top(0);
     area.set_margin_bottom(0);
-    area.set_margin_left(0);
-    area.set_margin_right(0);
+    area.set_margin_start(0);
+    area.set_margin_end(0);
     area.pack_start(&notebook.notebook, true, true, 0);
     // To silence the annoying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
