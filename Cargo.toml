@@ -1,6 +1,6 @@
 [package]
 name = "process_viewer"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 
 description = "A process viewer GUI"
@@ -13,19 +13,16 @@ readme = "README.md"
 keywords = ["GUI", "process", "viewer", "gtk"]
 
 [dependencies]
-cairo-rs = "0.5"
-gdk = "0.9"
-gdk-pixbuf = "0.5"
-gio = "0.5"
-glib = "0.6"
-gtk = "0.5"
-pango = "0.5"
+cairo-rs = "0.6"
+gdk = "0.10"
+gdk-pixbuf = "0.6"
+gio = "0.6"
+glib = "0.7"
+gtk = "0.6"
+pango = "0.6"
 sysinfo = "0.8"
 libc = "0.2"
 
 [[bin]]
 name = "process_viewer"
 path = "src/process_viewer.rs"
-
-[features]
-default = ["gio/v2_34"]

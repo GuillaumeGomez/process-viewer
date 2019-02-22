@@ -1,9 +1,8 @@
 use gdk;
 use glib::object::Cast;
-use glib::translate::ToGlib;
 use gtk::{
     self, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, ToggleButtonExt,
-    WidgetExt, GtkWindowExt,
+    WidgetExt, WidgetExtManual, GtkWindowExt,
 };
 use sysinfo::{self, ComponentExt, NetworkExt, ProcessorExt, SystemExt};
 
@@ -72,7 +71,7 @@ impl DisplaySysInfo {
                win: &gtk::ApplicationWindow) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
-        let scroll = gtk::ScrolledWindow::new(None, None);
+        let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
         let mut components = vec!();
 
         // CPU
@@ -161,10 +160,10 @@ impl DisplaySysInfo {
 
         let non_graph_layout = gtk::Grid::new();
         non_graph_layout.set_column_homogeneous(true);
-        non_graph_layout.set_margin_right(5);
+        non_graph_layout.set_margin_end(5);
         let non_graph_layout2 = gtk::Grid::new();
         non_graph_layout2.set_column_homogeneous(true);
-        non_graph_layout2.set_margin_right(5);
+        non_graph_layout2.set_margin_start(5);
         let non_graph_layout3 = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let non_graph_layout4 = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
@@ -175,8 +174,8 @@ impl DisplaySysInfo {
             let p: &gtk::ProgressBar = &procs[0];
             let s = sys.borrow();
 
-            p.set_margin_right(5);
-            p.set_margin_left(5);
+            p.set_margin_end(5);
+            p.set_margin_start(5);
             p.set_show_text(true);
             let processor_list = s.get_processor_list();
             if !processor_list.is_empty() {
@@ -315,7 +314,7 @@ impl DisplaySysInfo {
         };
         tmp.update_ram_display(&sys.borrow(), false);
 
-        win.add_events(gdk::EventType::Configure.to_glib() as i32);
+        win.add_events(gdk::EventMask::STRUCTURE_MASK);
         // TODO: ugly way to resize drawing area, I should find a better way
         win.connect_configure_event(move |w, _| {
             // To silence the annoying warning:

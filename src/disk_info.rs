@@ -56,12 +56,12 @@ pub fn create_disk_info(sys: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook)
     let grid_elems: Rc<RefCell<Vec<(gtk::Label, gtk::ProgressBar)>>> =
         Rc::new(RefCell::new(Vec::new()));
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let scroll = gtk::ScrolledWindow::new(None, None);
+    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
 
     let grid = gtk::Grid::new();
     grid.set_column_homogeneous(true);
-    grid.set_margin_right(5);
-    grid.set_margin_left(5);
+    grid.set_margin_end(5);
+    grid.set_margin_start(5);
     grid.set_margin_top(10);
     grid.set_margin_bottom(5);
 
