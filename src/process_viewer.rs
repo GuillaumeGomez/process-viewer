@@ -1,6 +1,6 @@
-// 
+//
 // Process viewer
-// 
+//
 // Copyright (c) 2017 Guillaume Gomez
 //
 
@@ -15,6 +15,10 @@ extern crate gtk;
 extern crate libc;
 extern crate pango;
 extern crate sysinfo;
+
+#[macro_use]
+extern crate serde;
+extern crate serde_any;
 
 use sysinfo::*;
 
@@ -40,17 +44,22 @@ use std::time::SystemTime;
 use display_sysinfo::DisplaySysInfo;
 use notebook::NoteBook;
 use procs::{create_and_fill_model, Procs};
+use settings::Settings;
 
 #[macro_use]
-mod utils;
+mod macros;
 
 mod color;
 mod disk_info;
 mod display_sysinfo;
 mod graph;
 mod notebook;
+mod utils;
 mod process_dialog;
 mod procs;
+mod settings;
+
+pub const APPLICATION_NAME: &'static str = "com.github.GuillaumeGomez.process-viewer";
 
 fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
                  info: &mut DisplaySysInfo, display_fahrenheit: bool) {
@@ -195,7 +204,70 @@ fn create_new_proc_diag(process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog
     }
 }
 
+pub struct RequiredForSettings {
+    current_source: Option<glib::SourceId>,
+    running_since: Rc<RefCell<u64>>,
+    sys: Rc<RefCell<sysinfo::System>>,
+    process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
+    list_store: gtk::ListStore,
+    display_tab: Rc<RefCell<DisplaySysInfo>>,
+    temperature: gio::SimpleAction,
+    start_time: u64,
+}
+
+pub fn setup_timeout(
+    refresh_time: u32,
+    rfs: &Rc<RefCell<RequiredForSettings>>,
+) {
+    let ret = {
+        let mut rfs = rfs.borrow_mut();
+        rfs.current_source.take().map(|x| glib::Source::remove(x));
+
+        let sys = &rfs.sys;
+        let running_since = &rfs.running_since;
+        let process_dialogs = &rfs.process_dialogs;
+        let list_store = &rfs.list_store;
+        let temperature = &rfs.temperature;
+        let display_tab = &rfs.display_tab;
+        let start_time = rfs.start_time;
+
+        Some(
+            gtk::timeout_add(refresh_time,
+                             clone!(running_since, sys, process_dialogs, list_store, temperature,
+                                    display_tab => move || {
+                *running_since.borrow_mut() += 1;
+                // first part, deactivate sorting
+                let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
+                list_store.set_unsorted();
+
+                // we update the tree view
+                if let Some(temperature) = temperature.get_state() {
+                    update_window(&list_store, &sys, &mut display_tab.borrow_mut(),
+                                  temperature.get::<bool>().expect("couldn't get temperature state"));
+                }
+
+                // we re-enable the sorting
+                if let Some((col, order)) = sorted {
+                    list_store.set_sort_column_id(col, order);
+                }
+                let dialogs = process_dialogs.borrow();
+                let running_since = *running_since.borrow();
+                for dialog in dialogs.values() {
+                    // TODO: handle dead process?
+                    if let Some(process) = sys.borrow().get_process(dialog.pid) {
+                        dialog.update(process, running_since, start_time);
+                    }
+                }
+                glib::Continue(true)
+            }))
+        )
+    };
+    rfs.borrow_mut().current_source = ret;
+}
+
 fn build_ui(application: &gtk::Application) {
+    let settings = Settings::load();
+
     let menu = gio::Menu::new();
     let menu_bar = gio::Menu::new();
     let more_menu = gio::Menu::new();
@@ -206,7 +278,8 @@ fn build_ui(application: &gtk::Application) {
 
     settings_menu.append("Display temperature in °F", "app.temperature");
     settings_menu.append("Display graphs", "app.graphs");
-    menu_bar.append_submenu("_Setting", &settings_menu);
+    settings_menu.append("More settings", "app.settings");
+    menu_bar.append_submenu("_Settings", &settings_menu);
 
     more_menu.append("About", "app.about");
     menu_bar.append_submenu("?", &more_menu);
@@ -248,7 +321,7 @@ fn build_ui(application: &gtk::Application) {
         }
     }));
 
-    let mut display_tab = DisplaySysInfo::new(&sys, &mut note, &window);
+    let display_tab = DisplaySysInfo::new(&sys, &mut note, &window);
     disk_info::create_disk_info(&sys, &mut note);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -257,6 +330,8 @@ fn build_ui(application: &gtk::Application) {
     let swap_check_box = display_tab.swap_check_box.clone();
     let network_check_box = display_tab.network_check_box.clone();
     let temperature_check_box = display_tab.temperature_check_box.clone();
+
+    let display_tab = Rc::new(RefCell::new(display_tab));
 
     let graphs = gio::SimpleAction::new_stateful("graphs", None, &false.to_variant());
     graphs.connect_activate(move |g, _| {
@@ -292,31 +367,24 @@ fn build_ui(application: &gtk::Application) {
     let process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>> =
         Rc::new(RefCell::new(HashMap::new()));
     let list_store = procs.list_store.clone();
-    gtk::timeout_add(1000, clone!(running_since, sys, process_dialogs => move || {
-        *running_since.borrow_mut() += 1;
-        // first part, deactivate sorting
-        let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
-        list_store.set_unsorted();
 
-        // we update the tree view
-        if let Some(temperature) = temperature.get_state() {
-            update_window(&list_store, &sys, &mut display_tab,
-                          temperature.get::<bool>().expect("couldn't get temperature state"));
-        }
+    let rfs = Rc::new(RefCell::new(RequiredForSettings {
+        current_source: None,
+        running_since: running_since.clone(),
+        sys: sys.clone(),
+        process_dialogs: process_dialogs.clone(),
+        list_store,
+        display_tab,
+        temperature,
+        start_time,
+    }));
+    setup_timeout(settings.refresh_rate, &rfs);
 
-        // we re-enable the sorting
-        if let Some((col, order)) = sorted {
-            list_store.set_sort_column_id(col, order);
-        }
-        let dialogs = process_dialogs.borrow();
-        let running_since = *running_since.borrow();
-        for dialog in dialogs.values() {
-            // TODO: handle dead process?
-            if let Some(process) = sys.borrow().get_process(dialog.pid) {
-                dialog.update(process, running_since, start_time);
-            }
-        }
-        glib::Continue(true)
+    let settings = Rc::new(RefCell::new(settings));
+
+    let settings_action = gio::SimpleAction::new("settings", None);
+    settings_action.connect_activate(clone!(application => move |_, _| {
+        settings::show_settings_dialog(&application, &settings, &rfs);
     }));
 
     info_button.connect_clicked(
@@ -416,6 +484,7 @@ fn build_ui(application: &gtk::Application) {
 
     application.add_action(&about);
     application.add_action(&graphs);
+    application.add_action(&settings_action);
     application.add_action(&new_task);
     application.add_action(&quit);
 
@@ -426,7 +495,7 @@ fn build_ui(application: &gtk::Application) {
 }
 
 fn main() {
-    let application = gtk::Application::new("com.github.GuillaumeGomez.process-viewer",
+    let application = gtk::Application::new(APPLICATION_NAME,
                                             gio::ApplicationFlags::empty())
                                        .expect("Initialization failed...");
 

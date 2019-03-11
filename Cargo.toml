@@ -22,6 +22,8 @@ gtk = "0.6"
 pango = "0.6"
 sysinfo = "0.8"
 libc = "0.2"
+serde = "1.0"
+serde_any = "0.5"
 
 [[bin]]
 name = "process_viewer"
