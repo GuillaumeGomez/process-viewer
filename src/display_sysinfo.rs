@@ -12,10 +12,17 @@ use std::rc::Rc;
 
 use graph::Graph;
 use notebook::NoteBook;
+use settings::Settings;
 use utils::{connect_graph, format_number, RotateVec};
 
-fn create_header(label_text: &str, parent_layout: &gtk::Box) -> gtk::CheckButton {
+fn create_header(
+    label_text: &str,
+    parent_layout: &gtk::Box,
+    display_graph: bool,
+) -> gtk::CheckButton {
     let check_box = gtk::CheckButton::new_with_label("Graph view");
+    check_box.set_active(display_graph);
+
     let label = gtk::Label::new(Some(label_text));
     let empty = gtk::Label::new(None);
     let grid = gtk::Grid::new();
@@ -67,8 +74,12 @@ pub struct DisplaySysInfo {
 }
 
 impl DisplaySysInfo {
-    pub fn new(sys: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook,
-               win: &gtk::ApplicationWindow) -> DisplaySysInfo {
+    pub fn new(
+        sys: &Rc<RefCell<sysinfo::System>>,
+        note: &mut NoteBook,
+        win: &gtk::ApplicationWindow,
+        settings: &Settings,
+    ) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
@@ -193,7 +204,7 @@ impl DisplaySysInfo {
         //
         // PROCESS PART
         //
-        let check_box = create_header("Process usage", &vertical_layout);
+        let check_box = create_header("Process usage", &vertical_layout, settings.display_graph);
         for (i, pro) in sys.borrow().get_processor_list().iter().skip(1).enumerate() {
             let i = i + 1;
             procs.push(gtk::ProgressBar::new());
@@ -215,7 +226,7 @@ impl DisplaySysInfo {
         //
         // MEMORY PART
         //
-        let check_box2 = create_header("Memory usage", &vertical_layout);
+        let check_box2 = create_header("Memory usage", &vertical_layout, settings.display_graph);
         let ram = create_progress_bar(&non_graph_layout2, 0, "RAM", "");
         let swap = create_progress_bar(&non_graph_layout2, 1, "Swap", "");
         vertical_layout.pack_start(&non_graph_layout2, false, false, 15);
@@ -231,7 +242,8 @@ impl DisplaySysInfo {
         // TEMPERATURES PART
         //
         if !sys.borrow().get_components_list().is_empty() {
-            check_box3 = Some(create_header("Components' temperature", &vertical_layout));
+            check_box3 = Some(create_header("Components' temperature", &vertical_layout,
+                                            settings.display_graph));
             for component in sys.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
@@ -256,7 +268,7 @@ impl DisplaySysInfo {
         //
         // NETWORK PART
         //
-        let check_box4 = create_header("Network usage", &vertical_layout);
+        let check_box4 = create_header("Network usage", &vertical_layout, settings.display_graph);
         // input data
         let in_usage = gtk::Label::new(format_number(0).as_str());
         let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
@@ -312,7 +324,7 @@ impl DisplaySysInfo {
             network_history: Rc::clone(&network_history),
             network_check_box: check_box4.clone(),
         };
-        tmp.update_ram_display(&sys.borrow(), false);
+        tmp.update_ram_display(&sys.borrow(), settings.display_fahrenheit);
 
         win.add_events(gdk::EventMask::STRUCTURE_MASK);
         // TODO: ugly way to resize drawing area, I should find a better way
