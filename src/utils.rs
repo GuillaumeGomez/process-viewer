@@ -6,24 +6,6 @@ use std::cell::RefCell;
 use std::ops::Index;
 use std::rc::Rc;
 
-#[macro_export]
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ => move || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
-}
-
 #[derive(Debug)]
 pub struct RotateVec<T> {
     data: Vec<T>,
