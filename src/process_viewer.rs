@@ -217,7 +217,7 @@ pub struct RequiredForSettings {
 
 pub fn setup_timeout(
     refresh_time: u32,
-    rfs: Rc<RefCell<RequiredForSettings>>,
+    rfs: &Rc<RefCell<RequiredForSettings>>,
 ) {
     let ret = {
         let mut rfs = rfs.borrow_mut();
@@ -279,7 +279,7 @@ fn build_ui(application: &gtk::Application) {
     settings_menu.append("Display temperature in °F", "app.temperature");
     settings_menu.append("Display graphs", "app.graphs");
     settings_menu.append("More settings", "app.settings");
-    menu_bar.append_submenu("_Setting", &settings_menu);
+    menu_bar.append_submenu("_Settings", &settings_menu);
 
     more_menu.append("About", "app.about");
     menu_bar.append_submenu("?", &more_menu);
@@ -378,7 +378,7 @@ fn build_ui(application: &gtk::Application) {
         temperature,
         start_time,
     }));
-    setup_timeout(settings.refresh_length, rfs.clone());
+    setup_timeout(settings.refresh_rate, &rfs);
 
     let settings = Rc::new(RefCell::new(settings));
 

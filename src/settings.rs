@@ -25,14 +25,14 @@ use setup_timeout;
 pub struct Settings {
     pub display_degree: bool,
     // Timer length in milliseconds (500 minimum!).
-    pub refresh_length: u32,
+    pub refresh_rate: u32,
 }
 
 impl Default for Settings {
     fn default() -> Settings {
         Settings {
             display_degree: true,
-            refresh_length: 1000,
+            refresh_rate: 1000,
         }
     }
 }
@@ -118,7 +118,7 @@ fn show_error_dialog(fatal: bool, text: &str) {
 
 pub fn show_settings_dialog(
     application: &gtk::Application,
-    settings: Rc<RefCell<Settings>>,
+    settings: &Rc<RefCell<Settings>>,
     rfs: &Rc<RefCell<RequiredForSettings>>,
 ) {
     // Create an empty dialog with close button.
@@ -135,18 +135,18 @@ pub fn show_settings_dialog(
     grid.set_row_spacing(4);
     grid.set_margin_bottom(12);
 
-    // Refresh length.
-    let refresh_label = gtk::Label::new("Refresh length (in seconds)");
+    // Refresh rate.
+    let refresh_label = gtk::Label::new("Refresh rate (in seconds)");
     // We allow 0.5 to 10 seconds, in 0.1 second steps.
     let refresh_entry = gtk::SpinButton::new_with_range(0.5, 10., 0.1);
 
     refresh_label.set_halign(gtk::Align::Start);
     refresh_entry.set_hexpand(true);
 
-    refresh_entry.set_value(settings.borrow().refresh_length as f64 / 1000.);
+    refresh_entry.set_value(settings.borrow().refresh_rate as f64 / 1000.);
 
-    grid.attach(&refresh_label, 0, 2, 1, 0);
-    grid.attach(&refresh_entry, 1, 2, 3, 0);
+    grid.attach(&refresh_label, 0, 0, 1, 1);
+    grid.attach(&refresh_entry, 1, 0, 3, 1);
 
     // Put the grid into the dialog's content area.
     let content_area = dialog.get_content_area();
@@ -155,10 +155,10 @@ pub fn show_settings_dialog(
 
     // Finally connect to all kinds of change notification signals for the different UI widgets.
     // Whenever something is changing we directly save the configuration file with the new values.
-    refresh_entry.connect_value_changed(clone!(rfs => move |entry| {
-        settings.borrow_mut().refresh_length = (entry.get_value() * 1000.) as u32;
+    refresh_entry.connect_value_changed(clone!(settings, rfs => move |entry| {
+        settings.borrow_mut().refresh_rate = (entry.get_value() * 1000.) as u32;
         settings.borrow().save();
-        setup_timeout(settings.borrow().refresh_length, rfs);
+        setup_timeout(settings.borrow().refresh_rate, &rfs);
     }));
 
     dialog.connect_response(move |dialog, _| {
