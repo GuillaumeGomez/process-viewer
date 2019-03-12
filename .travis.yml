@@ -34,9 +34,9 @@ before_install:
 script:
   - rustc --version
   - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-    rustup component add clippy-preview;
+    rustup component add clippy-preview || touch cargo_failed;
     fi
   - RUST_BACKTRACE=1 cargo build
-  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
+  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ] && [ ! -f "cargo_failed"  ]; then
     cargo clippy;
     fi
