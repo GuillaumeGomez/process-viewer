@@ -59,7 +59,7 @@ mod process_dialog;
 mod procs;
 mod settings;
 
-pub const APPLICATION_NAME: &'static str = "com.github.GuillaumeGomez.process-viewer";
+pub const APPLICATION_NAME: &str = "com.github.GuillaumeGomez.process-viewer";
 
 fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
                  info: &mut DisplaySysInfo, display_fahrenheit: bool) {
@@ -122,8 +122,7 @@ fn parse_entry(line: &str) -> Vec<String> {
         }
         (Some(_), None) => parse_quote(line, '\''),
         (None, Some(_)) => parse_quote(line, '"'),
-        (None, None) => line.split(' ').into_iter()
-                                       .map(|s| s.to_owned())
+        (None, None) => line.split(' ').map(::std::borrow::ToOwned::to_owned)
                                        .collect::<Vec<String>>(),
     }
 }
@@ -171,9 +170,9 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
                                    &x);
         m.set_modal(true);
         m.connect_response(|dialog, response| {
-            if response == gtk::ResponseType::DeleteEvent.into() ||
-               response == gtk::ResponseType::Close.into() ||
-               response == gtk::ResponseType::Ok.into() {
+            if response == gtk::ResponseType::DeleteEvent ||
+               response == gtk::ResponseType::Close ||
+               response == gtk::ResponseType::Ok {
                 dialog.destroy();
             }
         });
@@ -221,7 +220,7 @@ pub fn setup_timeout(
 ) {
     let ret = {
         let mut rfs = rfs.borrow_mut();
-        rfs.current_source.take().map(|x| glib::Source::remove(x));
+        rfs.current_source.take().map(glib::Source::remove);
 
         let sys = &rfs.sys;
         let running_since = &rfs.running_since;
@@ -405,8 +404,8 @@ fn build_ui(application: &gtk::Application) {
         }
         p.set_modal(true);
         p.connect_response(|dialog, response| {
-            if response == gtk::ResponseType::DeleteEvent.into() ||
-               response == gtk::ResponseType::Close.into() {
+            if response == gtk::ResponseType::DeleteEvent ||
+               response == gtk::ResponseType::Close {
                 dialog.destroy();
             }
         });

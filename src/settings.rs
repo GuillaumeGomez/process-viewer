@@ -128,7 +128,7 @@ pub fn show_settings_dialog(
         Some("Process Viewer settings"),
         application.get_active_window().as_ref(),
         gtk::DialogFlags::MODAL,
-        &[("Close", gtk::ResponseType::Close.into())],
+        &[("Close", gtk::ResponseType::Close)],
     );
 
     // All the UI widgets are going to be stored in a grid.
@@ -145,7 +145,7 @@ pub fn show_settings_dialog(
     refresh_label.set_halign(gtk::Align::Start);
     refresh_entry.set_hexpand(true);
 
-    refresh_entry.set_value(settings.borrow().refresh_rate as f64 / 1000.);
+    refresh_entry.set_value(f64::from(settings.borrow().refresh_rate) / 1000.);
 
     grid.attach(&refresh_label, 0, 0, 1, 1);
     grid.attach(&refresh_entry, 1, 0, 3, 1);

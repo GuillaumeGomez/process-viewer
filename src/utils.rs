@@ -58,7 +58,7 @@ pub fn format_number(mut nb: u64) -> String {
     if nb < 1000 {
         return format!("{} B", nb);
     }
-    nb = nb >> 10; // / 1_024
+    nb >>= 10; // / 1_024
     if nb < 100_000 {
         format!("{} kB", nb)
     } else if nb < 10_000_000 {

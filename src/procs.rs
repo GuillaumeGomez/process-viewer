@@ -108,14 +108,14 @@ impl Procs {
         note.create_tab("Process list", &vertical_layout);
 
         Procs {
-            left_tree: left_tree,
-            scroll: scroll,
-            current_pid: current_pid,
-            kill_button: kill_button,
-            info_button: info_button,
+            left_tree,
+            scroll,
+            current_pid,
+            kill_button,
+            info_button,
             vertical_layout: vertical_layout.downcast::<gtk::Box>().expect("downcast failed"),
-            list_store: list_store,
-            columns: columns,
+            list_store,
+            columns,
         }
     }
 }
@@ -147,7 +147,7 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
 
 pub fn create_and_fill_model(list_store: &gtk::ListStore, pid: u32, cmdline: &str, name: &str,
                              cpu: f32, memory: u64) {
-    if cmdline.len() < 1 || name.len() < 1 {
+    if cmdline.is_empty() || name.is_empty() {
         return;
     }
     list_store.insert_with_values(None,
