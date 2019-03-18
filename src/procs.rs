@@ -62,18 +62,6 @@ impl Procs {
             Type::F32,       // CPU_f32
         ]);
 
-        append_column("pid", &mut columns, &left_tree, None);
-        append_column("process name", &mut columns, &left_tree, Some(200));
-        append_column("cpu usage", &mut columns, &left_tree, None);
-        append_column("memory usage (in kB)", &mut columns, &left_tree, None);
-
-        // When we click the "name" column the order is defined by the
-        // "name_lowercase" effectively making the built-in comparator ignore case.
-        columns[1].set_sort_column_id(4);
-        // Likewise clicking the "CPU" column sorts by the "CPU_f32" one because
-        // we want the order to be numerical not lexicographical.
-        columns[2].set_sort_column_id(5);
-
         for pro in proc_list.values() {
             create_and_fill_model(&list_store, pro.pid().as_u32(), &format!("{:?}", &pro.cmd()),
                                   &pro.name(), pro.cpu_usage(), pro.memory());
@@ -150,7 +138,21 @@ impl Procs {
         }));
         // For the filtering to be taken into account, we need to add it directly into the
         // "global" model.
-        left_tree.set_model(Some(&filter_model));
+        let sort_model = gtk::TreeModelSort::new(&filter_model);
+        left_tree.set_model(Some(&sort_model));
+
+        append_column("pid", &mut columns, &left_tree, None);
+        append_column("process name", &mut columns, &left_tree, Some(200));
+        append_column("cpu usage", &mut columns, &left_tree, None);
+        append_column("memory usage (in kB)", &mut columns, &left_tree, None);
+
+        // When we click the "name" column the order is defined by the
+        // "name_lowercase" effectively making the built-in comparator ignore case.
+        columns[1].set_sort_column_id(4);
+        // Likewise clicking the "CPU" column sorts by the "CPU_f32" one because
+        // we want the order to be numerical not lexicographical.
+        columns[2].set_sort_column_id(5);
+
 
         filter_entry.connect_property_text_length_notify(move |_| {
             filter_model.refilter();
