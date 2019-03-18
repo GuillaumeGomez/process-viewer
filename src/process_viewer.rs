@@ -59,7 +59,7 @@ mod process_dialog;
 mod procs;
 mod settings;
 
-pub const APPLICATION_NAME: &'static str = "com.github.GuillaumeGomez.process-viewer";
+pub const APPLICATION_NAME: &str = "com.github.GuillaumeGomez.process-viewer";
 
 fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
                  info: &mut DisplaySysInfo, display_fahrenheit: bool) {
@@ -122,8 +122,7 @@ fn parse_entry(line: &str) -> Vec<String> {
         }
         (Some(_), None) => parse_quote(line, '\''),
         (None, Some(_)) => parse_quote(line, '"'),
-        (None, None) => line.split(' ').into_iter()
-                                       .map(|s| s.to_owned())
+        (None, None) => line.split(' ').map(::std::borrow::ToOwned::to_owned)
                                        .collect::<Vec<String>>(),
     }
 }
@@ -171,9 +170,9 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
                                    &x);
         m.set_modal(true);
         m.connect_response(|dialog, response| {
-            if response == gtk::ResponseType::DeleteEvent.into() ||
-               response == gtk::ResponseType::Close.into() ||
-               response == gtk::ResponseType::Ok.into() {
+            if response == gtk::ResponseType::DeleteEvent ||
+               response == gtk::ResponseType::Close ||
+               response == gtk::ResponseType::Ok {
                 dialog.destroy();
             }
         });
@@ -211,40 +210,37 @@ pub struct RequiredForSettings {
     process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
     list_store: gtk::ListStore,
     display_tab: Rc<RefCell<DisplaySysInfo>>,
-    temperature: gio::SimpleAction,
     start_time: u64,
 }
 
 pub fn setup_timeout(
     refresh_time: u32,
     rfs: &Rc<RefCell<RequiredForSettings>>,
+    settings: &Rc<RefCell<Settings>>,
 ) {
     let ret = {
         let mut rfs = rfs.borrow_mut();
-        rfs.current_source.take().map(|x| glib::Source::remove(x));
+        rfs.current_source.take().map(glib::Source::remove);
 
         let sys = &rfs.sys;
         let running_since = &rfs.running_since;
         let process_dialogs = &rfs.process_dialogs;
         let list_store = &rfs.list_store;
-        let temperature = &rfs.temperature;
         let display_tab = &rfs.display_tab;
         let start_time = rfs.start_time;
 
         Some(
             gtk::timeout_add(refresh_time,
-                             clone!(running_since, sys, process_dialogs, list_store, temperature,
-                                    display_tab => move || {
+                             clone!(running_since, sys, process_dialogs, list_store, display_tab,
+                                    settings => move || {
                 *running_since.borrow_mut() += 1;
                 // first part, deactivate sorting
                 let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
                 list_store.set_unsorted();
 
                 // we update the tree view
-                if let Some(temperature) = temperature.get_state() {
-                    update_window(&list_store, &sys, &mut display_tab.borrow_mut(),
-                                  temperature.get::<bool>().expect("couldn't get temperature state"));
-                }
+                update_window(&list_store, &sys, &mut display_tab.borrow_mut(),
+                              settings.borrow().display_fahrenheit);
 
                 // we re-enable the sorting
                 if let Some((col, order)) = sorted {
@@ -278,7 +274,7 @@ fn build_ui(application: &gtk::Application) {
 
     settings_menu.append("Display temperature in °F", "app.temperature");
     settings_menu.append("Display graphs", "app.graphs");
-    settings_menu.append("More settings", "app.settings");
+    settings_menu.append("More settings...", "app.settings");
     menu_bar.append_submenu("_Settings", &settings_menu);
 
     more_menu.append("About", "app.about");
@@ -321,7 +317,7 @@ fn build_ui(application: &gtk::Application) {
         }
     }));
 
-    let display_tab = DisplaySysInfo::new(&sys, &mut note, &window);
+    let display_tab = DisplaySysInfo::new(&sys, &mut note, &window, &settings);
     disk_info::create_disk_info(&sys, &mut note);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -332,32 +328,6 @@ fn build_ui(application: &gtk::Application) {
     let temperature_check_box = display_tab.temperature_check_box.clone();
 
     let display_tab = Rc::new(RefCell::new(display_tab));
-
-    let graphs = gio::SimpleAction::new_stateful("graphs", None, &false.to_variant());
-    graphs.connect_activate(move |g, _| {
-        let mut is_active = false;
-        if let Some(g) = g.get_state() {
-            is_active = g.get().expect("couldn't get bool");
-            ram_check_box.set_active(!is_active);
-            swap_check_box.set_active(!is_active);
-            network_check_box.set_active(!is_active);
-            if let Some(ref temperature_check_box) = temperature_check_box {
-                temperature_check_box.set_active(!is_active);
-            }
-        }
-        // We need to change the toggle state ourselves. `gio` dark magic.
-        g.change_state(&(!is_active).to_variant());
-    });
-    let temperature = gio::SimpleAction::new_stateful("temperature", None, &false.to_variant());
-    temperature.connect_activate(move |g, _| {
-        let mut is_active = false;
-        if let Some(g) = g.get_state() {
-            is_active = g.get().expect("couldn't get graph state");
-        }
-        // We need to change the toggle state ourselves. `gio` dark magic.
-        g.change_state(&(!is_active).to_variant());
-    });
-    application.add_action(&temperature);
 
     // I think it's now useless to have this one...
     v_box.pack_start(&note.notebook, true, true, 0);
@@ -375,15 +345,15 @@ fn build_ui(application: &gtk::Application) {
         process_dialogs: process_dialogs.clone(),
         list_store,
         display_tab,
-        temperature,
         start_time,
     }));
-    setup_timeout(settings.refresh_rate, &rfs);
 
+    let refresh_rate = settings.refresh_rate;
     let settings = Rc::new(RefCell::new(settings));
+    setup_timeout(refresh_rate, &rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(clone!(application => move |_, _| {
+    settings_action.connect_activate(clone!(application, settings => move |_, _| {
         settings::show_settings_dialog(&application, &settings, &rfs);
     }));
 
@@ -415,6 +385,7 @@ fn build_ui(application: &gtk::Application) {
     quit.connect_activate(clone!(window => move |_, _| {
         window.destroy();
     }));
+
     let about = gio::SimpleAction::new("about", None);
     about.connect_activate(clone!(window => move |_, _| {
         let p = AboutDialog::new();
@@ -433,13 +404,14 @@ fn build_ui(application: &gtk::Application) {
         }
         p.set_modal(true);
         p.connect_response(|dialog, response| {
-            if response == gtk::ResponseType::DeleteEvent.into() ||
-               response == gtk::ResponseType::Close.into() {
+            if response == gtk::ResponseType::DeleteEvent ||
+               response == gtk::ResponseType::Close {
                 dialog.destroy();
             }
         });
         p.show_all();
     }));
+
     let new_task = gio::SimpleAction::new("new-task", None);
     new_task.connect_activate(clone!(window => move |_, _| {
         let dialog = Dialog::new();
@@ -482,8 +454,47 @@ fn build_ui(application: &gtk::Application) {
         }));
     }));
 
+    let graphs = gio::SimpleAction::new_stateful("graphs", None,
+                                                 &settings.borrow().display_graph.to_variant());
+    graphs.connect_activate(clone!(settings => move |g, _| {
+        let mut is_active = false;
+        if let Some(g) = g.get_state() {
+            is_active = g.get().expect("couldn't get bool");
+            ram_check_box.set_active(!is_active);
+            swap_check_box.set_active(!is_active);
+            network_check_box.set_active(!is_active);
+            if let Some(ref temperature_check_box) = temperature_check_box {
+                temperature_check_box.set_active(!is_active);
+            }
+        }
+        // We need to change the toggle state ourselves. `gio` dark magic.
+        g.change_state(&(!is_active).to_variant());
+
+        // We update the setting and save it!
+        settings.borrow_mut().display_graph = !is_active;
+        settings.borrow().save();
+    }));
+
+    let temperature = gio::SimpleAction::new_stateful("temperature", None,
+                                                      &settings.borrow()
+                                                               .display_fahrenheit
+                                                               .to_variant());
+    temperature.connect_activate(move |g, _| {
+        let mut is_active = false;
+        if let Some(g) = g.get_state() {
+            is_active = g.get().expect("couldn't get graph state");
+        }
+        // We need to change the toggle state ourselves. `gio` dark magic.
+        g.change_state(&(!is_active).to_variant());
+
+        // We update the setting and save it!
+        settings.borrow_mut().display_fahrenheit = !is_active;
+        settings.borrow().save();
+    });
+
     application.add_action(&about);
     application.add_action(&graphs);
+    application.add_action(&temperature);
     application.add_action(&settings_action);
     application.add_action(&new_task);
     application.add_action(&quit);

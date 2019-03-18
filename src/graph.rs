@@ -68,7 +68,7 @@ impl Graph {
 
     pub fn set_display_labels(&self, display_labels: bool) {
         *self.display_labels.borrow_mut() = display_labels;
-        if display_labels == true {
+        if display_labels {
             self.scroll_layout.show_all();
         } else {
             self.scroll_layout.hide();
@@ -82,7 +82,7 @@ impl Graph {
 
     pub fn show_all(&self) {
         self.horizontal_layout.show_all();
-        if *self.display_labels.borrow() == false {
+        if !*self.display_labels.borrow() {
             self.scroll_layout.hide();
         }
     }
@@ -122,7 +122,7 @@ impl Graph {
             c.show_text(entries[2].as_str());
 
             c.move_to(font_size - 1., height / 2. + 4. * (entries[3].len() >> 1) as f64);
-            c.rotate(-1.5708);
+            c.rotate(-::std::f64::consts::FRAC_PI_2);
             c.show_text(entries[3].as_str());
         }
     }
@@ -227,7 +227,7 @@ impl Graph {
         if let Some(t_win) = self.area.get_window() {
             let (x, y) = self.area.translate_coordinates(&self.area, 0, 0)
                                   .expect("translate_coordinates failed");
-            let rect = gdk::Rectangle { x: x, y: y,
+            let rect = gdk::Rectangle { x, y,
                 width: self.area.get_allocated_width(), height: self.area.get_allocated_height() };
             t_win.invalidate_rect(&rect, true);
         }
@@ -255,7 +255,7 @@ impl Graph {
             }
         }
         self.area.set_size_request(
-            if *self.display_labels.borrow() == true {
+            if *self.display_labels.borrow() {
                 width - if width >= self.labels_layout_width {
                     self.labels_layout_width
                 } else {

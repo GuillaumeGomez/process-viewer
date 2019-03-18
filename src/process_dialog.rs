@@ -41,7 +41,7 @@ impl ProcDialog {
         t.invalidate();
         let mut t = self.cpu_usage_history.borrow_mut();
         t.data[0].move_start();
-        *t.data[0].get_mut(0).expect("cannot get data 0") = process.cpu_usage() as f64;
+        *t.data[0].get_mut(0).expect("cannot get data 0") = f64::from(process.cpu_usage());
         t.invalidate();
     }
 }

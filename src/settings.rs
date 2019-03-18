@@ -23,7 +23,8 @@ use setup_timeout;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Settings {
-    pub display_degree: bool,
+    pub display_fahrenheit: bool,
+    pub display_graph: bool,
     // Timer length in milliseconds (500 minimum!).
     pub refresh_rate: u32,
 }
@@ -31,7 +32,8 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Settings {
         Settings {
-            display_degree: true,
+            display_fahrenheit: false,
+            display_graph: false,
             refresh_rate: 1000,
         }
     }
@@ -126,7 +128,7 @@ pub fn show_settings_dialog(
         Some("Process Viewer settings"),
         application.get_active_window().as_ref(),
         gtk::DialogFlags::MODAL,
-        &[("Close", gtk::ResponseType::Close.into())],
+        &[("Close", gtk::ResponseType::Close)],
     );
 
     // All the UI widgets are going to be stored in a grid.
@@ -143,7 +145,7 @@ pub fn show_settings_dialog(
     refresh_label.set_halign(gtk::Align::Start);
     refresh_entry.set_hexpand(true);
 
-    refresh_entry.set_value(settings.borrow().refresh_rate as f64 / 1000.);
+    refresh_entry.set_value(f64::from(settings.borrow().refresh_rate) / 1000.);
 
     grid.attach(&refresh_label, 0, 0, 1, 1);
     grid.attach(&refresh_entry, 1, 0, 3, 1);
@@ -156,9 +158,12 @@ pub fn show_settings_dialog(
     // Finally connect to all kinds of change notification signals for the different UI widgets.
     // Whenever something is changing we directly save the configuration file with the new values.
     refresh_entry.connect_value_changed(clone!(settings, rfs => move |entry| {
-        settings.borrow_mut().refresh_rate = (entry.get_value() * 1000.) as u32;
-        settings.borrow().save();
-        setup_timeout(settings.borrow().refresh_rate, &rfs);
+        let refresh_rate = settings.borrow().refresh_rate;
+        setup_timeout(refresh_rate, &rfs, &settings);
+
+        let mut settings = settings.borrow_mut();
+        settings.refresh_rate = (entry.get_value() * 1000.) as u32;
+        settings.save();
     }));
 
     dialog.connect_response(move |dialog, _| {

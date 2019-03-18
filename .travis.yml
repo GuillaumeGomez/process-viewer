@@ -5,19 +5,15 @@ matrix:
     - os: linux
       env: TARGET=armv7-unknown-linux-gnueabihf
       rust: stable
-      dist: trusty
     - os: linux
       env: TARGET=x86_64-apple-darwin
       rust: stable
-      dist: trusty
     - os: linux
       env: TARGET=armv7-unknown-linux-gnueabihf
       rust: nightly
-      dist: trusty
     - os: linux
       env: TARGET=x86_64-apple-darwin
       rust: nightly
-      dist: trusty
     - os: osx
       rust: stable
     - os: osx
@@ -38,9 +34,9 @@ before_install:
 script:
   - rustc --version
   - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-    rustup component add clippy-preview;
+    rustup component add clippy-preview || touch cargo_failed;
     fi
   - RUST_BACKTRACE=1 cargo build
-  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
+  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ] && [ ! -f "cargo_failed"  ]; then
     cargo clippy;
     fi
