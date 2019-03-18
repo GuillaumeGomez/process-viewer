@@ -1,9 +1,9 @@
 use glib::object::Cast;
 use gtk::{self, Type};
 use gtk::{
-    BoxExt, CellLayoutExt, CellRendererExt, ContainerExt, GridExt,
-    GtkListStoreExtManual, TreeModelExt, TreeSelectionExt, TreeViewColumnExt,
-    TreeViewExt, WidgetExt,
+    BoxExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
+    GtkListStoreExtManual, OverlayExt, SearchBarExt, TreeModelExt, TreeModelFilterExt,
+    TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
 
 use sysinfo::*;
@@ -24,6 +24,8 @@ pub struct Procs {
     pub vertical_layout: gtk::Box,
     pub list_store: gtk::ListStore,
     pub columns: Vec<gtk::TreeViewColumn>,
+    pub filter_entry: gtk::Entry,
+    pub search_bar: gtk::SearchBar,
 }
 
 impl Procs {
@@ -33,6 +35,19 @@ impl Procs {
         let current_pid = Rc::new(Cell::new(None));
         let kill_button = gtk::Button::new_with_label("End task");
         let info_button = gtk::Button::new_with_label("More information");
+
+        let overlay = gtk::Overlay::new();
+        let filter_entry = gtk::Entry::new();
+        let search_bar = gtk::SearchBar::new();
+
+        // We put the filter entry at the right bottom.
+        filter_entry.set_halign(gtk::Align::End);
+        filter_entry.set_valign(gtk::Align::End);
+        filter_entry.hide(); // By default, we don't show it.
+        search_bar.connect_entry(&filter_entry);
+        search_bar.set_show_close_button(true);
+
+        overlay.add_overlay(&filter_entry);
 
         let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
 
@@ -64,10 +79,10 @@ impl Procs {
                                   &pro.name(), pro.cpu_usage(), pro.memory());
         }
 
-        left_tree.set_model(Some(&list_store));
         left_tree.set_headers_visible(true);
         //let filter = gtk::TreeModelFilter::new(&list_store, None);
         scroll.add(&left_tree);
+        overlay.add(&scroll);
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let horizontal_layout = gtk::Grid::new();
         /*let list_store1 = list_store.clone();
@@ -98,12 +113,48 @@ impl Procs {
         kill_button.set_sensitive(false);
         info_button.set_sensitive(false);
 
-        vertical_layout.pack_start(&scroll, true, true, 0);
+        vertical_layout.pack_start(&overlay, true, true, 0);
         horizontal_layout.attach(&info_button, 0, 0, 2, 1);
         horizontal_layout.attach_next_to(&kill_button, Some(&info_button),
                                          gtk::PositionType::Right, 2, 1);
         horizontal_layout.set_column_homogeneous(true);
         vertical_layout.pack_start(&horizontal_layout, false, true, 0);
+
+        // The filter part.
+        let filter_model = gtk::TreeModelFilter::new(&list_store, None);
+        filter_model.set_visible_func(clone!(filter_entry => move |model, iter| {
+            if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
+                return true;
+            }
+            if let Some(text) = filter_entry.get_text() {
+                if text.is_empty() {
+                    return true;
+                }
+                let text: &str = text.as_ref();
+                // TODO: Maybe add an option to make searches case sensitive?
+                let pid = model.get_value(iter, 0)
+                               .get::<u32>()
+                               .map(|p| p.to_string())
+                               .unwrap_or_else(String::new);
+                let name = model.get_value(iter, 1)
+                                .get::<String>()
+                                .map(|s| s.to_lowercase())
+                                .unwrap_or_else(String::new);
+                pid.contains(text) ||
+                text.contains(&pid) ||
+                name.contains(text) ||
+                text.contains(&name)
+            } else {
+                true
+            }
+        }));
+        // For the filtering to be taken into account, we need to add it directly into the
+        // "global" model.
+        left_tree.set_model(Some(&filter_model));
+
+        filter_entry.connect_property_text_length_notify(move |_| {
+            filter_model.refilter();
+        });
 
         note.create_tab("Process list", &vertical_layout);
 
@@ -116,6 +167,8 @@ impl Procs {
             vertical_layout: vertical_layout.downcast::<gtk::Box>().expect("downcast failed"),
             list_store,
             columns,
+            filter_entry,
+            search_bar,
         }
     }
 }
