@@ -36,6 +36,7 @@ impl Procs {
         let kill_button = gtk::Button::new_with_label("End task");
         let info_button = gtk::Button::new_with_label("More information");
 
+        // TODO: maybe add an 'X' button to close search as well?
         let overlay = gtk::Overlay::new();
         let filter_entry = gtk::Entry::new();
         let search_bar = gtk::SearchBar::new();
@@ -172,6 +173,12 @@ impl Procs {
             filter_entry,
             search_bar,
         }
+    }
+
+    pub fn hide_filter(&self) {
+        self.filter_entry.hide();
+        self.filter_entry.set_text("");
+        self.search_bar.set_search_mode(false);
     }
 }
 

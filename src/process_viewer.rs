@@ -499,36 +499,33 @@ fn build_ui(application: &gtk::Application) {
     application.add_action(&new_task);
     application.add_action(&quit);
 
-    let search_bar = procs.search_bar.clone();
     let filter_entry = procs.filter_entry.clone();
     let notebook = note.notebook.clone();
 
     window.connect_key_press_event(move |win, key| {
         if notebook.get_current_page() == Some(0) { // the process list
             if key.get_keyval() == gdk::enums::key::Escape {
-                filter_entry.hide();
-                Inhibit(true)
+                procs.hide_filter();
             } else {
-                let ret = search_bar.handle_event(key);
-                match filter_entry.get_text() {
+                let ret = procs.search_bar.handle_event(key);
+                match procs.filter_entry.get_text() {
                     Some(ref s) if s.len() > 0 => {
-                        if win.get_focus() != Some(filter_entry.clone().upcast::<gtk::Widget>()) {
-                            win.set_focus(Some(&filter_entry));
+                        procs.filter_entry.show_all();
+                        if win.get_focus() != Some(procs.filter_entry.clone().upcast::<gtk::Widget>()) {
+                            win.set_focus(Some(&procs.filter_entry));
                         }
-                        filter_entry.show_all();
                     }
                     _ => {}
                 }
-                Inhibit(ret)
+                return Inhibit(ret);
             }
-        } else {
-            Inhibit(false)
         }
+        Inhibit(false)
     });
 
     application.connect_activate(move |_| {
         window.show_all();
-        procs.filter_entry.hide();
+        filter_entry.hide();
         window.present();
     });
 }
