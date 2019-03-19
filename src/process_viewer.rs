@@ -24,12 +24,12 @@ use sysinfo::*;
 
 use gdk_pixbuf::Pixbuf;
 use gio::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual, MemoryInputStream};
-use glib::{Bytes, IsA, ToVariant};
+use glib::{Bytes, Cast, IsA, ToVariant};
 use gtk::{AboutDialog, Button, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 use gtk::{
     AboutDialogExt, BoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt, GtkApplicationExt,
-    GtkListStoreExt, GtkListStoreExtManual, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
-    TreeViewExt, WidgetExt, GtkWindowExt, GtkWindowExtManual,
+    GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual, NotebookExtManual,
+    SearchBarExt, ToggleButtonExt, TreeModelExt, TreeSortableExtManual, TreeViewExt, WidgetExt,
 };
 
 use std::cell::RefCell;
@@ -499,8 +499,33 @@ fn build_ui(application: &gtk::Application) {
     application.add_action(&new_task);
     application.add_action(&quit);
 
+    let filter_entry = procs.filter_entry.clone();
+    let notebook = note.notebook.clone();
+
+    window.connect_key_press_event(move |win, key| {
+        if notebook.get_current_page() == Some(0) { // the process list
+            if key.get_keyval() == gdk::enums::key::Escape {
+                procs.hide_filter();
+            } else {
+                let ret = procs.search_bar.handle_event(key);
+                match procs.filter_entry.get_text() {
+                    Some(ref s) if s.len() > 0 => {
+                        procs.filter_entry.show_all();
+                        if win.get_focus() != Some(procs.filter_entry.clone().upcast::<gtk::Widget>()) {
+                            win.set_focus(Some(&procs.filter_entry));
+                        }
+                    }
+                    _ => {}
+                }
+                return Inhibit(ret);
+            }
+        }
+        Inhibit(false)
+    });
+
     application.connect_activate(move |_| {
         window.show_all();
+        filter_entry.hide();
         window.present();
     });
 }
