@@ -139,8 +139,8 @@ pub fn show_settings_dialog(
 
     // Refresh rate.
     let refresh_label = gtk::Label::new("Refresh rate (in seconds)");
-    // We allow 0.5 to 10 seconds, in 0.1 second steps.
-    let refresh_entry = gtk::SpinButton::new_with_range(0.5, 10., 0.1);
+    // We allow 0.5 to 5 seconds, in 0.1 second steps.
+    let refresh_entry = gtk::SpinButton::new_with_range(0.5, 5., 0.1);
 
     refresh_label.set_halign(gtk::Align::Start);
     refresh_entry.set_hexpand(true);

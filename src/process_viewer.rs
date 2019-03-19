@@ -184,9 +184,16 @@ fn create_new_proc_diag(process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog
                         pid: Pid,
                         sys: &sysinfo::System,
                         window: &gtk::ApplicationWindow,
-                        running_since: u64,
+                        running_since: &SystemTime,
                         starting_time: u64,
 ) {
+    let running_since = match running_since.elapsed() {
+        Ok(r) => r.as_secs(),
+        Err(e) => {
+            eprintln!("2. Error when try to get elapsed time: {:?}", e);
+            return;
+        }
+    };
     if process_dialogs.borrow().get(&pid).is_none() {
         let total_memory = sys.get_total_memory();
         if let Some(process) = sys.get_process(pid) {
@@ -205,7 +212,7 @@ fn create_new_proc_diag(process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog
 
 pub struct RequiredForSettings {
     current_source: Option<glib::SourceId>,
-    running_since: Rc<RefCell<u64>>,
+    running_since: Rc<RefCell<SystemTime>>,
     sys: Rc<RefCell<sysinfo::System>>,
     process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
     list_store: gtk::ListStore,
@@ -233,7 +240,6 @@ pub fn setup_timeout(
             gtk::timeout_add(refresh_time,
                              clone!(running_since, sys, process_dialogs, list_store, display_tab,
                                     settings => move || {
-                *running_since.borrow_mut() += 1;
                 // first part, deactivate sorting
                 let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
                 list_store.set_unsorted();
@@ -247,7 +253,13 @@ pub fn setup_timeout(
                     list_store.set_sort_column_id(col, order);
                 }
                 let dialogs = process_dialogs.borrow();
-                let running_since = *running_since.borrow();
+                let running_since = match running_since.borrow().elapsed() {
+                    Ok(r) => r.as_secs(),
+                    Err(e) => {
+                        eprintln!("An error occurred when getting elapsed time: {:?}", e);
+                        return glib::Continue(true);
+                    }
+                };
                 for dialog in dialogs.values() {
                     // TODO: handle dead process?
                     if let Some(process) = sys.borrow().get_process(dialog.pid) {
@@ -288,7 +300,7 @@ fn build_ui(application: &gtk::Application) {
     let start_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
                                       .expect("couldn't get start time")
                                       .as_secs();
-    let running_since = Rc::new(RefCell::new(0));
+    let running_since = Rc::new(RefCell::new(SystemTime::now()));
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
     let procs = Procs::new(sys.borrow().get_process_list(), &mut note);
@@ -361,7 +373,7 @@ fn build_ui(application: &gtk::Application) {
         clone!(current_pid, window, running_since, process_dialogs, sys => move |_| {
             if let Some(pid) = current_pid.get() {
                 create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
-                                     *running_since.borrow(),
+                                     &*running_since.borrow(),
                                      start_time);
             }
         }
@@ -376,7 +388,7 @@ fn build_ui(application: &gtk::Application) {
                        .expect("failed to get value from model");
         if process_dialogs.borrow().get(&pid).is_none() {
             create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
-                                 *running_since.borrow(),
+                                 &*running_since.borrow(),
                                  start_time);
         }
     }));
