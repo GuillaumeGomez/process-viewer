@@ -324,7 +324,7 @@ impl DisplaySysInfo {
             network_history: Rc::clone(&network_history),
             network_check_box: check_box4.clone(),
         };
-        tmp.update_ram_display(&sys.borrow(), settings.display_fahrenheit);
+        tmp.update_system_info(&sys.borrow(), settings.display_fahrenheit);
 
         win.add_events(gdk::EventMask::STRUCTURE_MASK);
         // TODO: ugly way to resize drawing area, I should find a better way
@@ -377,7 +377,7 @@ impl DisplaySysInfo {
         tmp
     }
 
-    pub fn update_ram_display(&mut self, sys: &sysinfo::System, display_fahrenheit: bool) {
+    pub fn update_system_info(&mut self, sys: &sysinfo::System, display_fahrenheit: bool) {
         let disp = |total, used| {
             if total < 100_000 {
                 format!("{} / {} kB", used, total)
@@ -424,6 +424,7 @@ impl DisplaySysInfo {
             }
         }
 
+        // temperature part
         let mut t = self.temperature_usage_history.borrow_mut();
         for (pos, (component, label)) in sys.get_components_list()
                                             .iter()
@@ -442,8 +443,9 @@ impl DisplaySysInfo {
                 label.set_text(&format!("{:.1} °C", component.get_temperature()));
             }
         }
+    }
 
-        // network part
+    pub fn update_network(&mut self, sys: &sysinfo::System) {
         let mut t = self.network_history.borrow_mut();
         self.in_usage.set_text(format_number(sys.get_network().get_income()).as_str());
         self.out_usage.set_text(format_number(sys.get_network().get_outcome()).as_str());
@@ -453,7 +455,7 @@ impl DisplaySysInfo {
         *t.data[1].get_mut(0).expect("cannot get data 1") = sys.get_network().get_outcome() as f64;
     }
 
-    pub fn update_process_display(&mut self, sys: &sysinfo::System) {
+    pub fn update_system_info_display(&mut self, sys: &sysinfo::System) {
         let v = &*self.procs.borrow_mut();
         let h = &mut *self.cpu_usage_history.borrow_mut();
 

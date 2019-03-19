@@ -61,12 +61,23 @@ mod settings;
 
 pub const APPLICATION_NAME: &str = "com.github.GuillaumeGomez.process-viewer";
 
-fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>,
-                 info: &mut DisplaySysInfo, display_fahrenheit: bool) {
+fn update_system_info(system: &Rc<RefCell<sysinfo::System>>, info: &mut DisplaySysInfo,
+                      display_fahrenheit: bool) {
     let mut system = system.borrow_mut();
-    system.refresh_all();
-    info.update_ram_display(&system, display_fahrenheit);
-    info.update_process_display(&system);
+    system.refresh_system();
+    info.update_system_info(&system, display_fahrenheit);
+    info.update_system_info_display(&system);
+}
+
+fn update_system_network(system: &Rc<RefCell<sysinfo::System>>, info: &mut DisplaySysInfo) {
+    let mut system = system.borrow_mut();
+    system.refresh_network();
+    info.update_network(&system);
+}
+
+fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
+    let mut system = system.borrow_mut();
+    system.refresh_processes();
     let entries: &HashMap<Pid, Process> = system.get_process_list();
     let mut seen: HashSet<Pid> = HashSet::new();
 
@@ -184,9 +195,16 @@ fn create_new_proc_diag(process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog
                         pid: Pid,
                         sys: &sysinfo::System,
                         window: &gtk::ApplicationWindow,
-                        running_since: u64,
+                        running_since: &SystemTime,
                         starting_time: u64,
 ) {
+    let running_since = match running_since.elapsed() {
+        Ok(r) => r.as_secs(),
+        Err(e) => {
+            eprintln!("2. Error when try to get elapsed time: {:?}", e);
+            return;
+        }
+    };
     if process_dialogs.borrow().get(&pid).is_none() {
         let total_memory = sys.get_total_memory();
         if let Some(process) = sys.get_process(pid) {
@@ -205,7 +223,9 @@ fn create_new_proc_diag(process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog
 
 pub struct RequiredForSettings {
     current_source: Option<glib::SourceId>,
-    running_since: Rc<RefCell<u64>>,
+    current_network_source: Option<glib::SourceId>,
+    current_system_source: Option<glib::SourceId>,
+    running_since: Rc<RefCell<SystemTime>>,
     sys: Rc<RefCell<sysinfo::System>>,
     process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
     list_store: gtk::ListStore,
@@ -216,7 +236,6 @@ pub struct RequiredForSettings {
 pub fn setup_timeout(
     refresh_time: u32,
     rfs: &Rc<RefCell<RequiredForSettings>>,
-    settings: &Rc<RefCell<Settings>>,
 ) {
     let ret = {
         let mut rfs = rfs.borrow_mut();
@@ -226,28 +245,30 @@ pub fn setup_timeout(
         let running_since = &rfs.running_since;
         let process_dialogs = &rfs.process_dialogs;
         let list_store = &rfs.list_store;
-        let display_tab = &rfs.display_tab;
         let start_time = rfs.start_time;
 
         Some(
             gtk::timeout_add(refresh_time,
-                             clone!(running_since, sys, process_dialogs, list_store, display_tab,
-                                    settings => move || {
-                *running_since.borrow_mut() += 1;
+                             clone!(running_since, sys, process_dialogs, list_store => move || {
                 // first part, deactivate sorting
                 let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
                 list_store.set_unsorted();
 
                 // we update the tree view
-                update_window(&list_store, &sys, &mut display_tab.borrow_mut(),
-                              settings.borrow().display_fahrenheit);
+                update_window(&list_store, &sys);
 
                 // we re-enable the sorting
                 if let Some((col, order)) = sorted {
                     list_store.set_sort_column_id(col, order);
                 }
                 let dialogs = process_dialogs.borrow();
-                let running_since = *running_since.borrow();
+                let running_since = match running_since.borrow().elapsed() {
+                    Ok(r) => r.as_secs(),
+                    Err(e) => {
+                        eprintln!("An error occurred when getting elapsed time: {:?}", e);
+                        return glib::Continue(true);
+                    }
+                };
                 for dialog in dialogs.values() {
                     // TODO: handle dead process?
                     if let Some(process) = sys.borrow().get_process(dialog.pid) {
@@ -259,6 +280,49 @@ pub fn setup_timeout(
         )
     };
     rfs.borrow_mut().current_source = ret;
+}
+
+pub fn setup_network_timeout(
+    refresh_time: u32,
+    rfs: &Rc<RefCell<RequiredForSettings>>,
+) {
+    let ret = {
+        let mut rfs = rfs.borrow_mut();
+        rfs.current_network_source.take().map(glib::Source::remove);
+
+        let sys = &rfs.sys;
+        let display_tab = &rfs.display_tab;
+
+        Some(
+            gtk::timeout_add(refresh_time, clone!(sys, display_tab => move || {
+                update_system_network(&sys, &mut display_tab.borrow_mut());
+                glib::Continue(true)
+            }))
+        )
+    };
+    rfs.borrow_mut().current_network_source = ret;
+}
+
+pub fn setup_system_timeout(
+    refresh_time: u32,
+    rfs: &Rc<RefCell<RequiredForSettings>>,
+    settings: &Rc<RefCell<Settings>>,
+) {
+    let ret = {
+        let mut rfs = rfs.borrow_mut();
+        rfs.current_system_source.take().map(glib::Source::remove);
+
+        let sys = &rfs.sys;
+        let display_tab = &rfs.display_tab;
+
+        Some(
+            gtk::timeout_add(refresh_time, clone!(sys, display_tab, settings => move || {
+                update_system_info(&sys, &mut display_tab.borrow_mut(), settings.borrow().display_fahrenheit);
+                glib::Continue(true)
+            }))
+        )
+    };
+    rfs.borrow_mut().current_system_source = ret;
 }
 
 fn build_ui(application: &gtk::Application) {
@@ -288,7 +352,7 @@ fn build_ui(application: &gtk::Application) {
     let start_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
                                       .expect("couldn't get start time")
                                       .as_secs();
-    let running_since = Rc::new(RefCell::new(0));
+    let running_since = Rc::new(RefCell::new(SystemTime::now()));
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
     let procs = Procs::new(sys.borrow().get_process_list(), &mut note);
@@ -340,6 +404,8 @@ fn build_ui(application: &gtk::Application) {
 
     let rfs = Rc::new(RefCell::new(RequiredForSettings {
         current_source: None,
+        current_network_source: None,
+        current_system_source: None,
         running_since: running_since.clone(),
         sys: sys.clone(),
         process_dialogs: process_dialogs.clone(),
@@ -348,9 +414,13 @@ fn build_ui(application: &gtk::Application) {
         start_time,
     }));
 
-    let refresh_rate = settings.refresh_rate;
+    let refresh_processes_rate = settings.refresh_processes_rate;
+    let refresh_system_rate = settings.refresh_system_rate;
+    let refresh_network_rate = settings.refresh_network_rate;
     let settings = Rc::new(RefCell::new(settings));
-    setup_timeout(refresh_rate, &rfs, &settings);
+    setup_timeout(refresh_processes_rate, &rfs);
+    setup_network_timeout(refresh_network_rate, &rfs);
+    setup_system_timeout(refresh_system_rate, &rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
     settings_action.connect_activate(clone!(application, settings => move |_, _| {
@@ -361,7 +431,7 @@ fn build_ui(application: &gtk::Application) {
         clone!(current_pid, window, running_since, process_dialogs, sys => move |_| {
             if let Some(pid) = current_pid.get() {
                 create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
-                                     *running_since.borrow(),
+                                     &*running_since.borrow(),
                                      start_time);
             }
         }
@@ -376,7 +446,7 @@ fn build_ui(application: &gtk::Application) {
                        .expect("failed to get value from model");
         if process_dialogs.borrow().get(&pid).is_none() {
             create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
-                                 *running_since.borrow(),
+                                 &*running_since.borrow(),
                                  start_time);
         }
     }));
