@@ -1,10 +1,13 @@
+use gio::MemoryInputStream;
+use glib::Bytes;
 use glib::object::Cast;
 use gtk::{self, Type};
 use gtk::{
-    BoxExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
+    BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
     GtkListStoreExtManual, OverlayExt, SearchBarExt, TreeModelExt, TreeModelFilterExt,
     TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
+use gdk_pixbuf::Pixbuf;
 
 use sysinfo::*;
 
@@ -26,6 +29,7 @@ pub struct Procs {
     pub columns: Vec<gtk::TreeViewColumn>,
     pub filter_entry: gtk::Entry,
     pub search_bar: gtk::SearchBar,
+    pub filter_button: gtk::Button,
 }
 
 impl Procs {
@@ -35,6 +39,19 @@ impl Procs {
         let current_pid = Rc::new(Cell::new(None));
         let kill_button = gtk::Button::new_with_label("End task");
         let info_button = gtk::Button::new_with_label("More information");
+
+        let filter_button = gtk::Button::new();
+        let memory_stream = MemoryInputStream::new_from_bytes(
+                                &Bytes::from_static(include_bytes!("../assets/magnifier.png")));
+        let image = Pixbuf::new_from_stream_at_scale(&memory_stream, 32, 32, true,
+                                                     None::<&gio::Cancellable>);
+        if let Ok(image) = image {
+            let image = gtk::Image::new_from_pixbuf(&image);
+            filter_button.set_image(Some(&image));
+            filter_button.set_always_show_image(true);
+        } else {
+            filter_button.set_label("Filter");
+        }
 
         // TODO: maybe add an 'X' button to close search as well?
         let overlay = gtk::Overlay::new();
@@ -106,6 +123,8 @@ impl Procs {
         horizontal_layout.attach(&info_button, 0, 0, 2, 1);
         horizontal_layout.attach_next_to(&kill_button, Some(&info_button),
                                          gtk::PositionType::Right, 2, 1);
+        horizontal_layout.attach_next_to(&filter_button, Some(&kill_button),
+                                         gtk::PositionType::Right, 1, 1);
         horizontal_layout.set_column_homogeneous(true);
         vertical_layout.pack_start(&horizontal_layout, false, true, 0);
 
@@ -172,6 +191,7 @@ impl Procs {
             columns,
             filter_entry,
             search_bar,
+            filter_button,
         }
     }
 
