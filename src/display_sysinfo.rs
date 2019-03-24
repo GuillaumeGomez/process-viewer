@@ -1,8 +1,8 @@
 use gdk;
 use glib::object::Cast;
 use gtk::{
-    self, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, ToggleButtonExt,
-    WidgetExt, WidgetExtManual, GtkWindowExt,
+    self, AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt,
+    ScrolledWindowExt, ToggleButtonExt, WidgetExt, WidgetExtManual, GtkWindowExt,
 };
 use sysinfo::{self, ComponentExt, NetworkExt, ProcessorExt, SystemExt};
 
@@ -306,6 +306,18 @@ impl DisplaySysInfo {
 
         scroll.add(&vertical_layout);
         note.create_tab("System usage", &scroll);
+
+        // It greatly improves the scrolling on the system information tab. No more clipping.
+        if let Some(adjustment) = scroll.get_vadjustment() {
+            adjustment.connect_value_changed(
+                clone!(cpu_usage_history, ram_usage_history, temperature_usage_history,
+                       network_history => move |_| {
+                cpu_usage_history.borrow().invalidate();
+                ram_usage_history.borrow().invalidate();
+                temperature_usage_history.borrow().invalidate();
+                network_history.borrow().invalidate();
+            }));
+        }
 
         let mut tmp = DisplaySysInfo {
             procs: Rc::new(RefCell::new(procs)),

@@ -86,18 +86,10 @@ impl Procs {
         }
 
         left_tree.set_headers_visible(true);
-        //let filter = gtk::TreeModelFilter::new(&list_store, None);
         scroll.add(&left_tree);
         overlay.add(&scroll);
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let horizontal_layout = gtk::Grid::new();
-        /*let list_store1 = list_store.clone();
-
-        filter.set_modify_func(|_, iter, value| {
-            list_store1.get_value(&iter, 4).get::<String>()
-                                           .expect("get_value from list_store failed")
-                       .contains(value.get::<String>().expect("contains.get failed").to_lowercase())
-        });*/
 
         left_tree.connect_cursor_changed(
             clone!(current_pid, kill_button, info_button => move |tree_view| {
