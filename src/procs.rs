@@ -112,9 +112,9 @@ impl Procs {
         info_button.set_sensitive(false);
 
         vertical_layout.pack_start(&overlay, true, true, 0);
-        horizontal_layout.attach(&info_button, 0, 0, 2, 1);
+        horizontal_layout.attach(&info_button, 0, 0, 4, 1);
         horizontal_layout.attach_next_to(&kill_button, Some(&info_button),
-                                         gtk::PositionType::Right, 2, 1);
+                                         gtk::PositionType::Right, 4, 1);
         horizontal_layout.attach_next_to(&filter_button, Some(&kill_button),
                                          gtk::PositionType::Right, 1, 1);
         horizontal_layout.set_column_homogeneous(true);
