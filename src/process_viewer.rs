@@ -573,8 +573,12 @@ fn build_ui(application: &gtk::Application) {
     let notebook = note.notebook.clone();
 
     procs.filter_button.connect_clicked(clone!(filter_entry, window => move |_| {
-        filter_entry.show_all();
-        window.set_focus(Some(&filter_entry));
+        if filter_entry.get_visible() {
+            filter_entry.hide();
+        } else {
+            filter_entry.show_all();
+            window.set_focus(Some(&filter_entry));
+        }
     }));
     window.connect_key_press_event(move |win, key| {
         if notebook.get_current_page() == Some(0) { // the process list
