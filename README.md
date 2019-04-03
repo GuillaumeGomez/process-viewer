@@ -40,5 +40,5 @@ If you appreciate my work and want to support me, you can do it here:
 
 ## Screenshots
 
-![screenshot](http://guillaume-gomez.fr/image/screen1.png)
-![screenshot](http://guillaume-gomez.fr/image/screen2.png)
+![screenshot](http://guillaume-gomez.fr/image/screen3.png)
+![screenshot](http://guillaume-gomez.fr/image/screen4.png)
