@@ -191,7 +191,7 @@ impl DisplaySysInfo {
             let processor_list = s.get_processor_list();
             if !processor_list.is_empty() {
                 let pro = &processor_list[0];
-                p.set_text(format!("{:.2} %", pro.get_cpu_usage() * 100.).as_str());
+                p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
                 p.set_fraction(f64::from(pro.get_cpu_usage()));
             } else {
                 p.set_text(Some("0.0 %"));
@@ -209,9 +209,9 @@ impl DisplaySysInfo {
             let i = i + 1;
             procs.push(gtk::ProgressBar::new());
             let p: &gtk::ProgressBar = &procs[i];
-            let l = gtk::Label::new(format!("{}", i).as_str());
+            let l = gtk::Label::new(Some(&format!("{}", i)));
 
-            p.set_text(format!("{:.2} %", pro.get_cpu_usage() * 100.).as_str());
+            p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
             p.set_show_text(true);
             p.set_fraction(f64::from(pro.get_cpu_usage()));
             non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
@@ -247,9 +247,9 @@ impl DisplaySysInfo {
             for component in sys.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
-                let temp = gtk::Label::new(format!("{:.1} °C",
-                                                   component.get_temperature()).as_str());
-                horizontal_layout.pack_start(&gtk::Label::new(component.get_label()),
+                let temp = gtk::Label::new(Some(&format!("{:.1} °C",
+                                                        component.get_temperature())));
+                horizontal_layout.pack_start(&gtk::Label::new(Some(component.get_label())),
                                              true, false, 0);
                 horizontal_layout.pack_start(&temp, true, false, 0);
                 horizontal_layout.set_homogeneous(true);
@@ -270,18 +270,18 @@ impl DisplaySysInfo {
         //
         let check_box4 = create_header("Network usage", &vertical_layout, settings.display_graph);
         // input data
-        let in_usage = gtk::Label::new(format_number(0).as_str());
+        let in_usage = gtk::Label::new(Some(&format_number(0)));
         let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-        horizontal_layout.pack_start(&gtk::Label::new("Input data"), true, false, 0);
+        horizontal_layout.pack_start(&gtk::Label::new(Some("Input data")), true, false, 0);
         horizontal_layout.pack_start(&in_usage, true, false, 0);
         horizontal_layout.set_homogeneous(true);
         non_graph_layout4.add(&horizontal_layout);
         network_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
                              "Input data", None);
         // output data
-        let out_usage = gtk::Label::new(format_number(0).as_str());
+        let out_usage = gtk::Label::new(Some(&format_number(0)));
         let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-        horizontal_layout.pack_start(&gtk::Label::new("Output data"), true, false, 0);
+        horizontal_layout.pack_start(&gtk::Label::new(Some("Output data")), true, false, 0);
         horizontal_layout.pack_start(&out_usage, true, false, 0);
         horizontal_layout.set_homogeneous(true);
         non_graph_layout4.add(&horizontal_layout);
@@ -405,7 +405,7 @@ impl DisplaySysInfo {
 
         let total_ram = sys.get_total_memory();
         let used = sys.get_used_memory();
-        self.ram.set_text(disp(total_ram, used).as_str());
+        self.ram.set_text(Some(&disp(total_ram, used)));
         if total_ram != 0 {
             self.ram.set_fraction(used as f64 / total_ram as f64);
         } else {
@@ -421,7 +421,7 @@ impl DisplaySysInfo {
 
         let total = ::std::cmp::max(sys.get_total_swap(), total_ram);
         let used = sys.get_used_swap();
-        self.swap.set_text(disp(sys.get_total_swap(), used).as_str());
+        self.swap.set_text(Some(&disp(sys.get_total_swap(), used)));
 
         let mut fraction = if total != 0 { used as f64 / total as f64 } else { 0f64 };
         if fraction.is_nan() {
@@ -472,7 +472,7 @@ impl DisplaySysInfo {
         let h = &mut *self.cpu_usage_history.borrow_mut();
 
         for (i, pro) in sys.get_processor_list().iter().enumerate() {
-            v[i].set_text(format!("{:.1} %", pro.get_cpu_usage() * 100.).as_str());
+            v[i].set_text(Some(&format!("{:.1} %", pro.get_cpu_usage() * 100.)));
             v[i].set_show_text(true);
             v[i].set_fraction(f64::from(pro.get_cpu_usage()));
             if i > 0 {

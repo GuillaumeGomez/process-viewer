@@ -140,10 +140,12 @@ fn parse_entry(line: &str) -> Vec<String> {
 
 #[cfg(unix)]
 fn build_command(c: &mut Command) -> &mut Command {
-    c.before_exec(|| {
-        unsafe { libc::setsid() };
-        Ok(())
-    })
+    unsafe {
+        c.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        })
+    }
 }
 
 #[cfg(windows)]
@@ -333,19 +335,19 @@ fn build_ui(application: &gtk::Application) {
     let more_menu = gio::Menu::new();
     let settings_menu = gio::Menu::new();
 
-    menu.append("Launch new executable", "app.new-task");
-    menu.append("Quit", "app.quit");
+    menu.append(Some("Launch new executable"), Some("app.new-task"));
+    menu.append(Some("Quit"), Some("app.quit"));
 
-    settings_menu.append("Display temperature in °F", "app.temperature");
-    settings_menu.append("Display graphs", "app.graphs");
-    settings_menu.append("More settings...", "app.settings");
-    menu_bar.append_submenu("_Settings", &settings_menu);
+    settings_menu.append(Some("Display temperature in °F"), Some("app.temperature"));
+    settings_menu.append(Some("Display graphs"), Some("app.graphs"));
+    settings_menu.append(Some("More settings..."), Some("app.settings"));
+    menu_bar.append_submenu(Some("_Settings"), &settings_menu);
 
-    more_menu.append("About", "app.about");
-    menu_bar.append_submenu("?", &more_menu);
+    more_menu.append(Some("About"), Some("app.about"));
+    menu_bar.append_submenu(Some("?"), &more_menu);
 
-    application.set_app_menu(&menu);
-    application.set_menubar(&menu_bar);
+    application.set_app_menu(Some(&menu));
+    application.set_menubar(Some(&menu_bar));
 
     let window = gtk::ApplicationWindow::new(application);
     let sys = sysinfo::System::new();
@@ -609,7 +611,7 @@ fn build_ui(application: &gtk::Application) {
 }
 
 fn main() {
-    let application = gtk::Application::new(APPLICATION_NAME,
+    let application = gtk::Application::new(Some(APPLICATION_NAME),
                                             gio::ApplicationFlags::empty())
                                        .expect("Initialization failed...");
 
