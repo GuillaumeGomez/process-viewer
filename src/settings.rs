@@ -127,7 +127,7 @@ fn show_error_dialog(fatal: bool, text: &str) {
 pub fn build_spin(label: &str, grid: &gtk::Grid,
                   top: i32, refresh: u32) -> gtk::SpinButton {
     // Refresh rate.
-    let refresh_label = gtk::Label::new(label);
+    let refresh_label = gtk::Label::new(Some(label));
     // We allow 0.5 to 5 seconds, in 0.1 second steps.
     let refresh_entry = gtk::SpinButton::new_with_range(0.5, 5., 0.1);
 

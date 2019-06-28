@@ -46,7 +46,7 @@ impl Procs {
         let image = Pixbuf::new_from_stream_at_scale(&memory_stream, 32, 32, true,
                                                      None::<&gio::Cancellable>);
         if let Ok(image) = image {
-            let image = gtk::Image::new_from_pixbuf(&image);
+            let image = gtk::Image::new_from_pixbuf(Some(&image));
             filter_button.set_image(Some(&image));
             filter_button.set_always_show_image(true);
         } else {

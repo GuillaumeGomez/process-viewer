@@ -23,7 +23,7 @@ pub struct Graph {
     keep_max: bool,
     display_labels: RefCell<bool>,
     initial_diff: Option<i32>,
-    label_callbacks: Option<Box<Fn(f64) -> [String; 4]>>,
+    label_callbacks: Option<Box<dyn Fn(f64) -> [String; 4]>>,
     labels_layout_width: i32,
 }
 
@@ -38,7 +38,10 @@ impl Graph {
             colors: vec!(),
             data: vec!(),
             vertical_layout: gtk::Box::new(gtk::Orientation::Vertical, 0),
-            scroll_layout: gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>),
+            scroll_layout: gtk::ScrolledWindow::new(
+                None::<&gtk::Adjustment>,
+                None::<&gtk::Adjustment>,
+            ),
             horizontal_layout: gtk::Box::new(gtk::Orientation::Horizontal, 0),
             area: DrawingArea::new(),
             max: if let Some(max) = max { Some(RefCell::new(max)) } else { None },
@@ -62,7 +65,10 @@ impl Graph {
         self.labels_layout_width = labels_layout_width as i32;
     }
 
-    pub fn set_label_callbacks(&mut self, label_callbacks: Option<Box<Fn(f64) -> [String; 4]>>) {
+    pub fn set_label_callbacks(
+        &mut self,
+        label_callbacks: Option<Box<dyn Fn(f64) -> [String; 4]>>,
+    ) {
         self.label_callbacks = label_callbacks;
     }
 
@@ -98,7 +104,7 @@ impl Graph {
             Color::generate(self.data.len() + 11)
         };
         let l = gtk::Label::new(Some(s));
-        l.override_color(StateFlags::from_bits(0).expect("from_bits failed"), &c.to_gdk());
+        l.override_color(StateFlags::from_bits(0).expect("from_bits failed"), Some(&c.to_gdk()));
         self.vertical_layout.add(&l);
         self.colors.push(c);
         self.data.push(d);
@@ -229,7 +235,7 @@ impl Graph {
                                   .expect("translate_coordinates failed");
             let rect = gdk::Rectangle { x, y,
                 width: self.area.get_allocated_width(), height: self.area.get_allocated_height() };
-            t_win.invalidate_rect(&rect, true);
+            t_win.invalidate_rect(Some(&rect), true);
         }
     }
 

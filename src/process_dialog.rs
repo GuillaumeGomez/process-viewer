@@ -87,7 +87,7 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
     label.set_justify(gtk::Justification::Left);
     label.set_markup(&format!("<b>{}:</b> ", title));
 
-    let text = gtk::Label::new(text);
+    let text = gtk::Label::new(Some(text));
     text.set_selectable(true);
     text.set_justify(gtk::Justification::Left);
     text.set_line_wrap(true);
@@ -122,7 +122,7 @@ pub fn create_process_dialog(
 
     let flags = gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::USE_HEADER_BAR;
     let popup = gtk::Dialog::new_with_buttons(
-                    format!("Information about {}", process.name()).as_str(),
+                    Some(&format!("Information about {}", process.name())),
                     Some(window),
                     flags,
                     &[]);
@@ -189,7 +189,7 @@ pub fn create_process_dialog(
     cpu_usage_history.set_label_callbacks(Some(Box::new(|_| {
         ["100".to_string(), "50".to_string(), "0".to_string(), "%".to_string()]
     })));
-    vertical_layout.add(&gtk::Label::new("Process usage"));
+    vertical_layout.add(&gtk::Label::new(Some("Process usage")));
     cpu_usage_history.attach_to(&vertical_layout);
     cpu_usage_history.invalidate();
     let cpu_usage_history = connect_graph(cpu_usage_history);
@@ -219,7 +219,7 @@ pub fn create_process_dialog(
              "TB".to_string()]
         }
     })));
-    vertical_layout.add(&gtk::Label::new("Memory usage"));
+    vertical_layout.add(&gtk::Label::new(Some("Memory usage")));
     ram_usage_history.attach_to(&vertical_layout);
     ram_usage_history.invalidate();
     let ram_usage_history = connect_graph(ram_usage_history);

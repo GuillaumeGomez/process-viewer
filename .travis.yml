@@ -31,6 +31,9 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew unlink python; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gtk+3 cairo atk; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/opt/X11/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig;
+  fi
 script:
   - rustc --version
   - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
