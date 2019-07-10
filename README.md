@@ -14,6 +14,12 @@ Please run it in release mode to have good performance:
 cargo run --release
 ```
 
+or to install it as binary
+
+```bash
+cargo install process_viewer
+```
+
 ### Building/running on Linux, MacOS and Ubuntu-based Distros
 
 Running ```process-viewer``` on Gnome-based Ubuntu (>=17.10) should work out of the box.  
