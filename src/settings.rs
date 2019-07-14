@@ -13,7 +13,8 @@ use gtk::{BoxExt, ContainerExt, DialogExt, GridExt, GtkApplicationExt, GtkWindow
           SpinButtonSignals, WidgetExt};
 
 use std::cell::RefCell;
-use std::fs::create_dir_all;
+use std::fs::{create_dir_all, File};
+use std::io::Read;
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -46,15 +47,27 @@ impl Default for Settings {
 }
 
 impl Settings {
+    fn load_from_file(p: &PathBuf)->Result<Settings, String> {
+        let mut input = String::new();
+        let mut file = File::open(p).
+            map_err(|e| format!("Error while opening '{}': {}", p.display(), e))?;
+        file.read_to_string(&mut input).
+            map_err(|e|format!("Error while opening '{}': {}", p.display(), e))?;
+        toml::from_str(&input).
+            map_err(|e| format!("Error while opening '{}': {}", p.display(), e))
+    }
+
     pub fn load() -> Settings {
         let s = Self::get_settings_file_path();
         if s.exists() && s.is_file() {
-            match serde_any::from_file::<Settings, _>(&s) {
-                Ok(s) => s,
+            match Self::load_from_file(&s) {
+                Ok(settings) => {
+                    settings
+                }
                 Err(e) => {
                     show_error_dialog(
                         false,
-                        format!("Error while opening '{}': {}", s.display(), e).as_str(),
+                        &e
                     );
                     Settings::default()
                 }
@@ -85,15 +98,26 @@ impl Settings {
                                 e
                             ).as_str(),
                         );
+                        return;
                     }
                 }
             }
         }
-        if let Err(e) = serde_any::to_file(&s, self) {
-            show_error_dialog(
-                false,
-                format!("Error while trying to save file: {}", e).as_str(),
-            );
+        match toml::to_string_pretty(&self) {
+            Ok(output) => {
+                if let Err(e) = std::fs::write(&s, output) {
+                    show_error_dialog(
+                        false,
+                        format!("Error while trying to save file: {}", e).as_str(),
+                    );
+                }
+            }
+            Err(e) => {
+                show_error_dialog(
+                    false,
+                    format!("Error while trying to save file: {}", e).as_str(),
+                );
+            }
         }
     }
 }

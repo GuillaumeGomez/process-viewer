@@ -15,10 +15,10 @@ extern crate gtk;
 extern crate libc;
 extern crate pango;
 extern crate sysinfo;
+extern crate toml;
 
 #[macro_use]
-extern crate serde;
-extern crate serde_any;
+extern crate serde_derive;
 
 use sysinfo::*;
 
