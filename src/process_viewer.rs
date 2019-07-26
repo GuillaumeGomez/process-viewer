@@ -370,7 +370,7 @@ fn build_ui(application: &gtk::Application) {
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
     window.get_preferred_width();
-    window.set_default_size(500, 700);
+    window.set_default_size(600, 700);
 
     window.connect_delete_event(|w, _| {
         w.destroy();
