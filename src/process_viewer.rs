@@ -350,6 +350,7 @@ fn build_ui(application: &gtk::Application) {
     application.set_menubar(Some(&menu_bar));
 
     let window = gtk::ApplicationWindow::new(application);
+
     let sys = sysinfo::System::new();
     let start_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
                                       .expect("couldn't get start time")
@@ -363,6 +364,7 @@ fn build_ui(application: &gtk::Application) {
 
     window.set_title("Process viewer");
     window.set_position(gtk::WindowPosition::Center);
+    window.set_modal(true);
     // To silence the annying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
