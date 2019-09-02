@@ -25,12 +25,20 @@ pub struct ProcDialog {
     notebook: NoteBook,
     ram_usage_history: Rc<RefCell<Graph>>,
     cpu_usage_history: Rc<RefCell<Graph>>,
+    memory_peak: RefCell<u64>,
+    memory_peak_label: gtk::Label,
 }
 
 impl ProcDialog {
     pub fn update(&self, process: &sysinfo::Process, running_since: u64, start_time: u64) {
         self.working_directory.set_text(&process.cwd().display().to_string());
-        self.memory_usage.set_text(&format_number(process.memory() << 10)); // * 1_024
+        let memory = process.memory() << 10; // * 1024
+        let memory_s = format_number(memory);
+        self.memory_usage.set_text(&memory_s);
+        if memory > *self.memory_peak.borrow() {
+            *self.memory_peak.borrow_mut() = memory;
+            self.memory_peak_label.set_text(&memory_s);
+        }
         self.cpu_usage.set_text(&format!("{:.1}%", process.cpu_usage()));
         let running_since = compute_running_since(process, start_time, running_since);
         self.run_time.set_text(&format_time(running_since));
@@ -141,9 +149,13 @@ pub fn create_process_dialog(
 
     create_and_add_new_label(&labels, "name", process.name());
     create_and_add_new_label(&labels, "pid", &process.pid().to_string());
+    let memory_peak = process.memory() << 10; // * 1024
     let memory_usage = create_and_add_new_label(&labels,
                                                 "memory usage",
-                                                &format_number(process.memory() << 10));
+                                                &format_number(memory_peak));
+    let memory_peak_label = create_and_add_new_label(&labels,
+                                                     "memory usage peak",
+                                                     &format_number(memory_peak));
     let cpu_usage = create_and_add_new_label(&labels,
                                              "cpu usage",
                                              &format!("{:.1}%", process.cpu_usage()));
@@ -269,5 +281,7 @@ pub fn create_process_dialog(
         notebook,
         ram_usage_history,
         cpu_usage_history,
+        memory_peak: RefCell::new(memory_peak),
+        memory_peak_label,
     }
 }

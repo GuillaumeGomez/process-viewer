@@ -25,11 +25,12 @@ use sysinfo::*;
 use gdk_pixbuf::Pixbuf;
 use gio::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual, MemoryInputStream};
 use glib::{Bytes, Cast, IsA, ToVariant};
-use gtk::{AboutDialog, Button, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
+use gtk::{AboutDialog, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 use gtk::{
-    AboutDialogExt, BoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt, GtkApplicationExt,
-    GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual, NotebookExtManual,
-    SearchBarExt, ToggleButtonExt, TreeModelExt, TreeSortableExtManual, TreeViewExt, WidgetExt,
+    AboutDialogExt, BoxExt, ButtonBoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt,
+    GtkApplicationExt, GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual,
+    NotebookExtManual, SearchBarExt, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
+    TreeViewExt, WidgetExt,
 };
 
 use std::cell::RefCell;
@@ -193,12 +194,14 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
     }
 }
 
-fn create_new_proc_diag(process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
-                        pid: Pid,
-                        sys: &sysinfo::System,
-                        window: &gtk::ApplicationWindow,
-                        running_since: &SystemTime,
-                        starting_time: u64,
+fn create_new_proc_diag(
+    process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
+    pid: Pid,
+    sys: &sysinfo::System,
+    application: &gtk::Application,
+    window: &gtk::ApplicationWindow,
+    running_since: &SystemTime,
+    starting_time: u64,
 ) {
     let running_since = match running_since.elapsed() {
         Ok(r) => r.as_secs(),
@@ -432,28 +435,30 @@ fn build_ui(application: &gtk::Application) {
     }));
 
     info_button.connect_clicked(
-        clone!(current_pid, window, running_since, process_dialogs, sys => move |_| {
+        clone!(application, current_pid, window, running_since, process_dialogs, sys => move |_| {
             if let Some(pid) = current_pid.get() {
-                create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
+                create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &application, &window,
                                      &*running_since.borrow(),
                                      start_time);
             }
         }
     ));
 
-    procs.left_tree.connect_row_activated(clone!(window, sys => move |tree_view, path, _| {
-        let model = tree_view.get_model().expect("couldn't get model");
-        let iter = model.get_iter(path).expect("couldn't get iter");
-        let pid = model.get_value(&iter, 0)
-                       .get::<u32>()
-                       .map(|x| x as Pid)
-                       .expect("failed to get value from model");
-        if process_dialogs.borrow().get(&pid).is_none() {
-            create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
-                                 &*running_since.borrow(),
-                                 start_time);
+    procs.left_tree.connect_row_activated(
+        clone!(application, window, sys => move |tree_view, path, _| {
+            let model = tree_view.get_model().expect("couldn't get model");
+            let iter = model.get_iter(path).expect("couldn't get iter");
+            let pid = model.get_value(&iter, 0)
+                           .get::<u32>()
+                           .map(|x| x as Pid)
+                           .expect("failed to get value from model");
+            if process_dialogs.borrow().get(&pid).is_none() {
+                create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &application, &window,
+                                     &*running_since.borrow(),
+                                     start_time);
+            }
         }
-    }));
+    ));
 
     let quit = gio::SimpleAction::new("quit", None);
     quit.connect_activate(clone!(window => move |_, _| {
@@ -487,21 +492,48 @@ fn build_ui(application: &gtk::Application) {
     }));
 
     let new_task = gio::SimpleAction::new("new-task", None);
-    new_task.connect_activate(clone!(window => move |_, _| {
-        let dialog = Dialog::new();
-        dialog.set_title("Launch new executable");
-        let content_area = dialog.get_content_area();
+    new_task.connect_activate(clone!(application, window => move |_, _| {
+        let dialog = gtk::Dialog::new_with_buttons(
+            Some("Launch new executable"),
+            application.get_active_window().as_ref(),
+            gtk::DialogFlags::MODAL,
+            &[("Run", gtk::ResponseType::Other(0)), ("Cancel", gtk::ResponseType::Close)],
+        );
         let input = Entry::new();
-        let run = Button::new_with_label("Run");
-        let cancel = Button::new_with_label("Cancel");
-        let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let h_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        h_box.pack_start(&run, true, true, 0);
-        h_box.pack_start(&cancel, true, true, 0);
-        v_box.pack_start(&input, true, true, 0);
-        v_box.pack_start(&h_box, true, true, 0);
-        content_area.add(&v_box);
-        dialog.set_transient_for(Some(&window));
+
+        // To set "run" button disabled by default.
+        dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
+        // To make "run" and "cancel" button take all spaces.
+        if let Some(run) = dialog.get_widget_for_response(gtk::ResponseType::Other(0)) {
+            if let Some(parent) = run.get_parent() {
+                let parent = parent.downcast::<gtk::ButtonBox>().unwrap();
+                parent.set_property_layout_style(gtk::ButtonBoxStyle::Expand);
+            }
+        }
+        input.connect_changed(clone!(dialog => move |input| {
+            match input.get_text() {
+                Some(ref x) if !x.is_empty() => {
+                    dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
+                }
+                _ => dialog.set_response_sensitive(gtk::ResponseType::Other(0), false),
+            }
+        }));
+        input.connect_activate(clone!(window, dialog => move |input| {
+            run_command(input, &window, &dialog);
+        }));
+        dialog.connect_response(clone!(input, window => move |dialog, response| {
+            match response {
+                gtk::ResponseType::Close => {
+                    dialog.destroy();
+                }
+                gtk::ResponseType::Other(0) => {
+                    run_command(&input, &window, &dialog);
+                }
+                _ => {}
+            }
+        }));
+
+        dialog.get_content_area().add(&input);
         // To silence the annying warning:
         // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
         // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
@@ -509,23 +541,6 @@ fn build_ui(application: &gtk::Application) {
         dialog.get_preferred_width();
         dialog.set_size_request(400, 70);
         dialog.show_all();
-
-        run.set_sensitive(false);
-        input.connect_changed(clone!(run => move |input| {
-            match input.get_text() {
-                Some(ref x) if !x.is_empty() => run.set_sensitive(true),
-                _ => run.set_sensitive(false),
-            }
-        }));
-        cancel.connect_clicked(clone!(dialog => move |_| {
-            dialog.destroy();
-        }));
-        input.connect_activate(clone!(window, dialog => move |input| {
-            run_command(input, &window, &dialog);
-        }));
-        run.connect_clicked(clone!(window => move |_| {
-            run_command(&input, &window, &dialog);
-        }));
     }));
 
     let graphs = gio::SimpleAction::new_stateful("graphs", None,
@@ -585,7 +600,7 @@ fn build_ui(application: &gtk::Application) {
         }
     }));
     window.connect_key_press_event(move |win, key| {
-        if notebook.get_current_page() == Some(0) { // the process list
+        if win.is_focus() && notebook.get_current_page() == Some(0) { // the process list
             if key.get_keyval() == gdk::enums::key::Escape {
                 procs.hide_filter();
             } else {
