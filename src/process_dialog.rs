@@ -1,12 +1,13 @@
-use glib::object::Cast;
 use gtk::{
-    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, DialogExt, LabelExt, ScrolledWindowExt
+    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, GtkApplicationExt, LabelExt,
+    ScrolledWindowExt
 };
 use gtk::{WidgetExt, GtkWindowExt};
 use pango;
 use sysinfo::{self, Pid, ProcessExt};
 
 use std::cell::RefCell;
+use std::fmt;
 use std::iter;
 use std::rc::Rc;
 
@@ -29,8 +30,14 @@ pub struct ProcDialog {
     memory_peak_label: gtk::Label,
 }
 
+impl fmt::Debug for ProcDialog {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ProcDialog {{ pid: {} }}", self.pid)
+    }
+}
+
 impl ProcDialog {
-    pub fn update(&self, process: &sysinfo::Process, running_since: u64, start_time: u64) {
+    pub fn update(&self, process: &sysinfo::Process, start_time: u64) {
         self.working_directory.set_text(&process.cwd().display().to_string());
         let memory = process.memory() << 10; // * 1024
         let memory_s = format_number(memory);
@@ -40,7 +47,7 @@ impl ProcDialog {
             self.memory_peak_label.set_text(&memory_s);
         }
         self.cpu_usage.set_text(&format!("{:.1}%", process.cpu_usage()));
-        let running_since = compute_running_since(process, start_time, running_since);
+        let running_since = compute_running_since(process, start_time);
         self.run_time.set_text(&format_time(running_since));
 
         let mut t = self.ram_usage_history.borrow_mut();
@@ -109,31 +116,28 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
 
 fn compute_running_since(
     process: &sysinfo::Process,
-    start_time: u64,
     running_since: u64,
 ) -> u64 {
-    if start_time > process.start_time() {
-        start_time - process.start_time() + running_since
+    if running_since > process.start_time() {
+        running_since - process.start_time()
     } else {
-        start_time + running_since - process.start_time()
+        process.start_time() - running_since
     }
 }
 
 pub fn create_process_dialog(
     process: &sysinfo::Process,
-    window: &gtk::ApplicationWindow,
-    running_since: u64,
+    application: &gtk::Application,
     start_time: u64,
     total_memory: u64,
 ) -> ProcDialog {
     let mut notebook = NoteBook::new();
 
-    let flags = gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::USE_HEADER_BAR;
-    let popup = gtk::Dialog::new_with_buttons(
-                    Some(&format!("Information about {}", process.name())),
-                    Some(window),
-                    flags,
-                    &[]);
+    let popup = gtk::Window::new(gtk::WindowType::Toplevel);
+
+    popup.set_title(&format!("Information about {}", process.name()));
+    popup.set_transient_for(application.get_active_window().as_ref());
+    popup.set_destroy_with_parent(true);
 
     //
     // PROCESS INFO TAB
@@ -143,7 +147,7 @@ pub fn create_process_dialog(
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
 
-    let running_since = compute_running_since(process, start_time, running_since);
+    let running_since = compute_running_since(process, start_time);
 
     let labels = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
@@ -243,12 +247,13 @@ pub fn create_process_dialog(
     }));
     notebook.create_tab("Resources usage", &scroll);
 
-    let area = popup.get_content_area();
+    /*let area = popup.get_content_area();
     area.set_margin_top(0);
     area.set_margin_bottom(0);
     area.set_margin_start(0);
     area.set_margin_end(0);
-    area.pack_start(&notebook.notebook, true, true, 0);
+    area.pack_start(&notebook.notebook, true, true, 0);*/
+    popup.add(&notebook.notebook);
     // To silence the annoying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
@@ -256,13 +261,11 @@ pub fn create_process_dialog(
     popup.get_preferred_width();
     popup.set_size_request(500, 600);
 
-    let popup = popup.upcast::<gtk::Window>();
+    close_button.connect_clicked(clone!(popup => move |_| {
+        popup.destroy();
+    }));
     popup.set_resizable(true);
     popup.show_all();
-    let pop = popup.clone();
-    close_button.connect_clicked(move |_| {
-        pop.destroy();
-    });
 
     if let Some(adjust) = scroll.get_vadjustment() {
         adjust.set_value(0.);
