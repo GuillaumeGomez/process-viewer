@@ -192,16 +192,21 @@ pub fn create_process_dialog(
     vertical_layout.set_margin_start(5);
     vertical_layout.set_margin_end(5);
     let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-    let mut cpu_usage_history = Graph::new(Some(100.), false);
-    let mut ram_usage_history = Graph::new(Some(total_memory as f64), true);
+    let mut cpu_usage_history = Graph::new(Some(100.), false); // In case a process uses more than 100%
+    let mut ram_usage_history = Graph::new(Some(total_memory as f64), false);
 
     cpu_usage_history.set_display_labels(false);
     ram_usage_history.set_display_labels(false);
 
     cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
                            "", None);
-    cpu_usage_history.set_label_callbacks(Some(Box::new(|_| {
-        ["100".to_string(), "50".to_string(), "0".to_string(), "%".to_string()]
+    cpu_usage_history.set_label_callbacks(Some(Box::new(|v| {
+        if v > 100. {
+            let nb = v.ceil() as u64;
+            [nb.to_string(), (nb / 2).to_string(), "0".to_string(), "%".to_string()]
+        } else {
+            ["100".to_string(), "50".to_string(), "0".to_string(), "%".to_string()]
+        }
     })));
     vertical_layout.add(&gtk::Label::new(Some("Process usage")));
     cpu_usage_history.attach_to(&vertical_layout);
@@ -245,12 +250,6 @@ pub fn create_process_dialog(
     }));
     notebook.create_tab("Resources usage", &scroll);
 
-    /*let area = popup.get_content_area();
-    area.set_margin_top(0);
-    area.set_margin_bottom(0);
-    area.set_margin_start(0);
-    area.set_margin_end(0);
-    area.pack_start(&notebook.notebook, true, true, 0);*/
     popup.add(&notebook.notebook);
     // To silence the annoying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
