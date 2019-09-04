@@ -1,10 +1,14 @@
 use graph::Graph;
 
-use gtk::{Inhibit, WidgetExt};
+use gio;
+use glib::Cast;
+use gtk::{GtkApplicationExt, Inhibit, WidgetExt};
 
 use std::cell::RefCell;
 use std::ops::Index;
 use std::rc::Rc;
+
+pub const MAIN_WINDOW_NAME: &str = "main-window";
 
 #[derive(Debug)]
 pub struct RotateVec<T> {
@@ -89,4 +93,20 @@ impl<T> Index<usize> for RotateVec<T> {
     fn index(&self, index: usize) -> &T {
         &self.data[self.get_real_pos(index)]
     }
+}
+
+pub fn get_app() -> gtk::Application {
+    gio::Application::get_default()
+        .expect("No default application")
+        .downcast::<gtk::Application>()
+        .expect("Default application has wrong type")
+}
+
+pub fn get_main_window() -> Option<gtk::Window> {
+    for window in get_app().get_windows() {
+        if window.get_name().as_ref().map(|ref s| s.as_str()) == Some(MAIN_WINDOW_NAME) {
+            return Some(window);
+        }
+    }
+    None
 }

@@ -1,6 +1,5 @@
 use gtk::{
-    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, GtkApplicationExt, LabelExt,
-    ScrolledWindowExt
+    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt
 };
 use gtk::{WidgetExt, GtkWindowExt};
 use pango;
@@ -13,7 +12,7 @@ use std::rc::Rc;
 
 use graph::{Connecter, Graph};
 use notebook::NoteBook;
-use utils::{connect_graph, format_number, RotateVec};
+use utils::{get_main_window, connect_graph, format_number, RotateVec};
 
 #[allow(dead_code)]
 pub struct ProcDialog {
@@ -127,7 +126,6 @@ fn compute_running_since(
 
 pub fn create_process_dialog(
     process: &sysinfo::Process,
-    application: &gtk::Application,
     start_time: u64,
     total_memory: u64,
 ) -> ProcDialog {
@@ -136,7 +134,7 @@ pub fn create_process_dialog(
     let popup = gtk::Window::new(gtk::WindowType::Toplevel);
 
     popup.set_title(&format!("Information about {}", process.name()));
-    popup.set_transient_for(application.get_active_window().as_ref());
+    popup.set_transient_for(get_main_window().as_ref());
     popup.set_destroy_with_parent(true);
 
     //

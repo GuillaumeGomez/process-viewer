@@ -198,7 +198,6 @@ fn create_new_proc_diag(
     process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
     pid: Pid,
     sys: &sysinfo::System,
-    application: &gtk::Application,
     starting_time: u64,
 ) {
     if let Some(ref proc_diag) = process_dialogs.borrow().get(&pid) {
@@ -208,7 +207,6 @@ fn create_new_proc_diag(
     let total_memory = sys.get_total_memory();
     if let Some(process) = sys.get_process(pid) {
         let diag = process_dialog::create_process_dialog(process,
-                                                         application,
                                                          starting_time,
                                                          total_memory);
         diag.popup.connect_destroy(clone!(process_dialogs => move |_| {
@@ -412,29 +410,27 @@ fn build_ui(application: &gtk::Application) {
     setup_system_timeout(refresh_system_rate, &rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(clone!(application, settings => move |_, _| {
-        settings::show_settings_dialog(&application, &settings, &rfs);
+    settings_action.connect_activate(clone!(settings => move |_, _| {
+        settings::show_settings_dialog(&settings, &rfs);
     }));
 
     info_button.connect_clicked(
-        clone!(application, current_pid, process_dialogs, sys => move |_| {
+        clone!(current_pid, process_dialogs, sys => move |_| {
             if let Some(pid) = current_pid.get() {
-                create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &application,
-                                     start_time);
+                create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
             }
         }
     ));
 
     procs.left_tree.connect_row_activated(
-        clone!(application, sys => move |tree_view, path, _| {
+        clone!(sys => move |tree_view, path, _| {
             let model = tree_view.get_model().expect("couldn't get model");
             let iter = model.get_iter(path).expect("couldn't get iter");
             let pid = model.get_value(&iter, 0)
                            .get::<u32>()
                            .map(|x| x as Pid)
                            .expect("failed to get value from model");
-            create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &application,
-                                 start_time);
+            create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
         }
     ));
 
@@ -578,7 +574,7 @@ fn build_ui(application: &gtk::Application) {
         }
     }));
     window.connect_key_press_event(move |win, key| {
-        if win.is_focus() && notebook.get_current_page() == Some(0) { // the process list
+        if notebook.get_current_page() == Some(0) { // the process list
             if key.get_keyval() == gdk::enums::key::Escape {
                 procs.hide_filter();
             } else {
@@ -597,6 +593,8 @@ fn build_ui(application: &gtk::Application) {
         }
         Inhibit(false)
     });
+
+    window.set_name(utils::MAIN_WINDOW_NAME);
 
     application.connect_activate(move |_| {
         window.show_all();
