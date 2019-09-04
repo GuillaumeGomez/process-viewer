@@ -8,9 +8,10 @@ use glib;
 use gtk;
 
 use gio::ApplicationExt;
-use glib::Cast;
-use gtk::{BoxExt, ContainerExt, DialogExt, GridExt, GtkApplicationExt, GtkWindowExt, SpinButtonExt,
-          SpinButtonSignals, WidgetExt};
+use gtk::{
+    BoxExt, ContainerExt, DialogExt, GridExt, GtkWindowExt, SpinButtonExt, SpinButtonSignals,
+    WidgetExt,
+};
 
 use std::cell::RefCell;
 use std::fs::{create_dir_all, File};
@@ -21,6 +22,7 @@ use std::rc::Rc;
 use APPLICATION_NAME;
 use RequiredForSettings;
 use {setup_timeout, setup_network_timeout, setup_system_timeout};
+use utils::{get_app, get_main_window};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Settings {
@@ -123,13 +125,8 @@ impl Settings {
 }
 
 fn show_error_dialog(fatal: bool, text: &str) {
-    let app = gio::Application::get_default()
-        .expect("No default application")
-        .downcast::<gtk::Application>()
-        .expect("Default application has wrong type");
-
     let dialog = gtk::MessageDialog::new(
-        app.get_active_window().as_ref(),
+        get_main_window().as_ref(),
         gtk::DialogFlags::MODAL,
         gtk::MessageType::Error,
         gtk::ButtonsType::Ok,
@@ -140,7 +137,7 @@ fn show_error_dialog(fatal: bool, text: &str) {
         dialog.destroy();
 
         if fatal {
-            app.quit();
+            get_app().quit();
         }
     });
 
@@ -148,8 +145,12 @@ fn show_error_dialog(fatal: bool, text: &str) {
     dialog.show_all();
 }
 
-pub fn build_spin(label: &str, grid: &gtk::Grid,
-                  top: i32, refresh: u32) -> gtk::SpinButton {
+pub fn build_spin(
+    label: &str,
+    grid: &gtk::Grid,
+    top: i32,
+    refresh: u32,
+) -> gtk::SpinButton {
     // Refresh rate.
     let refresh_label = gtk::Label::new(Some(label));
     // We allow 0.5 to 5 seconds, in 0.1 second steps.
@@ -166,7 +167,6 @@ pub fn build_spin(label: &str, grid: &gtk::Grid,
 }
 
 pub fn show_settings_dialog(
-    application: &gtk::Application,
     settings: &Rc<RefCell<Settings>>,
     rfs: &Rc<RefCell<RequiredForSettings>>,
 ) {
@@ -174,7 +174,7 @@ pub fn show_settings_dialog(
     // Create an empty dialog with close button.
     let dialog = gtk::Dialog::new_with_buttons(
         Some("Process Viewer settings"),
-        application.get_active_window().as_ref(),
+        get_main_window().as_ref(),
         gtk::DialogFlags::MODAL,
         &[("Close", gtk::ResponseType::Close)],
     );

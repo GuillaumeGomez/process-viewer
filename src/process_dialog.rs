@@ -1,18 +1,18 @@
-use glib::object::Cast;
 use gtk::{
-    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, DialogExt, LabelExt, ScrolledWindowExt
+    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt
 };
 use gtk::{WidgetExt, GtkWindowExt};
 use pango;
 use sysinfo::{self, Pid, ProcessExt};
 
 use std::cell::RefCell;
+use std::fmt;
 use std::iter;
 use std::rc::Rc;
 
 use graph::{Connecter, Graph};
 use notebook::NoteBook;
-use utils::{connect_graph, format_number, RotateVec};
+use utils::{get_main_window, connect_graph, format_number, RotateVec};
 
 #[allow(dead_code)]
 pub struct ProcDialog {
@@ -25,14 +25,28 @@ pub struct ProcDialog {
     notebook: NoteBook,
     ram_usage_history: Rc<RefCell<Graph>>,
     cpu_usage_history: Rc<RefCell<Graph>>,
+    memory_peak: RefCell<u64>,
+    memory_peak_label: gtk::Label,
+}
+
+impl fmt::Debug for ProcDialog {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ProcDialog {{ pid: {} }}", self.pid)
+    }
 }
 
 impl ProcDialog {
-    pub fn update(&self, process: &sysinfo::Process, running_since: u64, start_time: u64) {
+    pub fn update(&self, process: &sysinfo::Process, start_time: u64) {
         self.working_directory.set_text(&process.cwd().display().to_string());
-        self.memory_usage.set_text(&format_number(process.memory() << 10)); // * 1_024
+        let memory = process.memory() << 10; // * 1024
+        let memory_s = format_number(memory);
+        self.memory_usage.set_text(&memory_s);
+        if memory > *self.memory_peak.borrow() {
+            *self.memory_peak.borrow_mut() = memory;
+            self.memory_peak_label.set_text(&memory_s);
+        }
         self.cpu_usage.set_text(&format!("{:.1}%", process.cpu_usage()));
-        let running_since = compute_running_since(process, start_time, running_since);
+        let running_since = compute_running_since(process, start_time);
         self.run_time.set_text(&format_time(running_since));
 
         let mut t = self.ram_usage_history.borrow_mut();
@@ -101,31 +115,27 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
 
 fn compute_running_since(
     process: &sysinfo::Process,
-    start_time: u64,
     running_since: u64,
 ) -> u64 {
-    if start_time > process.start_time() {
-        start_time - process.start_time() + running_since
+    if running_since > process.start_time() {
+        running_since - process.start_time()
     } else {
-        start_time + running_since - process.start_time()
+        process.start_time() - running_since
     }
 }
 
 pub fn create_process_dialog(
     process: &sysinfo::Process,
-    window: &gtk::ApplicationWindow,
-    running_since: u64,
     start_time: u64,
     total_memory: u64,
 ) -> ProcDialog {
     let mut notebook = NoteBook::new();
 
-    let flags = gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::USE_HEADER_BAR;
-    let popup = gtk::Dialog::new_with_buttons(
-                    Some(&format!("Information about {}", process.name())),
-                    Some(window),
-                    flags,
-                    &[]);
+    let popup = gtk::Window::new(gtk::WindowType::Toplevel);
+
+    popup.set_title(&format!("Information about {}", process.name()));
+    popup.set_transient_for(get_main_window().as_ref());
+    popup.set_destroy_with_parent(true);
 
     //
     // PROCESS INFO TAB
@@ -135,15 +145,19 @@ pub fn create_process_dialog(
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
 
-    let running_since = compute_running_since(process, start_time, running_since);
+    let running_since = compute_running_since(process, start_time);
 
     let labels = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
     create_and_add_new_label(&labels, "name", process.name());
     create_and_add_new_label(&labels, "pid", &process.pid().to_string());
+    let memory_peak = process.memory() << 10; // * 1024
     let memory_usage = create_and_add_new_label(&labels,
                                                 "memory usage",
-                                                &format_number(process.memory() << 10));
+                                                &format_number(memory_peak));
+    let memory_peak_label = create_and_add_new_label(&labels,
+                                                     "memory usage peak",
+                                                     &format_number(memory_peak));
     let cpu_usage = create_and_add_new_label(&labels,
                                              "cpu usage",
                                              &format!("{:.1}%", process.cpu_usage()));
@@ -178,16 +192,21 @@ pub fn create_process_dialog(
     vertical_layout.set_margin_start(5);
     vertical_layout.set_margin_end(5);
     let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-    let mut cpu_usage_history = Graph::new(Some(100.), false);
-    let mut ram_usage_history = Graph::new(Some(total_memory as f64), true);
+    let mut cpu_usage_history = Graph::new(Some(100.), false); // In case a process uses more than 100%
+    let mut ram_usage_history = Graph::new(Some(total_memory as f64), false);
 
     cpu_usage_history.set_display_labels(false);
     ram_usage_history.set_display_labels(false);
 
     cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
                            "", None);
-    cpu_usage_history.set_label_callbacks(Some(Box::new(|_| {
-        ["100".to_string(), "50".to_string(), "0".to_string(), "%".to_string()]
+    cpu_usage_history.set_label_callbacks(Some(Box::new(|v| {
+        if v > 100. {
+            let nb = v.ceil() as u64;
+            [nb.to_string(), (nb / 2).to_string(), "0".to_string(), "%".to_string()]
+        } else {
+            ["100".to_string(), "50".to_string(), "0".to_string(), "%".to_string()]
+        }
     })));
     vertical_layout.add(&gtk::Label::new(Some("Process usage")));
     cpu_usage_history.attach_to(&vertical_layout);
@@ -231,12 +250,7 @@ pub fn create_process_dialog(
     }));
     notebook.create_tab("Resources usage", &scroll);
 
-    let area = popup.get_content_area();
-    area.set_margin_top(0);
-    area.set_margin_bottom(0);
-    area.set_margin_start(0);
-    area.set_margin_end(0);
-    area.pack_start(&notebook.notebook, true, true, 0);
+    popup.add(&notebook.notebook);
     // To silence the annoying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
@@ -244,13 +258,11 @@ pub fn create_process_dialog(
     popup.get_preferred_width();
     popup.set_size_request(500, 600);
 
-    let popup = popup.upcast::<gtk::Window>();
+    close_button.connect_clicked(clone!(popup => move |_| {
+        popup.destroy();
+    }));
     popup.set_resizable(true);
     popup.show_all();
-    let pop = popup.clone();
-    close_button.connect_clicked(move |_| {
-        pop.destroy();
-    });
 
     if let Some(adjust) = scroll.get_vadjustment() {
         adjust.set_value(0.);
@@ -269,5 +281,7 @@ pub fn create_process_dialog(
         notebook,
         ram_usage_history,
         cpu_usage_history,
+        memory_peak: RefCell::new(memory_peak),
+        memory_peak_label,
     }
 }

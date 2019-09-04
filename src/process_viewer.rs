@@ -25,11 +25,12 @@ use sysinfo::*;
 use gdk_pixbuf::Pixbuf;
 use gio::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual, MemoryInputStream};
 use glib::{Bytes, Cast, IsA, ToVariant};
-use gtk::{AboutDialog, Button, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
+use gtk::{AboutDialog, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 use gtk::{
-    AboutDialogExt, BoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt, GtkApplicationExt,
-    GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual, NotebookExtManual,
-    SearchBarExt, ToggleButtonExt, TreeModelExt, TreeSortableExtManual, TreeViewExt, WidgetExt,
+    AboutDialogExt, BoxExt, ButtonBoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt,
+    GtkApplicationExt, GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual,
+    NotebookExtManual, SearchBarExt, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
+    TreeViewExt, WidgetExt,
 };
 
 use std::cell::RefCell;
@@ -193,33 +194,25 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
     }
 }
 
-fn create_new_proc_diag(process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
-                        pid: Pid,
-                        sys: &sysinfo::System,
-                        window: &gtk::ApplicationWindow,
-                        running_since: &SystemTime,
-                        starting_time: u64,
+fn create_new_proc_diag(
+    process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
+    pid: Pid,
+    sys: &sysinfo::System,
+    starting_time: u64,
 ) {
-    let running_since = match running_since.elapsed() {
-        Ok(r) => r.as_secs(),
-        Err(e) => {
-            eprintln!("2. Error when try to get elapsed time: {:?}", e);
-            return;
-        }
-    };
-    if process_dialogs.borrow().get(&pid).is_none() {
-        let total_memory = sys.get_total_memory();
-        if let Some(process) = sys.get_process(pid) {
-            let diag = process_dialog::create_process_dialog(process,
-                                                             window,
-                                                             running_since,
-                                                             starting_time,
-                                                             total_memory);
-            diag.popup.connect_destroy(clone!(process_dialogs => move |_| {
-                process_dialogs.borrow_mut().remove(&pid);
-            }));
-            process_dialogs.borrow_mut().insert(pid, diag);
-        }
+    if let Some(ref proc_diag) = process_dialogs.borrow().get(&pid) {
+        proc_diag.popup.present();
+        return;
+    }
+    let total_memory = sys.get_total_memory();
+    if let Some(process) = sys.get_process(pid) {
+        let diag = process_dialog::create_process_dialog(process,
+                                                         starting_time,
+                                                         total_memory);
+        diag.popup.connect_destroy(clone!(process_dialogs => move |_| {
+            process_dialogs.borrow_mut().remove(&pid);
+        }));
+        process_dialogs.borrow_mut().insert(pid, diag);
     }
 }
 
@@ -227,12 +220,10 @@ pub struct RequiredForSettings {
     current_source: Option<glib::SourceId>,
     current_network_source: Option<glib::SourceId>,
     current_system_source: Option<glib::SourceId>,
-    running_since: Rc<RefCell<SystemTime>>,
     sys: Rc<RefCell<sysinfo::System>>,
     process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
     list_store: gtk::ListStore,
     display_tab: Rc<RefCell<DisplaySysInfo>>,
-    start_time: u64,
 }
 
 pub fn setup_timeout(
@@ -244,14 +235,12 @@ pub fn setup_timeout(
         rfs.current_source.take().map(glib::Source::remove);
 
         let sys = &rfs.sys;
-        let running_since = &rfs.running_since;
         let process_dialogs = &rfs.process_dialogs;
         let list_store = &rfs.list_store;
-        let start_time = rfs.start_time;
 
         Some(
             gtk::timeout_add(refresh_time,
-                             clone!(running_since, sys, process_dialogs, list_store => move || {
+                             clone!(sys, process_dialogs, list_store => move || {
                 // first part, deactivate sorting
                 let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
                 list_store.set_unsorted();
@@ -264,17 +253,11 @@ pub fn setup_timeout(
                     list_store.set_sort_column_id(col, order);
                 }
                 let dialogs = process_dialogs.borrow();
-                let running_since = match running_since.borrow().elapsed() {
-                    Ok(r) => r.as_secs(),
-                    Err(e) => {
-                        eprintln!("An error occurred when getting elapsed time: {:?}", e);
-                        return glib::Continue(true);
-                    }
-                };
+                let start_time = get_now();
                 for dialog in dialogs.values() {
                     // TODO: handle dead process?
                     if let Some(process) = sys.borrow().get_process(dialog.pid) {
-                        dialog.update(process, running_since, start_time);
+                        dialog.update(process, start_time);
                     }
                 }
                 glib::Continue(true)
@@ -327,6 +310,12 @@ pub fn setup_system_timeout(
     rfs.borrow_mut().current_system_source = ret;
 }
 
+fn get_now() -> u64 {
+    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
+                     .expect("couldn't get start time")
+                     .as_secs()
+}
+
 fn build_ui(application: &gtk::Application) {
     let settings = Settings::load();
 
@@ -352,10 +341,7 @@ fn build_ui(application: &gtk::Application) {
     let window = gtk::ApplicationWindow::new(application);
 
     let sys = sysinfo::System::new();
-    let start_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
-                                      .expect("couldn't get start time")
-                                      .as_secs();
-    let running_since = Rc::new(RefCell::new(SystemTime::now()));
+    let start_time = get_now();
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
     let procs = Procs::new(sys.borrow().get_process_list(), &mut note);
@@ -364,7 +350,6 @@ fn build_ui(application: &gtk::Application) {
 
     window.set_title("Process viewer");
     window.set_position(gtk::WindowPosition::Center);
-    window.set_modal(true);
     // To silence the annying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
@@ -410,12 +395,10 @@ fn build_ui(application: &gtk::Application) {
         current_source: None,
         current_network_source: None,
         current_system_source: None,
-        running_since: running_since.clone(),
         sys: sys.clone(),
         process_dialogs: process_dialogs.clone(),
         list_store,
         display_tab,
-        start_time,
     }));
 
     let refresh_processes_rate = settings.refresh_processes_rate;
@@ -427,33 +410,29 @@ fn build_ui(application: &gtk::Application) {
     setup_system_timeout(refresh_system_rate, &rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(clone!(application, settings => move |_, _| {
-        settings::show_settings_dialog(&application, &settings, &rfs);
+    settings_action.connect_activate(clone!(settings => move |_, _| {
+        settings::show_settings_dialog(&settings, &rfs);
     }));
 
     info_button.connect_clicked(
-        clone!(current_pid, window, running_since, process_dialogs, sys => move |_| {
+        clone!(current_pid, process_dialogs, sys => move |_| {
             if let Some(pid) = current_pid.get() {
-                create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
-                                     &*running_since.borrow(),
-                                     start_time);
+                create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
             }
         }
     ));
 
-    procs.left_tree.connect_row_activated(clone!(window, sys => move |tree_view, path, _| {
-        let model = tree_view.get_model().expect("couldn't get model");
-        let iter = model.get_iter(path).expect("couldn't get iter");
-        let pid = model.get_value(&iter, 0)
-                       .get::<u32>()
-                       .map(|x| x as Pid)
-                       .expect("failed to get value from model");
-        if process_dialogs.borrow().get(&pid).is_none() {
-            create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), &window,
-                                 &*running_since.borrow(),
-                                 start_time);
+    procs.left_tree.connect_row_activated(
+        clone!(sys => move |tree_view, path, _| {
+            let model = tree_view.get_model().expect("couldn't get model");
+            let iter = model.get_iter(path).expect("couldn't get iter");
+            let pid = model.get_value(&iter, 0)
+                           .get::<u32>()
+                           .map(|x| x as Pid)
+                           .expect("failed to get value from model");
+            create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
         }
-    }));
+    ));
 
     let quit = gio::SimpleAction::new("quit", None);
     quit.connect_activate(clone!(window => move |_, _| {
@@ -488,20 +467,47 @@ fn build_ui(application: &gtk::Application) {
 
     let new_task = gio::SimpleAction::new("new-task", None);
     new_task.connect_activate(clone!(window => move |_, _| {
-        let dialog = Dialog::new();
-        dialog.set_title("Launch new executable");
-        let content_area = dialog.get_content_area();
+        let dialog = gtk::Dialog::new_with_buttons(
+            Some("Launch new executable"),
+            Some(&window),
+            gtk::DialogFlags::USE_HEADER_BAR,
+            &[("Run", gtk::ResponseType::Other(0)), ("Cancel", gtk::ResponseType::Close)],
+        );
         let input = Entry::new();
-        let run = Button::new_with_label("Run");
-        let cancel = Button::new_with_label("Cancel");
-        let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let h_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        h_box.pack_start(&run, true, true, 0);
-        h_box.pack_start(&cancel, true, true, 0);
-        v_box.pack_start(&input, true, true, 0);
-        v_box.pack_start(&h_box, true, true, 0);
-        content_area.add(&v_box);
-        dialog.set_transient_for(Some(&window));
+
+        // To set "run" button disabled by default.
+        dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
+        // To make "run" and "cancel" button take all spaces.
+        if let Some(run) = dialog.get_widget_for_response(gtk::ResponseType::Other(0)) {
+            if let Some(parent) = run.get_parent() {
+                let parent = parent.downcast::<gtk::ButtonBox>().unwrap();
+                parent.set_property_layout_style(gtk::ButtonBoxStyle::Expand);
+            }
+        }
+        input.connect_changed(clone!(dialog => move |input| {
+            match input.get_text() {
+                Some(ref x) if !x.is_empty() => {
+                    dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
+                }
+                _ => dialog.set_response_sensitive(gtk::ResponseType::Other(0), false),
+            }
+        }));
+        input.connect_activate(clone!(window, dialog => move |input| {
+            run_command(input, &window, &dialog);
+        }));
+        dialog.connect_response(clone!(input, window => move |dialog, response| {
+            match response {
+                gtk::ResponseType::Close => {
+                    dialog.destroy();
+                }
+                gtk::ResponseType::Other(0) => {
+                    run_command(&input, &window, &dialog);
+                }
+                _ => {}
+            }
+        }));
+
+        dialog.get_content_area().add(&input);
         // To silence the annying warning:
         // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
         // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
@@ -509,23 +515,6 @@ fn build_ui(application: &gtk::Application) {
         dialog.get_preferred_width();
         dialog.set_size_request(400, 70);
         dialog.show_all();
-
-        run.set_sensitive(false);
-        input.connect_changed(clone!(run => move |input| {
-            match input.get_text() {
-                Some(ref x) if !x.is_empty() => run.set_sensitive(true),
-                _ => run.set_sensitive(false),
-            }
-        }));
-        cancel.connect_clicked(clone!(dialog => move |_| {
-            dialog.destroy();
-        }));
-        input.connect_activate(clone!(window, dialog => move |input| {
-            run_command(input, &window, &dialog);
-        }));
-        run.connect_clicked(clone!(window => move |_| {
-            run_command(&input, &window, &dialog);
-        }));
     }));
 
     let graphs = gio::SimpleAction::new_stateful("graphs", None,
@@ -604,6 +593,8 @@ fn build_ui(application: &gtk::Application) {
         }
         Inhibit(false)
     });
+
+    window.set_name(utils::MAIN_WINDOW_NAME);
 
     application.connect_activate(move |_| {
         window.show_all();
