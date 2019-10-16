@@ -482,7 +482,11 @@ fn build_ui(application: &gtk::Application) {
             if let Some(parent) = run.get_parent() {
                 match parent.downcast::<gtk::ButtonBox>() {
                     Ok(parent) => parent.set_property_layout_style(gtk::ButtonBoxStyle::Expand),
-                    Err(_) => eprintln!("<Process_Viewer::build_ui> Failed to set layout style for new task button box..."),
+                    Err(e) => {
+                        eprintln!(
+                            "<Process_Viewer::build_ui> Failed to set layout style for new task \
+                             button box: {}", e)
+                    }
                 }
             }
         }
