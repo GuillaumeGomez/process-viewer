@@ -480,8 +480,10 @@ fn build_ui(application: &gtk::Application) {
         // To make "run" and "cancel" button take all spaces.
         if let Some(run) = dialog.get_widget_for_response(gtk::ResponseType::Other(0)) {
             if let Some(parent) = run.get_parent() {
-                let parent = parent.downcast::<gtk::ButtonBox>().unwrap();
-                parent.set_property_layout_style(gtk::ButtonBoxStyle::Expand);
+                match parent.downcast::<gtk::ButtonBox>() {
+                    Ok(parent) => parent.set_property_layout_style(gtk::ButtonBoxStyle::Expand),
+                    Err(_) => eprintln!("<Process_Viewer::build_ui> Failed to set layout style for new task button box..."),
+                }
             }
         }
         input.connect_changed(clone!(dialog => move |input| {
