@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>fr.guillaume_gomez.ProcessViewer</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Process Viewer</name>
+  <summary>Process viewer GUI written in Rust</summary>
+  <description>
+    <p>
+      Process Viewer provides current status of your processes
+      (cpu and memory usage) and your system (usage of every core
+      and of your RAM, and the temperature of your components if
+      this information is available).
+    </p>
+  </description>
+  <developer_name>Guillaume Gomez</developer_name>
+  <url type="homepage">https://github.com/GuillaumeGomez/process-viewer/</url>
+  <url type="bugtracker">https://github.com/GuillaumeGomez/process-viewer/issues</url>
+  <categories>
+    <category>System</category>
+  </categories>
+  <launchable type="desktop-id">process-viewer.desktop</launchable>
+  <provides>
+    <binary>process_viewer</binary>
+  </provides>
+</component>
