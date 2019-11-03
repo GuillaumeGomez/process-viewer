@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Process Viewer
+Name[en]=Process Viewer
+GenericName=Process Viewer
+GenericName[en]=Process Viewer
+GenericName[de]=Prozessbetrachter
+Comment=View current status of processes and system
+Comment[en]=View current status of processes and system
+Comment[de]=Betrachten des Prozess- und Systemstatus
+Icon=process-viewer
+Exec=process_viewer
+Terminal=false
+StartupNotify=false
+Categories=System;
+Keywords=system;process;
