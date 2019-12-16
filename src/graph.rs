@@ -25,13 +25,18 @@ pub struct Graph {
     initial_diff: Option<i32>,
     label_callbacks: Option<Box<dyn Fn(f64) -> [String; 4]>>,
     labels_layout_width: i32,
+    /// `minimum` is used only if `max` is set: it'll be the minimum that the `max` value will
+    /// be able to go down.
+    minimum: Option<f64>,
+    // In %, from 0 to whatever
+    overhead: Option<f64>,
 }
 
 impl Graph {
-    // If `max` is `None`, the graph will expect values between 0 and 1.
-    //
-    // If `keep_max` is set to `true`, then this value will never go down, meaning that graphs
-    // won't rescale down. It is not taken into account if `max` is `None`.
+    /// If `max` is `None`, the graph will expect values between 0 and 1.
+    ///
+    /// If `keep_max` is set to `true`, then this value will never go down, meaning that graphs
+    /// won't rescale down. It is not taken into account if `max` is `None`.
     pub fn new(max: Option<f64>, keep_max: bool) -> Graph {
         let g = Graph {
             elapsed: Instant::now(),
@@ -54,14 +59,26 @@ impl Graph {
             initial_diff: None,
             label_callbacks: None,
             labels_layout_width: 80,
+            minimum: None,
+            overhead: None,
         };
         g.scroll_layout.set_min_content_width(g.labels_layout_width);
         g.scroll_layout.add(&g.vertical_layout);
         g.horizontal_layout.pack_start(&g.area, true, true, 0);
-        g.horizontal_layout
-            .pack_start(&g.scroll_layout, false, true, 10);
+        g.horizontal_layout.pack_start(&g.scroll_layout, false, true, 10);
         g.horizontal_layout.set_margin_start(5);
         g
+    }
+
+    pub fn set_minimum(&mut self, minimum: Option<f64>) {
+        self.minimum = minimum;
+    }
+
+    pub fn set_overhead(&mut self, overhead: Option<f64>) {
+        if let Some(o) = overhead {
+            assert!(o >= 0.);
+        }
+        self.overhead = overhead;
     }
 
     /// Changes the size of the layout containing labels (the one on the right).
@@ -204,6 +221,13 @@ impl Graph {
                         max = entry[x];
                     }
                 }
+            }
+            if let Some(min) = self.minimum {
+                if min > max {
+                    max = min;
+                }
+            } else if let Some(over) = self.overhead {
+                max = max + max * over / 100.;
             }
             if !self.data.is_empty() && !self.data[0].is_empty() {
                 let len = self.data[0].len() - 1;

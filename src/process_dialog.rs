@@ -55,7 +55,7 @@ impl ProcDialog {
         t.invalidate();
         let mut t = self.cpu_usage_history.borrow_mut();
         t.data[0].move_start();
-        *t.data[0].get_mut(0).expect("cannot get data 0") = f64::from(process.cpu_usage());
+        *t.data[0].get_mut(0).expect("cannot get data 0") = process.cpu_usage().into();
         t.invalidate();
     }
 }
@@ -201,10 +201,12 @@ pub fn create_process_dialog(
     vertical_layout.set_margin_end(5);
     let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
     let mut cpu_usage_history = Graph::new(Some(100.), false); // In case a process uses more than 100%
-    let mut ram_usage_history = Graph::new(Some(total_memory as f64), false);
-
     cpu_usage_history.set_display_labels(false);
+    cpu_usage_history.set_minimum(Some(100.));
+
+    let mut ram_usage_history = Graph::new(Some(total_memory as f64), false);
     ram_usage_history.set_display_labels(false);
+    ram_usage_history.set_overhead(Some(20.));
 
     cpu_usage_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
