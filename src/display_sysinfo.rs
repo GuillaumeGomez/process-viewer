@@ -1,7 +1,7 @@
 use gdk;
 use glib::object::Cast;
-use gtk::{
-    self, AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt,
+use gtk::prelude::{
+    AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt,
     ScrolledWindowExt, ToggleButtonExt, WidgetExt, WidgetExtManual, GtkWindowExt,
 };
 use sysinfo::{self, ComponentExt, NetworkExt, ProcessorExt, SystemExt};

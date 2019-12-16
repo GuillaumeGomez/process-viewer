@@ -266,7 +266,7 @@ pub fn create_process_dialog(
 
     if let Some(adjust) = scroll.get_vadjustment() {
         adjust.set_value(0.);
-        scroll.set_vadjustment(&adjust);
+        scroll.set_vadjustment(Some(&adjust));
     }
     ram_usage_history.connect_to_window_events();
     cpu_usage_history.connect_to_window_events();

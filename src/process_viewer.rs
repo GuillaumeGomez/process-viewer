@@ -23,10 +23,11 @@ extern crate serde_derive;
 use sysinfo::*;
 
 use gdk_pixbuf::Pixbuf;
-use gio::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual, MemoryInputStream};
+use gio::MemoryInputStream;
+use gio::prelude::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual};
 use glib::{Bytes, Cast, IsA, ToVariant};
 use gtk::{AboutDialog, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
-use gtk::{
+use gtk::prelude::{
     AboutDialogExt, BoxExt, ButtonBoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt,
     GtkApplicationExt, GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual,
     NotebookExtManual, SearchBarExt, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
@@ -85,7 +86,7 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
     if let Some(iter) = list.get_iter_first() {
         let mut valid = true;
         while valid {
-            if let Some(pid) = list.get_value(&iter, 0).get::<u32>().map(|x| x as Pid) {
+            if let Some(pid) = list.get_value(&iter, 0).get::<u32>().ok().flatten().map(|x| x as Pid) {
                 if let Some(p) = entries.get(&(pid)) {
                     list.set(&iter,
                              &[2, 3, 5],
@@ -428,6 +429,8 @@ fn build_ui(application: &gtk::Application) {
             let iter = model.get_iter(path).expect("couldn't get iter");
             let pid = model.get_value(&iter, 0)
                            .get::<u32>()
+                           .ok()
+                           .flatten()
                            .map(|x| x as Pid)
                            .expect("failed to get value from model");
             create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
@@ -600,7 +603,7 @@ fn build_ui(application: &gtk::Application) {
         Inhibit(false)
     });
 
-    window.set_name(utils::MAIN_WINDOW_NAME);
+    window.set_widget_name(utils::MAIN_WINDOW_NAME);
 
     application.connect_activate(move |_| {
         window.show_all();

@@ -1,22 +1,23 @@
-use gtk::{self, IsA};
+use glib::IsA;
+use gtk::{Box, Label, Notebook, Orientation, Widget};
 use gtk::prelude::{BoxExt, NotebookExtManual, WidgetExt};
 
 pub struct NoteBook {
-    pub notebook: gtk::Notebook,
-    pub tabs: Vec<gtk::Box>,
+    pub notebook: Notebook,
+    pub tabs: Vec<Box>,
 }
 
 impl NoteBook {
     pub fn new() -> NoteBook {
         NoteBook {
-            notebook: gtk::Notebook::new(),
+            notebook: Notebook::new(),
             tabs: Vec::new(),
         }
     }
 
-    pub fn create_tab<T: IsA<gtk::Widget>>(&mut self, title: &str, widget: &T) -> Option<u32> {
-        let label = gtk::Label::new(Some(title));
-        let tab = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    pub fn create_tab<T: IsA<Widget>>(&mut self, title: &str, widget: &T) -> Option<u32> {
+        let label = Label::new(Some(title));
+        let tab = Box::new(Orientation::Horizontal, 0);
 
         tab.pack_start(&label, true, true, 0);
         tab.show_all();

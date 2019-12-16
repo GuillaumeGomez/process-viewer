@@ -1,8 +1,9 @@
 use gio::MemoryInputStream;
 use glib::Bytes;
+use glib::Type;
 use glib::object::Cast;
-use gtk::{self, Type};
-use gtk::{
+use gtk;
+use gtk::prelude::{
     BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
     GtkListStoreExtManual, OverlayExt, SearchBarExt, TreeModelExt, TreeModelFilterExt,
     TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
@@ -95,7 +96,7 @@ impl Procs {
             clone!(current_pid, kill_button, info_button => move |tree_view| {
                 let selection = tree_view.get_selection();
                 let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
-                    if let Some(x) = model.get_value(&iter, 0).get::<u32>().map(|x| x as Pid) {
+                    if let Some(x) = model.get_value(&iter, 0).get::<u32>().ok().flatten().map(|x| x as Pid) {
                         (Some(x), true)
                     } else {
                         (None, false)
@@ -134,10 +135,14 @@ impl Procs {
                 // TODO: Maybe add an option to make searches case sensitive?
                 let pid = model.get_value(iter, 0)
                                .get::<u32>()
+                               .ok()
+                               .flatten()
                                .map(|p| p.to_string())
                                .unwrap_or_else(String::new);
                 let name = model.get_value(iter, 1)
                                 .get::<String>()
+                                .ok()
+                                .flatten()
                                 .map(|s| s.to_lowercase())
                                 .unwrap_or_else(String::new);
                 pid.contains(text) ||
