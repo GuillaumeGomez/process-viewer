@@ -1,6 +1,6 @@
 use glib::IsA;
-use gtk::{Box, Label, Notebook, Orientation, Widget};
 use gtk::prelude::{BoxExt, NotebookExtManual, WidgetExt};
+use gtk::{Box, Label, Notebook, Orientation, Widget};
 
 pub struct NoteBook {
     pub notebook: Notebook,

@@ -1,14 +1,14 @@
+use gdk_pixbuf::Pixbuf;
 use gio::MemoryInputStream;
+use glib::object::Cast;
 use glib::Bytes;
 use glib::Type;
-use glib::object::Cast;
 use gtk;
 use gtk::prelude::{
     BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
     GtkListStoreExtManual, OverlayExt, SearchBarExt, TreeModelExt, TreeModelFilterExt,
     TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
-use gdk_pixbuf::Pixbuf;
 
 use sysinfo::*;
 
@@ -42,10 +42,16 @@ impl Procs {
         let info_button = gtk::Button::new_with_label("More information");
 
         let filter_button = gtk::Button::new();
-        let memory_stream = MemoryInputStream::new_from_bytes(
-                                &Bytes::from_static(include_bytes!("../assets/magnifier.png")));
-        let image = Pixbuf::new_from_stream_at_scale(&memory_stream, 32, 32, true,
-                                                     None::<&gio::Cancellable>);
+        let memory_stream = MemoryInputStream::new_from_bytes(&Bytes::from_static(include_bytes!(
+            "../assets/magnifier.png"
+        )));
+        let image = Pixbuf::new_from_stream_at_scale(
+            &memory_stream,
+            32,
+            32,
+            true,
+            None::<&gio::Cancellable>,
+        );
         if let Ok(image) = image {
             let image = gtk::Image::new_from_pixbuf(Some(&image));
             filter_button.set_image(Some(&image));
@@ -72,18 +78,24 @@ impl Procs {
 
         let list_store = gtk::ListStore::new(&[
             // The first four columns of the model are going to be visible in the view.
-            Type::U32,       // pid
-            Type::String,    // name
-            Type::String,    // CPU
-            Type::U64,       // mem
+            Type::U32,    // pid
+            Type::String, // name
+            Type::String, // CPU
+            Type::U64,    // mem
             // These two will serve as keys when sorting by process name and CPU usage.
-            Type::String,    // name_lowercase
-            Type::F32,       // CPU_f32
+            Type::String, // name_lowercase
+            Type::F32,    // CPU_f32
         ]);
 
         for pro in proc_list.values() {
-            create_and_fill_model(&list_store, pro.pid().as_u32(), &format!("{:?}", &pro.cmd()),
-                                  &pro.name(), pro.cpu_usage(), pro.memory());
+            create_and_fill_model(
+                &list_store,
+                pro.pid().as_u32(),
+                &format!("{:?}", &pro.cmd()),
+                &pro.name(),
+                pro.cpu_usage(),
+                pro.memory(),
+            );
         }
 
         left_tree.set_headers_visible(true);
@@ -114,45 +126,57 @@ impl Procs {
 
         vertical_layout.pack_start(&overlay, true, true, 0);
         horizontal_layout.attach(&info_button, 0, 0, 4, 1);
-        horizontal_layout.attach_next_to(&kill_button, Some(&info_button),
-                                         gtk::PositionType::Right, 4, 1);
-        horizontal_layout.attach_next_to(&filter_button, Some(&kill_button),
-                                         gtk::PositionType::Right, 1, 1);
+        horizontal_layout.attach_next_to(
+            &kill_button,
+            Some(&info_button),
+            gtk::PositionType::Right,
+            4,
+            1,
+        );
+        horizontal_layout.attach_next_to(
+            &filter_button,
+            Some(&kill_button),
+            gtk::PositionType::Right,
+            1,
+            1,
+        );
         horizontal_layout.set_column_homogeneous(true);
         vertical_layout.pack_start(&horizontal_layout, false, true, 0);
 
         // The filter part.
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
-        filter_model.set_visible_func(clone!(@weak filter_entry => @default-return false, move |model, iter| {
-            if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
-                return true;
-            }
-            if let Some(text) = filter_entry.get_text() {
-                if text.is_empty() {
+        filter_model.set_visible_func(
+            clone!(@weak filter_entry => @default-return false, move |model, iter| {
+                if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
                     return true;
                 }
-                let text: &str = text.as_ref();
-                // TODO: Maybe add an option to make searches case sensitive?
-                let pid = model.get_value(iter, 0)
-                               .get::<u32>()
-                               .ok()
-                               .flatten()
-                               .map(|p| p.to_string())
-                               .unwrap_or_else(String::new);
-                let name = model.get_value(iter, 1)
-                                .get::<String>()
-                                .ok()
-                                .flatten()
-                                .map(|s| s.to_lowercase())
-                                .unwrap_or_else(String::new);
-                pid.contains(text) ||
-                text.contains(&pid) ||
-                name.contains(text) ||
-                text.contains(&name)
-            } else {
-                true
-            }
-        }));
+                if let Some(text) = filter_entry.get_text() {
+                    if text.is_empty() {
+                        return true;
+                    }
+                    let text: &str = text.as_ref();
+                    // TODO: Maybe add an option to make searches case sensitive?
+                    let pid = model.get_value(iter, 0)
+                                   .get::<u32>()
+                                   .ok()
+                                   .flatten()
+                                   .map(|p| p.to_string())
+                                   .unwrap_or_else(String::new);
+                    let name = model.get_value(iter, 1)
+                                    .get::<String>()
+                                    .ok()
+                                    .flatten()
+                                    .map(|s| s.to_lowercase())
+                                    .unwrap_or_else(String::new);
+                    pid.contains(text) ||
+                    text.contains(&pid) ||
+                    name.contains(text) ||
+                    text.contains(&name)
+                } else {
+                    true
+                }
+            }),
+        );
         // For the filtering to be taken into account, we need to add it directly into the
         // "global" model.
         let sort_model = gtk::TreeModelSort::new(&filter_model);
@@ -170,7 +194,6 @@ impl Procs {
         // we want the order to be numerical not lexicographical.
         columns[2].set_sort_column_id(5);
 
-
         filter_entry.connect_property_text_length_notify(move |_| {
             filter_model.refilter();
         });
@@ -183,7 +206,9 @@ impl Procs {
             current_pid,
             kill_button,
             info_button,
-            vertical_layout: vertical_layout.downcast::<gtk::Box>().expect("downcast failed"),
+            vertical_layout: vertical_layout
+                .downcast::<gtk::Box>()
+                .expect("downcast failed"),
             list_store,
             columns,
             filter_entry,
@@ -199,8 +224,12 @@ impl Procs {
     }
 }
 
-fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk::TreeView,
-                 max_width: Option<i32>) {
+fn append_column(
+    title: &str,
+    v: &mut Vec<gtk::TreeViewColumn>,
+    left_tree: &gtk::TreeView,
+    max_width: Option<i32>,
+) {
     let id = v.len() as i32;
     let renderer = gtk::CellRendererText::new();
 
@@ -224,18 +253,27 @@ fn append_column(title: &str, v: &mut Vec<gtk::TreeViewColumn>, left_tree: &gtk:
     v.push(column);
 }
 
-pub fn create_and_fill_model(list_store: &gtk::ListStore, pid: u32, cmdline: &str, name: &str,
-                             cpu: f32, memory: u64) {
+pub fn create_and_fill_model(
+    list_store: &gtk::ListStore,
+    pid: u32,
+    cmdline: &str,
+    name: &str,
+    cpu: f32,
+    memory: u64,
+) {
     if cmdline.is_empty() || name.is_empty() {
         return;
     }
-    list_store.insert_with_values(None,
-                                  &[0, 1, 2, 3, 4, 5],
-                                  &[&pid,
-                                    &name,
-                                    &format!("{:.1}", cpu),
-                                    &memory,
-                                    &name.to_lowercase(),
-                                    &cpu
-                                   ]);
+    list_store.insert_with_values(
+        None,
+        &[0, 1, 2, 3, 4, 5],
+        &[
+            &pid,
+            &name,
+            &format!("{:.1}", cpu),
+            &memory,
+            &name.to_lowercase(),
+            &cpu,
+        ],
+    );
 }

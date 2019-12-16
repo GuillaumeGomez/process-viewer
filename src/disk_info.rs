@@ -9,23 +9,33 @@ use gtk::{self, BoxExt, ButtonExt, ContainerExt, GridExt, LabelExt, ProgressBarE
 use sysinfo::{self, DiskExt, SystemExt};
 
 fn update_disk(label: &gtk::Label, p: &gtk::ProgressBar, disk: &sysinfo::Disk) {
-    label.set_text(format!("{} mounted on \"{}\"",
-                           disk.get_name()
-                               .to_str()
-                               .unwrap_or_else(|| ""),
-                           disk.get_mount_point()
-                               .to_str()
-                               .unwrap_or_else(|| "")).as_str());
-    p.set_text(Some(format!("{} / {}",
-                            format_number(disk.get_total_space() - disk.get_available_space()),
-                            format_number(disk.get_total_space())).as_str()));
+    label.set_text(
+        format!(
+            "{} mounted on \"{}\"",
+            disk.get_name().to_str().unwrap_or_else(|| ""),
+            disk.get_mount_point().to_str().unwrap_or_else(|| "")
+        )
+        .as_str(),
+    );
+    p.set_text(Some(
+        format!(
+            "{} / {}",
+            format_number(disk.get_total_space() - disk.get_available_space()),
+            format_number(disk.get_total_space())
+        )
+        .as_str(),
+    ));
     p.set_fraction(
-        (disk.get_total_space() - disk.get_available_space()) as f64 /
-        disk.get_total_space() as f64);
+        (disk.get_total_space() - disk.get_available_space()) as f64
+            / disk.get_total_space() as f64,
+    );
 }
 
-fn refresh_disks(grid: &gtk::Grid, disks: &[sysinfo::Disk],
-                 grid_elems: &mut Vec<(gtk::Label, gtk::ProgressBar)>) {
+fn refresh_disks(
+    grid: &gtk::Grid,
+    disks: &[sysinfo::Disk],
+    grid_elems: &mut Vec<(gtk::Label, gtk::ProgressBar)>,
+) {
     let mut done = 0;
     for (pos, disk) in disks.iter().enumerate() {
         if pos <= grid_elems.len() {
@@ -47,7 +57,7 @@ fn refresh_disks(grid: &gtk::Grid, disks: &[sysinfo::Disk],
             grid.remove(&elem.0);
             grid.remove(&elem.1);
         } else {
-            break
+            break;
         }
     }
 }
@@ -77,5 +87,9 @@ pub fn create_disk_info(sys: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook)
     vertical_layout.pack_start(&refresh_but, false, true, 0);
 
     note.create_tab("Disk information", &vertical_layout);
-    refresh_disks(&grid, sys.borrow().get_disks(), &mut *grid_elems.borrow_mut());
+    refresh_disks(
+        &grid,
+        sys.borrow().get_disks(),
+        &mut *grid_elems.borrow_mut(),
+    );
 }

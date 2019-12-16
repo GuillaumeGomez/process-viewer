@@ -19,10 +19,10 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use APPLICATION_NAME;
-use RequiredForSettings;
-use {setup_timeout, setup_network_timeout, setup_system_timeout};
 use utils::{get_app, get_main_window};
+use RequiredForSettings;
+use APPLICATION_NAME;
+use {setup_network_timeout, setup_system_timeout, setup_timeout};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Settings {
@@ -49,28 +49,22 @@ impl Default for Settings {
 }
 
 impl Settings {
-    fn load_from_file(p: &PathBuf)->Result<Settings, String> {
+    fn load_from_file(p: &PathBuf) -> Result<Settings, String> {
         let mut input = String::new();
-        let mut file = File::open(p).
-            map_err(|e| format!("Error while opening '{}': {}", p.display(), e))?;
-        file.read_to_string(&mut input).
-            map_err(|e|format!("Error while opening '{}': {}", p.display(), e))?;
-        toml::from_str(&input).
-            map_err(|e| format!("Error while opening '{}': {}", p.display(), e))
+        let mut file =
+            File::open(p).map_err(|e| format!("Error while opening '{}': {}", p.display(), e))?;
+        file.read_to_string(&mut input)
+            .map_err(|e| format!("Error while opening '{}': {}", p.display(), e))?;
+        toml::from_str(&input).map_err(|e| format!("Error while opening '{}': {}", p.display(), e))
     }
 
     pub fn load() -> Settings {
         let s = Self::get_settings_file_path();
         if s.exists() && s.is_file() {
             match Self::load_from_file(&s) {
-                Ok(settings) => {
-                    settings
-                }
+                Ok(settings) => settings,
                 Err(e) => {
-                    show_error_dialog(
-                        false,
-                        &e
-                    );
+                    show_error_dialog(false, &e);
                     Settings::default()
                 }
             }
@@ -98,7 +92,8 @@ impl Settings {
                                 "Error while trying to build settings snapshot_directory '{}': {}",
                                 parent_dir.display(),
                                 e
-                            ).as_str(),
+                            )
+                            .as_str(),
                         );
                         return;
                     }
@@ -145,12 +140,7 @@ fn show_error_dialog(fatal: bool, text: &str) {
     dialog.show_all();
 }
 
-pub fn build_spin(
-    label: &str,
-    grid: &gtk::Grid,
-    top: i32,
-    refresh: u32,
-) -> gtk::SpinButton {
+pub fn build_spin(label: &str, grid: &gtk::Grid, top: i32, refresh: u32) -> gtk::SpinButton {
     // Refresh rate.
     let refresh_label = gtk::Label::new(Some(label));
     // We allow 0.5 to 5 seconds, in 0.1 second steps.
@@ -185,12 +175,24 @@ pub fn show_settings_dialog(
     grid.set_row_spacing(4);
     grid.set_margin_bottom(12);
 
-    let refresh_procs = build_spin("Processes refresh rate (in seconds)",
-                                   &grid, 0, bsettings.refresh_processes_rate);
-    let refresh_network = build_spin("System network refresh rate (in seconds)",
-                                     &grid, 1, bsettings.refresh_network_rate);
-    let refresh_sys = build_spin("System information refresh rate (in seconds)",
-                                 &grid, 2, bsettings.refresh_system_rate);
+    let refresh_procs = build_spin(
+        "Processes refresh rate (in seconds)",
+        &grid,
+        0,
+        bsettings.refresh_processes_rate,
+    );
+    let refresh_network = build_spin(
+        "System network refresh rate (in seconds)",
+        &grid,
+        1,
+        bsettings.refresh_network_rate,
+    );
+    let refresh_sys = build_spin(
+        "System information refresh rate (in seconds)",
+        &grid,
+        2,
+        bsettings.refresh_system_rate,
+    );
 
     // Put the grid into the dialog's content area.
     let content_area = dialog.get_content_area();

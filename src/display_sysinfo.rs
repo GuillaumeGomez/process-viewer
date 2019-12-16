@@ -1,8 +1,8 @@
 use gdk;
 use glib::object::Cast;
 use gtk::prelude::{
-    AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt,
-    ScrolledWindowExt, ToggleButtonExt, WidgetExt, WidgetExtManual, GtkWindowExt,
+    AdjustmentExt, BoxExt, ContainerExt, GridExt, GtkWindowExt, LabelExt, ProgressBarExt,
+    ScrolledWindowExt, ToggleButtonExt, WidgetExt, WidgetExtManual,
 };
 use sysinfo::{self, ComponentExt, NetworkExt, ProcessorExt, SystemExt};
 
@@ -31,15 +31,24 @@ fn create_header(
     horizontal_layout.pack_start(&check_box, false, false, 0);
     grid.attach(&empty, 0, 0, 3, 1);
     grid.attach_next_to(&label, Some(&empty), gtk::PositionType::Right, 3, 1);
-    grid.attach_next_to(&horizontal_layout, Some(&label),
-                        gtk::PositionType::Right, 3, 1);
+    grid.attach_next_to(
+        &horizontal_layout,
+        Some(&label),
+        gtk::PositionType::Right,
+        3,
+        1,
+    );
     grid.set_column_homogeneous(true);
     parent_layout.pack_start(&grid, false, false, 15);
     check_box
 }
 
-pub fn create_progress_bar(non_graph_layout: &gtk::Grid, line: i32, label: &str,
-                           text: &str) -> gtk::ProgressBar {
+pub fn create_progress_bar(
+    non_graph_layout: &gtk::Grid,
+    line: i32,
+    label: &str,
+    text: &str,
+) -> gtk::ProgressBar {
     let p = gtk::ProgressBar::new();
     let l = gtk::Label::new(Some(label));
 
@@ -83,37 +92,50 @@ impl DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-        let mut components = vec!();
+        let mut components = vec![];
 
         // CPU
         let mut cpu_usage_history = Graph::new(None, false);
         cpu_usage_history.set_label_callbacks(Some(Box::new(|_| {
-            ["100".to_string(), "50".to_string(), "0".to_string(), "%".to_string()]
+            [
+                "100".to_string(),
+                "50".to_string(),
+                "0".to_string(),
+                "%".to_string(),
+            ]
         })));
 
         // RAM
         let mut ram_usage_history = Graph::new(Some(sys.borrow().get_total_memory() as f64), true);
         ram_usage_history.set_label_callbacks(Some(Box::new(|v| {
             if v < 100_000. {
-                [v.to_string(),
-                 format!("{}", v / 2.),
-                 "0".to_string(),
-                 "kB".to_string()]
+                [
+                    v.to_string(),
+                    format!("{}", v / 2.),
+                    "0".to_string(),
+                    "kB".to_string(),
+                ]
             } else if v < 10_000_000. {
-                [format!("{:.1}", v / 1_024f64),
-                 format!("{:.1}", v / 2_048f64),
-                 "0".to_string(),
-                 "MB".to_string()]
+                [
+                    format!("{:.1}", v / 1_024f64),
+                    format!("{:.1}", v / 2_048f64),
+                    "0".to_string(),
+                    "MB".to_string(),
+                ]
             } else if v < 10_000_000_000. {
-                [format!("{:.1}", v / 1_048_576f64),
-                 format!("{:.1}", v / 2_097_152f64),
-                 "0".to_string(),
-                 "GB".to_string()]
+                [
+                    format!("{:.1}", v / 1_048_576f64),
+                    format!("{:.1}", v / 2_097_152f64),
+                    "0".to_string(),
+                    "GB".to_string(),
+                ]
             } else {
-                [format!("{:.1}", v / 1_073_741_824f64),
-                 format!("{:.1}", v / 1_073_741_824f64),
-                 "0".to_string(),
-                 "TB".to_string()]
+                [
+                    format!("{:.1}", v / 1_073_741_824f64),
+                    format!("{:.1}", v / 1_073_741_824f64),
+                    "0".to_string(),
+                    "TB".to_string(),
+                ]
             }
         })));
         ram_usage_history.set_labels_width(70);
@@ -121,10 +143,12 @@ impl DisplaySysInfo {
         // TEMPERATURE
         let mut temperature_usage_history = Graph::new(Some(1.), false);
         temperature_usage_history.set_label_callbacks(Some(Box::new(|v| {
-            [format!("{:.1}", v),
-             format!("{:.1}", v / 2.),
-             "0".to_string(),
-             "°C".to_string()]
+            [
+                format!("{:.1}", v),
+                format!("{:.1}", v / 2.),
+                "0".to_string(),
+                "°C".to_string(),
+            ]
         })));
         temperature_usage_history.set_labels_width(70);
         // NETWORK
@@ -132,36 +156,45 @@ impl DisplaySysInfo {
         network_history.set_label_callbacks(Some(Box::new(|v| {
             let v = v as u64;
             if v < 1000 {
-                return [v.to_string(),
-                        (v >> 1).to_string(),
-                        "0".to_string(),
-                        "B/sec".to_string()];
+                return [
+                    v.to_string(),
+                    (v >> 1).to_string(),
+                    "0".to_string(),
+                    "B/sec".to_string(),
+                ];
             }
             let nb = v >> 10; // / 1_024
             if nb < 100_000 {
-                [nb.to_string(),
-                 (nb >> 1).to_string(),
-                 "0".to_string(),
-                 "kB/sec".to_string()]
+                [
+                    nb.to_string(),
+                    (nb >> 1).to_string(),
+                    "0".to_string(),
+                    "kB/sec".to_string(),
+                ]
             } else if nb < 10_000_000 {
-                [(nb >> 10).to_string(),
-                 (nb >> 11).to_string(),
-                 "0".to_string(),
-                 "MB/sec".to_string()]
+                [
+                    (nb >> 10).to_string(),
+                    (nb >> 11).to_string(),
+                    "0".to_string(),
+                    "MB/sec".to_string(),
+                ]
             } else if nb < 10_000_000_000 {
-                [(nb >> 20).to_string(),
-                 (nb >> 21).to_string(),
-                 "0".to_string(),
-                 "GB/sec".to_string()]
+                [
+                    (nb >> 20).to_string(),
+                    (nb >> 21).to_string(),
+                    "0".to_string(),
+                    "GB/sec".to_string(),
+                ]
             } else {
-                [(nb >> 30).to_string(),
-                 (nb >> 31).to_string(),
-                 "0".to_string(),
-                 "TB/sec".to_string()]
+                [
+                    (nb >> 30).to_string(),
+                    (nb >> 31).to_string(),
+                    "0".to_string(),
+                    "TB/sec".to_string(),
+                ]
             }
         })));
         network_history.set_labels_width(70);
-
 
         let mut check_box3 = None;
 
@@ -177,7 +210,6 @@ impl DisplaySysInfo {
         non_graph_layout2.set_margin_start(5);
         let non_graph_layout3 = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let non_graph_layout4 = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
 
         vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 7);
         procs.push(gtk::ProgressBar::new());
@@ -200,7 +232,6 @@ impl DisplaySysInfo {
             vertical_layout.add(p);
         }
 
-
         //
         // PROCESS PART
         //
@@ -216,12 +247,14 @@ impl DisplaySysInfo {
             p.set_fraction(f64::from(pro.get_cpu_usage()));
             non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
             non_graph_layout.attach(p, 1, i as i32 - 1, 11, 1);
-            cpu_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                                   &format!("process {}", i), None);
+            cpu_usage_history.push(
+                RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                &format!("process {}", i),
+                None,
+            );
         }
         vertical_layout.add(&non_graph_layout);
         cpu_usage_history.attach_to(&vertical_layout);
-
 
         //
         // MEMORY PART
@@ -231,39 +264,50 @@ impl DisplaySysInfo {
         let swap = create_progress_bar(&non_graph_layout2, 1, "Swap", "");
         vertical_layout.pack_start(&non_graph_layout2, false, false, 15);
         //vertical_layout.add(&non_graph_layout2);
-        ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                               "RAM", Some(4));
-        ram_usage_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                               "Swap", Some(2));
+        ram_usage_history.push(
+            RotateVec::new(iter::repeat(0f64).take(61).collect()),
+            "RAM",
+            Some(4),
+        );
+        ram_usage_history.push(
+            RotateVec::new(iter::repeat(0f64).take(61).collect()),
+            "Swap",
+            Some(2),
+        );
         ram_usage_history.attach_to(&vertical_layout);
-
 
         //
         // TEMPERATURES PART
         //
         if !sys.borrow().get_components_list().is_empty() {
-            check_box3 = Some(create_header("Components' temperature", &vertical_layout,
-                                            settings.display_graph));
+            check_box3 = Some(create_header(
+                "Components' temperature",
+                &vertical_layout,
+                settings.display_graph,
+            ));
             for component in sys.borrow().get_components_list() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
-                let temp = gtk::Label::new(Some(&format!("{:.1} °C",
-                                                        component.get_temperature())));
-                horizontal_layout.pack_start(&gtk::Label::new(Some(component.get_label())),
-                                             true, false, 0);
+                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.get_temperature())));
+                horizontal_layout.pack_start(
+                    &gtk::Label::new(Some(component.get_label())),
+                    true,
+                    false,
+                    0,
+                );
                 horizontal_layout.pack_start(&temp, true, false, 0);
                 horizontal_layout.set_homogeneous(true);
                 non_graph_layout3.add(&horizontal_layout);
                 components.push(temp);
-                temperature_usage_history.push(RotateVec::new(iter::repeat(0f64)
-                                                                   .take(61)
-                                                                   .collect()),
-                                               component.get_label(), None);
+                temperature_usage_history.push(
+                    RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                    component.get_label(),
+                    None,
+                );
             }
             vertical_layout.add(&non_graph_layout3);
             temperature_usage_history.attach_to(&vertical_layout);
         }
-
 
         //
         // NETWORK PART
@@ -276,8 +320,11 @@ impl DisplaySysInfo {
         horizontal_layout.pack_start(&in_usage, true, false, 0);
         horizontal_layout.set_homogeneous(true);
         non_graph_layout4.add(&horizontal_layout);
-        network_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                             "Input data", None);
+        network_history.push(
+            RotateVec::new(iter::repeat(0f64).take(61).collect()),
+            "Input data",
+            None,
+        );
         // output data
         let out_usage = gtk::Label::new(Some(&format_number(0)));
         let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
@@ -285,12 +332,14 @@ impl DisplaySysInfo {
         horizontal_layout.pack_start(&out_usage, true, false, 0);
         horizontal_layout.set_homogeneous(true);
         non_graph_layout4.add(&horizontal_layout);
-        network_history.push(RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                             "Output data", None);
+        network_history.push(
+            RotateVec::new(iter::repeat(0f64).take(61).collect()),
+            "Output data",
+            None,
+        );
         vertical_layout.add(&non_graph_layout4);
         network_history.attach_to(&vertical_layout);
         network_history.area.set_margin_bottom(20);
-
 
         //
         // Putting everyting into places now.
@@ -354,14 +403,22 @@ impl DisplaySysInfo {
             false
         });
 
-        check_box.clone().upcast::<gtk::ToggleButton>()
-                 .connect_toggled(clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
-            show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
-        }));
-        check_box2.clone().upcast::<gtk::ToggleButton>()
-                  .connect_toggled(clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
-            show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
-        }));
+        check_box
+            .clone()
+            .upcast::<gtk::ToggleButton>()
+            .connect_toggled(
+                clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
+                    show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
+                }),
+            );
+        check_box2
+            .clone()
+            .upcast::<gtk::ToggleButton>()
+            .connect_toggled(
+                clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
+                    show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
+                }),
+            );
         if let Some(ref check_box3) = check_box3 {
             check_box3.clone().upcast::<gtk::ToggleButton>()
                       .connect_toggled(
@@ -369,23 +426,29 @@ impl DisplaySysInfo {
                 show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
             }));
         }
-        check_box4.clone().upcast::<gtk::ToggleButton>()
-                  .connect_toggled(clone!(@weak non_graph_layout4, @weak network_history => move |c| {
-            show_if_necessary(c, &network_history.borrow(), &non_graph_layout4);
-        }));
+        check_box4
+            .clone()
+            .upcast::<gtk::ToggleButton>()
+            .connect_toggled(
+                clone!(@weak non_graph_layout4, @weak network_history => move |c| {
+                    show_if_necessary(c, &network_history.borrow(), &non_graph_layout4);
+                }),
+            );
 
-        scroll.connect_show(clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
-            show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
-                              &cpu_usage_history.borrow(), &non_graph_layout);
-            show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
-                              &ram_usage_history.borrow(), &non_graph_layout2);
-            if let Some(ref check_box3) = check_box3 {
-                show_if_necessary(&check_box3.clone().upcast::<gtk::ToggleButton>(),
-                                  &temperature_usage_history.borrow(), &non_graph_layout3);
-            }
-            show_if_necessary(&check_box4.clone().upcast::<gtk::ToggleButton>(),
-                              &network_history.borrow(), &non_graph_layout4);
-        }));
+        scroll.connect_show(
+            clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
+                show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
+                                  &cpu_usage_history.borrow(), &non_graph_layout);
+                show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
+                                  &ram_usage_history.borrow(), &non_graph_layout2);
+                if let Some(ref check_box3) = check_box3 {
+                    show_if_necessary(&check_box3.clone().upcast::<gtk::ToggleButton>(),
+                                      &temperature_usage_history.borrow(), &non_graph_layout3);
+                }
+                show_if_necessary(&check_box4.clone().upcast::<gtk::ToggleButton>(),
+                                  &network_history.borrow(), &non_graph_layout4);
+            }),
+        );
         tmp
     }
 
@@ -396,10 +459,11 @@ impl DisplaySysInfo {
             } else if total < 10_000_000 {
                 format!("{:.2} / {} MB", used as f64 / 1_024f64, total >> 10) // / 1024
             } else if total < 10_000_000_000 {
-                format!("{:.2} / {} GB", used as f64 / 1_048_576f64, total >> 20) // / 1_048_576
+                format!("{:.2} / {} GB", used as f64 / 1_048_576f64, total >> 20)
+            // / 1_048_576
             } else {
-                format!("{:.2} / {} TB",
-                        used as f64 / 1_073_741_824f64, total >> 30) // / 1_073_741_824
+                format!("{:.2} / {} TB", used as f64 / 1_073_741_824f64, total >> 30)
+                // / 1_073_741_824
             }
         };
 
@@ -423,7 +487,11 @@ impl DisplaySysInfo {
         let used = sys.get_used_swap();
         self.swap.set_text(Some(&disp(sys.get_total_swap(), used)));
 
-        let mut fraction = if total != 0 { used as f64 / total as f64 } else { 0f64 };
+        let mut fraction = if total != 0 {
+            used as f64 / total as f64
+        } else {
+            0f64
+        };
         if fraction.is_nan() {
             fraction = 0f64;
         }
@@ -438,10 +506,12 @@ impl DisplaySysInfo {
 
         // temperature part
         let mut t = self.temperature_usage_history.borrow_mut();
-        for (pos, (component, label)) in sys.get_components_list()
-                                            .iter()
-                                            .zip(self.components.iter())
-                                            .enumerate() {
+        for (pos, (component, label)) in sys
+            .get_components_list()
+            .iter()
+            .zip(self.components.iter())
+            .enumerate()
+        {
             t.data[pos].move_start();
             if let Some(t) = t.data[pos].get_mut(0) {
                 *t = f64::from(component.get_temperature());
@@ -450,7 +520,10 @@ impl DisplaySysInfo {
                 *t = f64::from(component.get_temperature());
             }
             if display_fahrenheit {
-                label.set_text(&format!("{:.1} °F", component.get_temperature() * 1.8 + 32.));
+                label.set_text(&format!(
+                    "{:.1} °F",
+                    component.get_temperature() * 1.8 + 32.
+                ));
             } else {
                 label.set_text(&format!("{:.1} °C", component.get_temperature()));
             }
@@ -459,8 +532,10 @@ impl DisplaySysInfo {
 
     pub fn update_network(&mut self, sys: &sysinfo::System) {
         let mut t = self.network_history.borrow_mut();
-        self.in_usage.set_text(format_number(sys.get_network().get_income()).as_str());
-        self.out_usage.set_text(format_number(sys.get_network().get_outcome()).as_str());
+        self.in_usage
+            .set_text(format_number(sys.get_network().get_income()).as_str());
+        self.out_usage
+            .set_text(format_number(sys.get_network().get_outcome()).as_str());
         t.data[0].move_start();
         *t.data[0].get_mut(0).expect("cannot get data 0") = sys.get_network().get_income() as f64;
         t.data[1].move_start();
@@ -489,8 +564,11 @@ impl DisplaySysInfo {
     }
 }
 
-fn show_if_necessary<T: WidgetExt>(check_box: &gtk::ToggleButton, proc_horizontal_layout: &Graph,
-                                   non_graph_layout: &T) {
+fn show_if_necessary<T: WidgetExt>(
+    check_box: &gtk::ToggleButton,
+    proc_horizontal_layout: &Graph,
+    non_graph_layout: &T,
+) {
     if check_box.get_active() {
         proc_horizontal_layout.show_all();
         non_graph_layout.hide();

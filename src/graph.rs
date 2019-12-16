@@ -1,7 +1,7 @@
 use cairo;
+use gdk::{self, WindowExt};
 use gtk::{self, BoxExt, ContainerExt, DrawingArea, ScrolledWindowExt, StateFlags, WidgetExt};
 use std::cell::RefCell;
-use gdk::{self, WindowExt};
 
 use std::rc::Rc;
 use std::time::Instant;
@@ -35,8 +35,8 @@ impl Graph {
     pub fn new(max: Option<f64>, keep_max: bool) -> Graph {
         let g = Graph {
             elapsed: Instant::now(),
-            colors: vec!(),
-            data: vec!(),
+            colors: vec![],
+            data: vec![],
             vertical_layout: gtk::Box::new(gtk::Orientation::Vertical, 0),
             scroll_layout: gtk::ScrolledWindow::new(
                 None::<&gtk::Adjustment>,
@@ -44,7 +44,11 @@ impl Graph {
             ),
             horizontal_layout: gtk::Box::new(gtk::Orientation::Horizontal, 0),
             area: DrawingArea::new(),
-            max: if let Some(max) = max { Some(RefCell::new(max)) } else { None },
+            max: if let Some(max) = max {
+                Some(RefCell::new(max))
+            } else {
+                None
+            },
             keep_max,
             display_labels: RefCell::new(true),
             initial_diff: None,
@@ -54,14 +58,16 @@ impl Graph {
         g.scroll_layout.set_min_content_width(g.labels_layout_width);
         g.scroll_layout.add(&g.vertical_layout);
         g.horizontal_layout.pack_start(&g.area, true, true, 0);
-        g.horizontal_layout.pack_start(&g.scroll_layout, false, true, 10);
+        g.horizontal_layout
+            .pack_start(&g.scroll_layout, false, true, 10);
         g.horizontal_layout.set_margin_start(5);
         g
     }
 
     /// Changes the size of the layout containing labels (the one on the right).
     pub fn set_labels_width(&mut self, labels_layout_width: u32) {
-        self.scroll_layout.set_min_content_width(labels_layout_width as i32);
+        self.scroll_layout
+            .set_min_content_width(labels_layout_width as i32);
         self.labels_layout_width = labels_layout_width as i32;
     }
 
@@ -104,7 +110,10 @@ impl Graph {
             Color::generate(self.data.len() + 11)
         };
         let l = gtk::Label::new(Some(s));
-        l.override_color(StateFlags::from_bits(0).expect("from_bits failed"), Some(&c.to_gdk()));
+        l.override_color(
+            StateFlags::from_bits(0).expect("from_bits failed"),
+            Some(&c.to_gdk()),
+        );
         self.vertical_layout.add(&l);
         self.colors.push(c);
         self.data.push(d);
@@ -127,7 +136,10 @@ impl Graph {
             c.move_to(LEFT_WIDTH - 4. - entries[2].len() as f64 * 4., height - 2.);
             c.show_text(entries[2].as_str());
 
-            c.move_to(font_size - 1., height / 2. + 4. * (entries[3].len() >> 1) as f64);
+            c.move_to(
+                font_size - 1.,
+                height / 2. + 4. * (entries[3].len() >> 1) as f64,
+            );
             c.rotate(-::std::f64::consts::FRAC_PI_2);
             c.show_text(entries[3].as_str());
         }
@@ -180,7 +192,11 @@ impl Graph {
         c.stroke();
 
         if let Some(ref self_max) = self.max {
-            let mut max = if self.keep_max { *self_max.borrow() } else { 1. };
+            let mut max = if self.keep_max {
+                *self_max.borrow()
+            } else {
+                1.
+            };
             let len = self.data[0].len() - 1;
             for x in 0..len {
                 for entry in &self.data {
@@ -197,7 +213,10 @@ impl Graph {
                 while current > x_start && index > 0 {
                     for (entry, color) in self.data.iter().zip(self.colors.iter()) {
                         c.set_source_rgb(color.r, color.g, color.b);
-                        c.move_to(current + step, height - entry[index - 1] / max * (height - 1.0));
+                        c.move_to(
+                            current + step,
+                            height - entry[index - 1] / max * (height - 1.0),
+                        );
                         c.line_to(current, height - entry[index] / max * (height - 1.0));
                         c.stroke();
                     }
@@ -231,10 +250,16 @@ impl Graph {
 
     pub fn invalidate(&self) {
         if let Some(t_win) = self.area.get_window() {
-            let (x, y) = self.area.translate_coordinates(&self.area, 0, 0)
-                                  .expect("translate_coordinates failed");
-            let rect = gdk::Rectangle { x, y,
-                width: self.area.get_allocated_width(), height: self.area.get_allocated_height() };
+            let (x, y) = self
+                .area
+                .translate_coordinates(&self.area, 0, 0)
+                .expect("translate_coordinates failed");
+            let rect = gdk::Rectangle {
+                x,
+                y,
+                width: self.area.get_allocated_width(),
+                height: self.area.get_allocated_height(),
+            };
             t_win.invalidate_rect(Some(&rect), true);
         }
     }
@@ -244,11 +269,14 @@ impl Graph {
             Some(w) => w,
             None => {
                 if let Some(parent) = self.area.get_parent() {
-                    parent.get_allocation().width -
-                        parent.get_margin_start() - parent.get_margin_end()
+                    parent.get_allocation().width
+                        - parent.get_margin_start()
+                        - parent.get_margin_end()
                 } else {
-                    eprintln!("<Graph::send_size_request> A parent is required if no width is \
-                               provided...");
+                    eprintln!(
+                        "<Graph::send_size_request> A parent is required if no width is \
+                               provided..."
+                    );
                     return;
                 }
             }
@@ -262,14 +290,17 @@ impl Graph {
         }
         self.area.set_size_request(
             if *self.display_labels.borrow() {
-                width - if width >= self.labels_layout_width {
-                    self.labels_layout_width
-                } else {
-                    width
-                }
+                width
+                    - if width >= self.labels_layout_width {
+                        self.labels_layout_width
+                    } else {
+                        width
+                    }
             } else {
                 width
-            }, 200);
+            },
+            200,
+        );
     }
 }
 

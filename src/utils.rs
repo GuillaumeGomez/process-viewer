@@ -18,10 +18,7 @@ pub struct RotateVec<T> {
 
 impl<T> RotateVec<T> {
     pub fn new(d: Vec<T>) -> RotateVec<T> {
-        RotateVec {
-            data: d,
-            start: 0,
-        }
+        RotateVec { data: d, start: 0 }
     }
 
     pub fn len(&self) -> usize {
@@ -77,13 +74,15 @@ pub fn format_number(mut nb: u64) -> String {
 pub fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
     let area = graph.area.clone();
     let graph = Rc::new(RefCell::new(graph));
-    area.connect_draw(clone!(@weak graph => @default-return Inhibit(false), move |w, c| {
-        graph.borrow()
-             .draw(c,
-                   f64::from(w.get_allocated_width()),
-                   f64::from(w.get_allocated_height()));
-        Inhibit(false)
-    }));
+    area.connect_draw(
+        clone!(@weak graph => @default-return Inhibit(false), move |w, c| {
+            graph.borrow()
+                 .draw(c,
+                       f64::from(w.get_allocated_width()),
+                       f64::from(w.get_allocated_height()));
+            Inhibit(false)
+        }),
+    );
     graph
 }
 
