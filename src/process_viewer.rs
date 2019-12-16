@@ -10,6 +10,7 @@ extern crate cairo;
 extern crate gdk;
 extern crate gdk_pixbuf;
 extern crate gio;
+#[macro_use]
 extern crate glib;
 extern crate gtk;
 extern crate libc;
@@ -23,15 +24,16 @@ extern crate serde_derive;
 use sysinfo::*;
 
 use gdk_pixbuf::Pixbuf;
-use gio::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual, MemoryInputStream};
+use gio::prelude::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual};
+use gio::MemoryInputStream;
 use glib::{Bytes, Cast, IsA, ToVariant};
-use gtk::{AboutDialog, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
-use gtk::{
+use gtk::prelude::{
     AboutDialogExt, BoxExt, ButtonBoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt,
     GtkApplicationExt, GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual,
     NotebookExtManual, SearchBarExt, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
     TreeViewExt, WidgetExt,
 };
+use gtk::{AboutDialog, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -47,23 +49,23 @@ use notebook::NoteBook;
 use procs::{create_and_fill_model, Procs};
 use settings::Settings;
 
-#[macro_use]
-mod macros;
-
 mod color;
 mod disk_info;
 mod display_sysinfo;
 mod graph;
 mod notebook;
-mod utils;
 mod process_dialog;
 mod procs;
 mod settings;
+mod utils;
 
 pub const APPLICATION_NAME: &str = "com.github.GuillaumeGomez.process-viewer";
 
-fn update_system_info(system: &Rc<RefCell<sysinfo::System>>, info: &mut DisplaySysInfo,
-                      display_fahrenheit: bool) {
+fn update_system_info(
+    system: &Rc<RefCell<sysinfo::System>>,
+    info: &mut DisplaySysInfo,
+    display_fahrenheit: bool,
+) {
     let mut system = system.borrow_mut();
     system.refresh_system();
     info.update_system_info(&system, display_fahrenheit);
@@ -85,11 +87,21 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
     if let Some(iter) = list.get_iter_first() {
         let mut valid = true;
         while valid {
-            if let Some(pid) = list.get_value(&iter, 0).get::<u32>().map(|x| x as Pid) {
+            let pid = match list.get_value(&iter, 0).get::<u32>() {
+                Ok(pid) => pid,
+                _ => continue,
+            };
+            if let Some(pid) = pid.map(|x| x as Pid) {
                 if let Some(p) = entries.get(&(pid)) {
-                    list.set(&iter,
-                             &[2, 3, 5],
-                             &[&format!("{:.1}", p.cpu_usage()), &p.memory(), &p.cpu_usage()]);
+                    list.set(
+                        &iter,
+                        &[2, 3, 5],
+                        &[
+                            &format!("{:.1}", p.cpu_usage()),
+                            &p.memory(),
+                            &p.cpu_usage(),
+                        ],
+                    );
                     valid = list.iter_next(&iter);
                     seen.insert(pid);
                 } else {
@@ -101,16 +113,21 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
 
     for (pid, pro) in entries.iter() {
         if !seen.contains(pid) {
-            create_and_fill_model(list, pro.pid().as_u32(),
-                                  &format!("{:?}", &pro.cmd()), &pro.name(),
-                                  pro.cpu_usage(), pro.memory());
+            create_and_fill_model(
+                list,
+                pro.pid().as_u32(),
+                &format!("{:?}", &pro.cmd()),
+                &pro.name(),
+                pro.cpu_usage(),
+                pro.memory(),
+            );
         }
     }
 }
 
 fn parse_quote(line: &str, quote: char) -> Vec<String> {
     let args = line.split(quote).collect::<Vec<&str>>();
-    let mut out_args = vec!();
+    let mut out_args = vec![];
 
     for (num, arg) in args.iter().enumerate() {
         if num != 1 {
@@ -134,8 +151,10 @@ fn parse_entry(line: &str) -> Vec<String> {
         }
         (Some(_), None) => parse_quote(line, '\''),
         (None, Some(_)) => parse_quote(line, '"'),
-        (None, None) => line.split(' ').map(::std::borrow::ToOwned::to_owned)
-                                       .collect::<Vec<String>>(),
+        (None, None) => line
+            .split(' ')
+            .map(::std::borrow::ToOwned::to_owned)
+            .collect::<Vec<String>>(),
     }
 }
 
@@ -158,10 +177,11 @@ fn start_detached_process(line: &str) -> Option<String> {
     let args = parse_entry(line);
     let command = args[0].clone();
 
-    let cmd = build_command(Command::new(&command).args(&args)).stdin(Stdio::null())
-                                                               .stderr(Stdio::null())
-                                                               .stdout(Stdio::null())
-                                                               .spawn();
+    let cmd = build_command(Command::new(&command).args(&args))
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn();
     if cmd.is_err() {
         Some(format!("Failed to start '{}'", &command))
     } else {
@@ -177,16 +197,19 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
             "The command started successfully".to_owned()
         };
         d.destroy();
-        let m = MessageDialog::new(Some(window),
-                                   gtk::DialogFlags::DESTROY_WITH_PARENT,
-                                   gtk::MessageType::Info,
-                                   gtk::ButtonsType::Ok,
-                                   &x);
+        let m = MessageDialog::new(
+            Some(window),
+            gtk::DialogFlags::DESTROY_WITH_PARENT,
+            gtk::MessageType::Info,
+            gtk::ButtonsType::Ok,
+            &x,
+        );
         m.set_modal(true);
         m.connect_response(|dialog, response| {
-            if response == gtk::ResponseType::DeleteEvent ||
-               response == gtk::ResponseType::Close ||
-               response == gtk::ResponseType::Ok {
+            if response == gtk::ResponseType::DeleteEvent
+                || response == gtk::ResponseType::Close
+                || response == gtk::ResponseType::Ok
+            {
                 dialog.destroy();
             }
         });
@@ -206,12 +229,11 @@ fn create_new_proc_diag(
     }
     let total_memory = sys.get_total_memory();
     if let Some(process) = sys.get_process(pid) {
-        let diag = process_dialog::create_process_dialog(process,
-                                                         starting_time,
-                                                         total_memory);
-        diag.popup.connect_destroy(clone!(process_dialogs => move |_| {
-            process_dialogs.borrow_mut().remove(&pid);
-        }));
+        let diag = process_dialog::create_process_dialog(process, starting_time, total_memory);
+        diag.popup
+            .connect_destroy(clone!(@weak process_dialogs => move |_| {
+                process_dialogs.borrow_mut().remove(&pid);
+            }));
         process_dialogs.borrow_mut().insert(pid, diag);
     }
 }
@@ -226,10 +248,7 @@ pub struct RequiredForSettings {
     display_tab: Rc<RefCell<DisplaySysInfo>>,
 }
 
-pub fn setup_timeout(
-    refresh_time: u32,
-    rfs: &Rc<RefCell<RequiredForSettings>>,
-) {
+pub fn setup_timeout(refresh_time: u32, rfs: &Rc<RefCell<RequiredForSettings>>) {
     let ret = {
         let mut rfs = rfs.borrow_mut();
         rfs.current_source.take().map(glib::Source::remove);
@@ -238,9 +257,9 @@ pub fn setup_timeout(
         let process_dialogs = &rfs.process_dialogs;
         let list_store = &rfs.list_store;
 
-        Some(
-            gtk::timeout_add(refresh_time,
-                             clone!(sys, process_dialogs, list_store => move || {
+        Some(gtk::timeout_add(
+            refresh_time,
+            clone!(@weak sys, @weak process_dialogs, @weak list_store => @default-return glib::Continue(true), move || {
                 // first part, deactivate sorting
                 let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
                 list_store.set_unsorted();
@@ -261,29 +280,24 @@ pub fn setup_timeout(
                     }
                 }
                 glib::Continue(true)
-            }))
-        )
+            }),
+        ))
     };
     rfs.borrow_mut().current_source = ret;
 }
 
-pub fn setup_network_timeout(
-    refresh_time: u32,
-    rfs: &Rc<RefCell<RequiredForSettings>>,
-) {
+pub fn setup_network_timeout(refresh_time: u32, rfs: &Rc<RefCell<RequiredForSettings>>) {
     let ret = {
         let mut rfs = rfs.borrow_mut();
         rfs.current_network_source.take().map(glib::Source::remove);
 
-        let sys = &rfs.sys;
-        let display_tab = &rfs.display_tab;
-
-        Some(
-            gtk::timeout_add(refresh_time, clone!(sys, display_tab => move || {
+        Some(gtk::timeout_add(
+            refresh_time,
+            clone!(@weak rfs.sys as sys, @weak rfs.display_tab as display_tab => @default-return glib::Continue(true), move || {
                 update_system_network(&sys, &mut display_tab.borrow_mut());
                 glib::Continue(true)
-            }))
-        )
+            }),
+        ))
     };
     rfs.borrow_mut().current_network_source = ret;
 }
@@ -300,20 +314,22 @@ pub fn setup_system_timeout(
         let sys = &rfs.sys;
         let display_tab = &rfs.display_tab;
 
-        Some(
-            gtk::timeout_add(refresh_time, clone!(sys, display_tab, settings => move || {
+        Some(gtk::timeout_add(
+            refresh_time,
+            clone!(@weak sys, @weak display_tab, @weak settings => @default-return glib::Continue(true), move || {
                 update_system_info(&sys, &mut display_tab.borrow_mut(), settings.borrow().display_fahrenheit);
                 glib::Continue(true)
-            }))
-        )
+            }),
+        ))
     };
     rfs.borrow_mut().current_system_source = ret;
 }
 
 fn get_now() -> u64 {
-    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
-                     .expect("couldn't get start time")
-                     .as_secs()
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("couldn't get start time")
+        .as_secs()
 }
 
 fn build_ui(application: &gtk::Application) {
@@ -363,12 +379,14 @@ fn build_ui(application: &gtk::Application) {
     });
 
     sys.borrow_mut().refresh_all();
-    procs.kill_button.connect_clicked(clone!(current_pid, sys => move |_| {
-        let sys = sys.borrow();
-        if let Some(process) = current_pid.get().and_then(|pid| sys.get_process(pid)) {
-            process.kill(Signal::Kill);
-        }
-    }));
+    procs
+        .kill_button
+        .connect_clicked(clone!(@weak current_pid, @weak sys => move |_| {
+            let sys = sys.borrow();
+            if let Some(process) = current_pid.get().and_then(|pid| sys.get_process(pid)) {
+                process.kill(Signal::Kill);
+            }
+        }));
 
     let display_tab = DisplaySysInfo::new(&sys, &mut note, &window, &settings);
     disk_info::create_disk_info(&sys, &mut note);
@@ -410,37 +428,40 @@ fn build_ui(application: &gtk::Application) {
     setup_system_timeout(refresh_system_rate, &rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(clone!(settings => move |_, _| {
+    settings_action.connect_activate(clone!(@weak settings => move |_, _| {
         settings::show_settings_dialog(&settings, &rfs);
     }));
 
     info_button.connect_clicked(
-        clone!(current_pid, process_dialogs, sys => move |_| {
-            if let Some(pid) = current_pid.get() {
+        clone!(@weak current_pid, @weak process_dialogs, @weak sys => move |_| {
+                if let Some(pid) = current_pid.get() {
+                    create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
+                }
+            }
+        ),
+    );
+
+    procs
+        .left_tree
+        .connect_row_activated(clone!(@weak sys => move |tree_view, path, _| {
+                let model = tree_view.get_model().expect("couldn't get model");
+                let iter = model.get_iter(path).expect("couldn't get iter");
+                let pid = model.get_value(&iter, 0)
+                               .get::<u32>()
+                               .expect("Model::get failed")
+                               .map(|x| x as Pid)
+                               .expect("failed to get value from model");
                 create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
             }
-        }
-    ));
-
-    procs.left_tree.connect_row_activated(
-        clone!(sys => move |tree_view, path, _| {
-            let model = tree_view.get_model().expect("couldn't get model");
-            let iter = model.get_iter(path).expect("couldn't get iter");
-            let pid = model.get_value(&iter, 0)
-                           .get::<u32>()
-                           .map(|x| x as Pid)
-                           .expect("failed to get value from model");
-            create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
-        }
-    ));
+        ));
 
     let quit = gio::SimpleAction::new("quit", None);
-    quit.connect_activate(clone!(window => move |_, _| {
+    quit.connect_activate(clone!(@weak window => move |_, _| {
         window.destroy();
     }));
 
     let about = gio::SimpleAction::new("about", None);
-    about.connect_activate(clone!(window => move |_, _| {
+    about.connect_activate(clone!(@weak window => move |_, _| {
         let p = AboutDialog::new();
         p.set_authors(&["Guillaume Gomez"]);
         p.set_website_label(Some("my website"));
@@ -466,7 +487,7 @@ fn build_ui(application: &gtk::Application) {
     }));
 
     let new_task = gio::SimpleAction::new("new-task", None);
-    new_task.connect_activate(clone!(window => move |_, _| {
+    new_task.connect_activate(clone!(@weak window => move |_, _| {
         let dialog = gtk::Dialog::new_with_buttons(
             Some("Launch new executable"),
             Some(&window),
@@ -490,7 +511,7 @@ fn build_ui(application: &gtk::Application) {
                 }
             }
         }
-        input.connect_changed(clone!(dialog => move |input| {
+        input.connect_changed(clone!(@weak dialog => move |input| {
             match input.get_text() {
                 Some(ref x) if !x.is_empty() => {
                     dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
@@ -498,10 +519,10 @@ fn build_ui(application: &gtk::Application) {
                 _ => dialog.set_response_sensitive(gtk::ResponseType::Other(0), false),
             }
         }));
-        input.connect_activate(clone!(window, dialog => move |input| {
+        input.connect_activate(clone!(@weak window, @weak dialog => move |input| {
             run_command(input, &window, &dialog);
         }));
-        dialog.connect_response(clone!(input, window => move |dialog, response| {
+        dialog.connect_response(clone!(@weak input, @weak window => move |dialog, response| {
             match response {
                 gtk::ResponseType::Close => {
                     dialog.destroy();
@@ -523,9 +544,12 @@ fn build_ui(application: &gtk::Application) {
         dialog.show_all();
     }));
 
-    let graphs = gio::SimpleAction::new_stateful("graphs", None,
-                                                 &settings.borrow().display_graph.to_variant());
-    graphs.connect_activate(clone!(settings => move |g, _| {
+    let graphs = gio::SimpleAction::new_stateful(
+        "graphs",
+        None,
+        &settings.borrow().display_graph.to_variant(),
+    );
+    graphs.connect_activate(clone!(@weak settings => move |g, _| {
         let mut is_active = false;
         if let Some(g) = g.get_state() {
             is_active = g.get().expect("couldn't get bool");
@@ -544,10 +568,11 @@ fn build_ui(application: &gtk::Application) {
         settings.borrow().save();
     }));
 
-    let temperature = gio::SimpleAction::new_stateful("temperature", None,
-                                                      &settings.borrow()
-                                                               .display_fahrenheit
-                                                               .to_variant());
+    let temperature = gio::SimpleAction::new_stateful(
+        "temperature",
+        None,
+        &settings.borrow().display_fahrenheit.to_variant(),
+    );
     temperature.connect_activate(move |g, _| {
         let mut is_active = false;
         if let Some(g) = g.get_state() {
@@ -571,16 +596,19 @@ fn build_ui(application: &gtk::Application) {
     let filter_entry = procs.filter_entry.clone();
     let notebook = note.notebook.clone();
 
-    procs.filter_button.connect_clicked(clone!(filter_entry, window => move |_| {
-        if filter_entry.get_visible() {
-            filter_entry.hide();
-        } else {
-            filter_entry.show_all();
-            window.set_focus(Some(&filter_entry));
-        }
-    }));
+    procs
+        .filter_button
+        .connect_clicked(clone!(@weak filter_entry, @weak window => move |_| {
+            if filter_entry.get_visible() {
+                filter_entry.hide();
+            } else {
+                filter_entry.show_all();
+                window.set_focus(Some(&filter_entry));
+            }
+        }));
     window.connect_key_press_event(move |win, key| {
-        if notebook.get_current_page() == Some(0) { // the process list
+        if notebook.get_current_page() == Some(0) {
+            // the process list
             if key.get_keyval() == gdk::enums::key::Escape {
                 procs.hide_filter();
             } else {
@@ -588,7 +616,9 @@ fn build_ui(application: &gtk::Application) {
                 match procs.filter_entry.get_text() {
                     Some(ref s) if s.len() > 0 => {
                         procs.filter_entry.show_all();
-                        if win.get_focus() != Some(procs.filter_entry.clone().upcast::<gtk::Widget>()) {
+                        if win.get_focus()
+                            != Some(procs.filter_entry.clone().upcast::<gtk::Widget>())
+                        {
                             win.set_focus(Some(&procs.filter_entry));
                         }
                     }
@@ -600,7 +630,7 @@ fn build_ui(application: &gtk::Application) {
         Inhibit(false)
     });
 
-    window.set_name(utils::MAIN_WINDOW_NAME);
+    window.set_widget_name(utils::MAIN_WINDOW_NAME);
 
     application.connect_activate(move |_| {
         window.show_all();
@@ -610,9 +640,8 @@ fn build_ui(application: &gtk::Application) {
 }
 
 fn main() {
-    let application = gtk::Application::new(Some(APPLICATION_NAME),
-                                            gio::ApplicationFlags::empty())
-                                       .expect("Initialization failed...");
+    let application = gtk::Application::new(Some(APPLICATION_NAME), gio::ApplicationFlags::empty())
+        .expect("Initialization failed...");
 
     application.connect_startup(move |app| {
         build_ui(app);
