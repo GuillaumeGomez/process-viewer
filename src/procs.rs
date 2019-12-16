@@ -93,7 +93,7 @@ impl Procs {
         let horizontal_layout = gtk::Grid::new();
 
         left_tree.connect_cursor_changed(
-            clone!(current_pid, kill_button, info_button => move |tree_view| {
+            clone!(@weak current_pid, @weak kill_button, @weak info_button => move |tree_view| {
                 let selection = tree_view.get_selection();
                 let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
                     if let Some(x) = model.get_value(&iter, 0).get::<u32>().ok().flatten().map(|x| x as Pid) {
@@ -123,7 +123,7 @@ impl Procs {
 
         // The filter part.
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
-        filter_model.set_visible_func(clone!(filter_entry => move |model, iter| {
+        filter_model.set_visible_func(clone!(@weak filter_entry => @default-return false, move |model, iter| {
             if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
                 return true;
             }

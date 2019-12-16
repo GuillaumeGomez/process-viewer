@@ -67,7 +67,7 @@ pub fn create_disk_info(sys: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook)
 
     let refresh_but = gtk::Button::new_with_label("Refresh");
 
-    refresh_but.connect_clicked(clone!(sys, grid, grid_elems => move |_| {
+    refresh_but.connect_clicked(clone!(@weak sys, @weak grid, @weak grid_elems => move |_| {
         sys.borrow_mut().refresh_disks();
         refresh_disks(&grid, sys.borrow().get_disks(), &mut *grid_elems.borrow_mut());
     }));

@@ -10,6 +10,7 @@ extern crate cairo;
 extern crate gdk;
 extern crate gdk_pixbuf;
 extern crate gio;
+#[macro_use]
 extern crate glib;
 extern crate gtk;
 extern crate libc;
@@ -47,9 +48,6 @@ use display_sysinfo::DisplaySysInfo;
 use notebook::NoteBook;
 use procs::{create_and_fill_model, Procs};
 use settings::Settings;
-
-#[macro_use]
-mod macros;
 
 mod color;
 mod disk_info;
@@ -210,7 +208,7 @@ fn create_new_proc_diag(
         let diag = process_dialog::create_process_dialog(process,
                                                          starting_time,
                                                          total_memory);
-        diag.popup.connect_destroy(clone!(process_dialogs => move |_| {
+        diag.popup.connect_destroy(clone!(@weak process_dialogs => move |_| {
             process_dialogs.borrow_mut().remove(&pid);
         }));
         process_dialogs.borrow_mut().insert(pid, diag);
@@ -241,7 +239,7 @@ pub fn setup_timeout(
 
         Some(
             gtk::timeout_add(refresh_time,
-                             clone!(sys, process_dialogs, list_store => move || {
+                             clone!(@weak sys, @weak process_dialogs, @weak list_store => @default-return glib::Continue(true), move || {
                 // first part, deactivate sorting
                 let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
                 list_store.set_unsorted();
@@ -276,11 +274,8 @@ pub fn setup_network_timeout(
         let mut rfs = rfs.borrow_mut();
         rfs.current_network_source.take().map(glib::Source::remove);
 
-        let sys = &rfs.sys;
-        let display_tab = &rfs.display_tab;
-
         Some(
-            gtk::timeout_add(refresh_time, clone!(sys, display_tab => move || {
+            gtk::timeout_add(refresh_time, clone!(@weak rfs.sys as sys, @weak rfs.display_tab as display_tab => @default-return glib::Continue(true), move || {
                 update_system_network(&sys, &mut display_tab.borrow_mut());
                 glib::Continue(true)
             }))
@@ -302,7 +297,7 @@ pub fn setup_system_timeout(
         let display_tab = &rfs.display_tab;
 
         Some(
-            gtk::timeout_add(refresh_time, clone!(sys, display_tab, settings => move || {
+            gtk::timeout_add(refresh_time, clone!(@weak sys, @weak display_tab, @weak settings => @default-return glib::Continue(true), move || {
                 update_system_info(&sys, &mut display_tab.borrow_mut(), settings.borrow().display_fahrenheit);
                 glib::Continue(true)
             }))
@@ -364,7 +359,7 @@ fn build_ui(application: &gtk::Application) {
     });
 
     sys.borrow_mut().refresh_all();
-    procs.kill_button.connect_clicked(clone!(current_pid, sys => move |_| {
+    procs.kill_button.connect_clicked(clone!(@weak current_pid, @weak sys => move |_| {
         let sys = sys.borrow();
         if let Some(process) = current_pid.get().and_then(|pid| sys.get_process(pid)) {
             process.kill(Signal::Kill);
@@ -411,12 +406,12 @@ fn build_ui(application: &gtk::Application) {
     setup_system_timeout(refresh_system_rate, &rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(clone!(settings => move |_, _| {
+    settings_action.connect_activate(clone!(@weak settings => move |_, _| {
         settings::show_settings_dialog(&settings, &rfs);
     }));
 
     info_button.connect_clicked(
-        clone!(current_pid, process_dialogs, sys => move |_| {
+        clone!(@weak current_pid, @weak process_dialogs, @weak sys => move |_| {
             if let Some(pid) = current_pid.get() {
                 create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
             }
@@ -424,7 +419,7 @@ fn build_ui(application: &gtk::Application) {
     ));
 
     procs.left_tree.connect_row_activated(
-        clone!(sys => move |tree_view, path, _| {
+        clone!(@weak sys => move |tree_view, path, _| {
             let model = tree_view.get_model().expect("couldn't get model");
             let iter = model.get_iter(path).expect("couldn't get iter");
             let pid = model.get_value(&iter, 0)
@@ -438,12 +433,12 @@ fn build_ui(application: &gtk::Application) {
     ));
 
     let quit = gio::SimpleAction::new("quit", None);
-    quit.connect_activate(clone!(window => move |_, _| {
+    quit.connect_activate(clone!(@weak window => move |_, _| {
         window.destroy();
     }));
 
     let about = gio::SimpleAction::new("about", None);
-    about.connect_activate(clone!(window => move |_, _| {
+    about.connect_activate(clone!(@weak window => move |_, _| {
         let p = AboutDialog::new();
         p.set_authors(&["Guillaume Gomez"]);
         p.set_website_label(Some("my website"));
@@ -469,7 +464,7 @@ fn build_ui(application: &gtk::Application) {
     }));
 
     let new_task = gio::SimpleAction::new("new-task", None);
-    new_task.connect_activate(clone!(window => move |_, _| {
+    new_task.connect_activate(clone!(@weak window => move |_, _| {
         let dialog = gtk::Dialog::new_with_buttons(
             Some("Launch new executable"),
             Some(&window),
@@ -493,7 +488,7 @@ fn build_ui(application: &gtk::Application) {
                 }
             }
         }
-        input.connect_changed(clone!(dialog => move |input| {
+        input.connect_changed(clone!(@weak dialog => move |input| {
             match input.get_text() {
                 Some(ref x) if !x.is_empty() => {
                     dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
@@ -501,10 +496,10 @@ fn build_ui(application: &gtk::Application) {
                 _ => dialog.set_response_sensitive(gtk::ResponseType::Other(0), false),
             }
         }));
-        input.connect_activate(clone!(window, dialog => move |input| {
+        input.connect_activate(clone!(@weak window, @weak dialog => move |input| {
             run_command(input, &window, &dialog);
         }));
-        dialog.connect_response(clone!(input, window => move |dialog, response| {
+        dialog.connect_response(clone!(@weak input, @weak window => move |dialog, response| {
             match response {
                 gtk::ResponseType::Close => {
                     dialog.destroy();
@@ -528,7 +523,7 @@ fn build_ui(application: &gtk::Application) {
 
     let graphs = gio::SimpleAction::new_stateful("graphs", None,
                                                  &settings.borrow().display_graph.to_variant());
-    graphs.connect_activate(clone!(settings => move |g, _| {
+    graphs.connect_activate(clone!(@weak settings => move |g, _| {
         let mut is_active = false;
         if let Some(g) = g.get_state() {
             is_active = g.get().expect("couldn't get bool");
@@ -574,7 +569,7 @@ fn build_ui(application: &gtk::Application) {
     let filter_entry = procs.filter_entry.clone();
     let notebook = note.notebook.clone();
 
-    procs.filter_button.connect_clicked(clone!(filter_entry, window => move |_| {
+    procs.filter_button.connect_clicked(clone!(@weak filter_entry, @weak window => move |_| {
         if filter_entry.get_visible() {
             filter_entry.hide();
         } else {

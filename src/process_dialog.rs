@@ -244,7 +244,7 @@ pub fn create_process_dialog(
     let ram_usage_history = connect_graph(ram_usage_history);
 
     scroll.add(&vertical_layout);
-    scroll.connect_show(clone!(ram_usage_history, cpu_usage_history => move |_| {
+    scroll.connect_show(clone!(@weak ram_usage_history, @weak cpu_usage_history => move |_| {
         ram_usage_history.borrow().show_all();
         cpu_usage_history.borrow().show_all();
     }));
@@ -258,7 +258,7 @@ pub fn create_process_dialog(
     popup.get_preferred_width();
     popup.set_size_request(500, 600);
 
-    close_button.connect_clicked(clone!(popup => move |_| {
+    close_button.connect_clicked(clone!(@weak popup => move |_| {
         popup.destroy();
     }));
     popup.set_resizable(true);

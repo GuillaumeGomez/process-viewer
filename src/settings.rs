@@ -199,7 +199,7 @@ pub fn show_settings_dialog(
 
     // Finally connect to all kinds of change notification signals for the different UI widgets.
     // Whenever something is changing we directly save the configuration file with the new values.
-    refresh_procs.connect_value_changed(clone!(settings, rfs => move |entry| {
+    refresh_procs.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
         let mut settings = settings.borrow_mut();
         let refresh_processes_rate = settings.refresh_processes_rate;
         setup_timeout(refresh_processes_rate, &rfs);
@@ -207,7 +207,7 @@ pub fn show_settings_dialog(
         settings.refresh_processes_rate = (entry.get_value() * 1000.) as u32;
         settings.save();
     }));
-    refresh_network.connect_value_changed(clone!(settings, rfs => move |entry| {
+    refresh_network.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
         let mut settings = settings.borrow_mut();
         let refresh_network_rate = settings.refresh_network_rate;
         setup_network_timeout(refresh_network_rate, &rfs);
@@ -215,7 +215,7 @@ pub fn show_settings_dialog(
         settings.refresh_network_rate = (entry.get_value() * 1000.) as u32;
         settings.save();
     }));
-    refresh_sys.connect_value_changed(clone!(settings, rfs => move |entry| {
+    refresh_sys.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
         let refresh_system_rate = settings.borrow().refresh_system_rate;
         setup_system_timeout(refresh_system_rate, &rfs, &settings);
 

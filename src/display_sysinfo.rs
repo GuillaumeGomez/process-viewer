@@ -310,8 +310,8 @@ impl DisplaySysInfo {
         // It greatly improves the scrolling on the system information tab. No more clipping.
         if let Some(adjustment) = scroll.get_vadjustment() {
             adjustment.connect_value_changed(
-                clone!(cpu_usage_history, ram_usage_history, temperature_usage_history,
-                       network_history => move |_| {
+                clone!(@weak cpu_usage_history, @weak ram_usage_history, @weak temperature_usage_history,
+                       @weak network_history => move |_| {
                 cpu_usage_history.borrow().invalidate();
                 ram_usage_history.borrow().invalidate();
                 temperature_usage_history.borrow().invalidate();
@@ -355,26 +355,26 @@ impl DisplaySysInfo {
         });
 
         check_box.clone().upcast::<gtk::ToggleButton>()
-                 .connect_toggled(clone!(non_graph_layout, cpu_usage_history => move |c| {
+                 .connect_toggled(clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
             show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
         }));
         check_box2.clone().upcast::<gtk::ToggleButton>()
-                  .connect_toggled(clone!(non_graph_layout2, ram_usage_history => move |c| {
+                  .connect_toggled(clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
             show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
         }));
         if let Some(ref check_box3) = check_box3 {
             check_box3.clone().upcast::<gtk::ToggleButton>()
                       .connect_toggled(
-                          clone!(non_graph_layout3, temperature_usage_history => move |c| {
+                          clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
                 show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
             }));
         }
         check_box4.clone().upcast::<gtk::ToggleButton>()
-                  .connect_toggled(clone!(non_graph_layout4, network_history => move |c| {
+                  .connect_toggled(clone!(@weak non_graph_layout4, @weak network_history => move |c| {
             show_if_necessary(c, &network_history.borrow(), &non_graph_layout4);
         }));
 
-        scroll.connect_show(clone!(cpu_usage_history, ram_usage_history => move |_| {
+        scroll.connect_show(clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
             show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
                               &cpu_usage_history.borrow(), &non_graph_layout);
             show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
