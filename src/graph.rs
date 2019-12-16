@@ -4,7 +4,6 @@ use gtk::{self, BoxExt, ContainerExt, DrawingArea, ScrolledWindowExt, StateFlags
 use std::cell::RefCell;
 
 use std::rc::Rc;
-use std::time::Instant;
 
 use color::Color;
 use utils::RotateVec;
@@ -12,7 +11,6 @@ use utils::RotateVec;
 const LEFT_WIDTH: f64 = 31.;
 
 pub struct Graph {
-    elapsed: Instant,
     colors: Vec<Color>,
     pub data: Vec<RotateVec<f64>>,
     vertical_layout: gtk::Box,
@@ -39,7 +37,6 @@ impl Graph {
     /// won't rescale down. It is not taken into account if `max` is `None`.
     pub fn new(max: Option<f64>, keep_max: bool) -> Graph {
         let g = Graph {
-            elapsed: Instant::now(),
             colors: vec![],
             data: vec![],
             vertical_layout: gtk::Box::new(gtk::Orientation::Vertical, 0),
@@ -185,10 +182,8 @@ impl Graph {
 
         // For now it's always 60 seconds.
         let time = 60.;
-
-        let elapsed = self.elapsed.elapsed().as_secs() % 5;
         let x_step = (width - 2.0 - x_start) * 5.0 / (time as f64);
-        let mut current = width - elapsed as f64 * (x_step / 5.0) - 1.0;
+        let mut current = width * (x_step / 5.0) - 1.0;
         if x_step < 0.1 {
             c.stroke();
             return;
