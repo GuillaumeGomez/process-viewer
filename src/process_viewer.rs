@@ -87,13 +87,11 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
     if let Some(iter) = list.get_iter_first() {
         let mut valid = true;
         while valid {
-            if let Some(pid) = list
-                .get_value(&iter, 0)
-                .get::<u32>()
-                .ok()
-                .flatten()
-                .map(|x| x as Pid)
-            {
+            let pid = match list.get_value(&iter, 0).get::<u32>() {
+                Ok(pid) => pid,
+                _ => continue,
+            };
+            if let Some(pid) = pid.map(|x| x as Pid) {
                 if let Some(p) = entries.get(&(pid)) {
                     list.set(
                         &iter,
@@ -450,8 +448,7 @@ fn build_ui(application: &gtk::Application) {
                 let iter = model.get_iter(path).expect("couldn't get iter");
                 let pid = model.get_value(&iter, 0)
                                .get::<u32>()
-                               .ok()
-                               .flatten()
+                               .expect("Model::get failed")
                                .map(|x| x as Pid)
                                .expect("failed to get value from model");
                 create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);

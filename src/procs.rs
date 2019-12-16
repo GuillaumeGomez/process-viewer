@@ -108,8 +108,8 @@ impl Procs {
             clone!(@weak current_pid, @weak kill_button, @weak info_button => move |tree_view| {
                 let selection = tree_view.get_selection();
                 let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
-                    if let Some(x) = model.get_value(&iter, 0).get::<u32>().ok().flatten().map(|x| x as Pid) {
-                        (Some(x), true)
+                    if let Ok(Some(x)) = model.get_value(&iter, 0).get::<u32>() {
+                        (Some(x as Pid), true)
                     } else {
                         (None, false)
                     }
@@ -158,14 +158,12 @@ impl Procs {
                     // TODO: Maybe add an option to make searches case sensitive?
                     let pid = model.get_value(iter, 0)
                                    .get::<u32>()
-                                   .ok()
-                                   .flatten()
+                                   .unwrap_or_else(|_| None)
                                    .map(|p| p.to_string())
                                    .unwrap_or_else(String::new);
                     let name = model.get_value(iter, 1)
                                     .get::<String>()
-                                    .ok()
-                                    .flatten()
+                                    .unwrap_or_else(|_| None)
                                     .map(|s| s.to_lowercase())
                                     .unwrap_or_else(String::new);
                     pid.contains(text) ||
