@@ -142,6 +142,7 @@ impl DisplaySysInfo {
 
         // TEMPERATURE
         let mut temperature_usage_history = Graph::new(Some(1.), false);
+        temperature_usage_history.set_overhead(Some(20.));
         temperature_usage_history.set_label_callbacks(Some(Box::new(|v| {
             [
                 format!("{:.1}", v),
@@ -153,6 +154,7 @@ impl DisplaySysInfo {
         temperature_usage_history.set_labels_width(70);
         // NETWORK
         let mut network_history = Graph::new(Some(1.), false);
+        network_history.set_overhead(Some(20.));
         network_history.set_label_callbacks(Some(Box::new(|v| {
             let v = v as u64;
             if v < 1000 {
