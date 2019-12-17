@@ -1,5 +1,8 @@
 use gtk::{self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt};
-use gtk::{GtkWindowExt, WidgetExt};
+use gtk::prelude::{
+    CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewExt,
+    TreeViewColumnExt, WidgetExt,
+};
 use pango;
 use sysinfo::{self, Pid, ProcessExt};
 
@@ -123,6 +126,21 @@ fn compute_running_since(process: &sysinfo::Process, running_since: u64) -> u64 
     }
 }
 
+fn append_text_column(tree: &gtk::TreeView, pos: i32) -> gtk::CellRendererText {
+    let column = gtk::TreeViewColumn::new();
+    let cell = gtk::CellRendererText::new();
+
+    column.pack_start(&cell, true);
+    column.add_attribute(&cell, "text", pos);
+    if pos == 1 {
+        cell.set_property_wrap_width(247);
+        cell.set_property_wrap_mode(pango::WrapMode::Char);
+        column.set_expand(true);
+    }
+    tree.append_column(&column);
+    cell
+}
+
 pub fn create_process_dialog(
     process: &sysinfo::Process,
     start_time: u64,
@@ -142,7 +160,7 @@ pub fn create_process_dialog(
     let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
     let close_button = gtk::Button::new_with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+    scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 
     let running_since = compute_running_since(process, start_time);
 
@@ -177,13 +195,49 @@ pub fn create_process_dialog(
         "root directory",
         &process.root().display().to_string(),
     );
-    let mut text = String::with_capacity(100);
-    for env in process.environ() {
-        text.push_str(&format!("\n{:?}", env));
-    }
-    create_and_add_new_label(&labels, "environment", &text);
 
-    scroll.add(&labels);
+    let env_tree = gtk::TreeView::new();
+    let list_store = gtk::ListStore::new(&[
+        glib::Type::String,
+        glib::Type::String,
+    ]);
+
+    env_tree.set_headers_visible(false);
+    env_tree.set_model(Some(&list_store));
+
+    append_text_column(&env_tree, 0);
+    let cell = append_text_column(&env_tree, 1);
+
+    env_tree.connect_size_allocate(move |tree, _| {
+        if let Some(col) = tree.get_column(1) {
+            cell.set_property_wrap_width(col.get_width() - 1);
+        }
+    });
+
+    for env in process.environ() {
+        let mut parts = env.splitn(2, '=');
+        let name = match parts.next() {
+            Some(n) => n,
+            None => continue,
+        };
+        let value = parts.next().unwrap_or_else(|| "");
+        list_store.insert_with_values(
+            None,
+            &[0, 1],
+            &[&name, &value],
+        );
+    }
+
+    let components = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    components.add(&labels);
+
+    let label = gtk::Label::new(None);
+    label.set_markup("<b>Environment variables</b>");
+
+    components.add(&label);
+    components.pack_start(&env_tree, false, false, 0);
+
+    scroll.add(&components);
 
     vertical_layout.pack_start(&scroll, true, true, 0);
     vertical_layout.pack_start(&close_button, false, true, 0);
