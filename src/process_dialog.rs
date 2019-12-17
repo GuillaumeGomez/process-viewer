@@ -231,11 +231,13 @@ pub fn create_process_dialog(
     let components = gtk::Box::new(gtk::Orientation::Vertical, 0);
     components.add(&labels);
 
-    let label = gtk::Label::new(None);
-    label.set_markup("<b>Environment variables</b>");
+    if !process.environ().is_empty() {
+        let label = gtk::Label::new(None);
+        label.set_markup("<b>Environment variables</b>");
 
-    components.add(&label);
-    components.pack_start(&env_tree, false, false, 0);
+        components.add(&label);
+        components.pack_start(&env_tree, false, false, 0);
+    }
 
     scroll.add(&components);
 
