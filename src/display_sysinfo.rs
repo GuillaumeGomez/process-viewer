@@ -213,45 +213,38 @@ impl DisplaySysInfo {
         let non_graph_layout3 = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let non_graph_layout4 = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
+        //
+        // PROCESSOR PART
+        //
         vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 7);
         procs.push(gtk::ProgressBar::new());
         {
+            procs.push(gtk::ProgressBar::new());
             let p: &gtk::ProgressBar = &procs[0];
             let s = sys.borrow();
 
             p.set_margin_end(5);
             p.set_margin_start(5);
             p.set_show_text(true);
-            let processor_list = s.get_processor_list();
-            if !processor_list.is_empty() {
-                let pro = &processor_list[0];
-                p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
-                p.set_fraction(f64::from(pro.get_cpu_usage()));
-            } else {
-                p.set_text(Some("0.0 %"));
-                p.set_fraction(0.);
-            }
+            let processor = s.get_global_processor_info();
+            p.set_text(Some(&format!("{:.1} %", processor.get_cpu_usage())));
+            p.set_fraction(f64::from(processor.get_cpu_usage() / 100.));
             vertical_layout.add(p);
         }
-
-        //
-        // PROCESS PART
-        //
-        let check_box = create_header("Process usage", &vertical_layout, settings.display_graph);
-        for (i, pro) in sys.borrow().get_processor_list().iter().skip(1).enumerate() {
-            let i = i + 1;
+        let check_box = create_header("Processors usage", &vertical_layout, settings.display_graph);
+        for (i, pro) in sys.borrow().get_processors().iter().enumerate() {
             procs.push(gtk::ProgressBar::new());
-            let p: &gtk::ProgressBar = &procs[i];
+            let p: &gtk::ProgressBar = &procs[i + 1];
             let l = gtk::Label::new(Some(&format!("{}", i)));
 
-            p.set_text(Some(&format!("{:.2} %", pro.get_cpu_usage() * 100.)));
+            p.set_text(Some(&format!("{:.1} %", pro.get_cpu_usage())));
             p.set_show_text(true);
             p.set_fraction(f64::from(pro.get_cpu_usage()));
             non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
             non_graph_layout.attach(p, 1, i as i32 - 1, 11, 1);
             cpu_usage_history.push(
                 RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                &format!("process {}", i),
+                &format!("processor {}", i),
                 None,
             );
         }
@@ -281,13 +274,13 @@ impl DisplaySysInfo {
         //
         // TEMPERATURES PART
         //
-        if !sys.borrow().get_components_list().is_empty() {
+        if !sys.borrow().get_components().is_empty() {
             check_box3 = Some(create_header(
                 "Components' temperature",
                 &vertical_layout,
                 settings.display_graph,
             ));
-            for component in sys.borrow().get_components_list() {
+            for component in sys.borrow().get_components() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
                 let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.get_temperature())));
@@ -509,7 +502,7 @@ impl DisplaySysInfo {
         // temperature part
         let mut t = self.temperature_usage_history.borrow_mut();
         for (pos, (component, label)) in sys
-            .get_components_list()
+            .get_components()
             .iter()
             .zip(self.components.iter())
             .enumerate()
@@ -534,29 +527,37 @@ impl DisplaySysInfo {
 
     pub fn update_network(&mut self, sys: &sysinfo::System) {
         let mut t = self.network_history.borrow_mut();
+        let mut total_income = 0;
+        let mut total_outcome = 0;
+        for (_, data) in sys.get_networks() {
+            total_income += data.get_income();
+            total_outcome += data.get_outcome();
+        }
         self.in_usage
-            .set_text(format_number(sys.get_network().get_income()).as_str());
+            .set_text(format_number(total_income).as_str());
         self.out_usage
-            .set_text(format_number(sys.get_network().get_outcome()).as_str());
+            .set_text(format_number(total_outcome).as_str());
         t.data[0].move_start();
-        *t.data[0].get_mut(0).expect("cannot get data 0") = sys.get_network().get_income() as f64;
+        *t.data[0].get_mut(0).expect("cannot get data 0") = total_income as f64;
         t.data[1].move_start();
-        *t.data[1].get_mut(0).expect("cannot get data 1") = sys.get_network().get_outcome() as f64;
+        *t.data[1].get_mut(0).expect("cannot get data 1") = total_outcome as f64;
     }
 
     pub fn update_system_info_display(&mut self, sys: &sysinfo::System) {
         let v = &*self.procs.borrow_mut();
         let h = &mut *self.cpu_usage_history.borrow_mut();
 
-        for (i, pro) in sys.get_processor_list().iter().enumerate() {
-            v[i].set_text(Some(&format!("{:.1} %", pro.get_cpu_usage() * 100.)));
+        v[0].set_text(Some(&format!("{:.1} %", sys.get_global_processor_info().get_cpu_usage())));
+        v[0].set_show_text(true);
+        v[0].set_fraction(f64::from(sys.get_global_processor_info().get_cpu_usage() / 100.));
+        for (i, pro) in sys.get_processors().iter().enumerate() {
+            let i = i + 1;
+            v[i].set_text(Some(&format!("{:.1} %", pro.get_cpu_usage())));
             v[i].set_show_text(true);
-            v[i].set_fraction(f64::from(pro.get_cpu_usage()));
-            if i > 0 {
-                h.data[i - 1].move_start();
-                if let Some(h) = h.data[i - 1].get_mut(0) {
-                    *h = f64::from(pro.get_cpu_usage());
-                }
+            v[i].set_fraction(f64::from(pro.get_cpu_usage() / 100.));
+            h.data[i - 1].move_start();
+            if let Some(h) = h.data[i - 1].get_mut(0) {
+                *h = f64::from(pro.get_cpu_usage());
             }
         }
         h.invalidate();

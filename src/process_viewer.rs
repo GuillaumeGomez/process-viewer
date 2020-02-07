@@ -74,7 +74,7 @@ fn update_system_info(
 
 fn update_system_network(system: &Rc<RefCell<sysinfo::System>>, info: &mut DisplaySysInfo) {
     let mut system = system.borrow_mut();
-    system.refresh_network();
+    system.refresh_networks();
     info.update_network(&system);
 }
 
@@ -356,7 +356,7 @@ fn build_ui(application: &gtk::Application) {
 
     let window = gtk::ApplicationWindow::new(application);
 
-    let sys = sysinfo::System::new();
+    let sys = sysinfo::System::new_all();
     let start_time = get_now();
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
