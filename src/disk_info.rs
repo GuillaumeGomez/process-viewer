@@ -4,20 +4,27 @@ use std::rc::Rc;
 use notebook::NoteBook;
 use utils::format_number;
 
-use gtk::{self, BoxExt, ButtonExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, WidgetExt};
+use gtk::{self, BoxExt, ButtonExt, ContainerExt, LabelExt, ProgressBarExt};
 
 use sysinfo::{self, DiskExt, SystemExt};
 
-fn update_disk(label: &gtk::Label, p: &gtk::ProgressBar, disk: &sysinfo::Disk) {
-    label.set_text(
+struct DiskInfo {
+    label: gtk::Label,
+    progress: gtk::ProgressBar,
+    mount_point: String,
+    updated: bool,
+}
+
+fn update_disk(info: &mut DiskInfo, disk: &sysinfo::Disk) {
+    info.label.set_text(
         format!(
             "{} mounted on \"{}\"",
             disk.get_name().to_str().unwrap_or_else(|| ""),
-            disk.get_mount_point().to_str().unwrap_or_else(|| "")
+            &info.mount_point,
         )
         .as_str(),
     );
-    p.set_text(Some(
+    info.progress.set_text(Some(
         format!(
             "{} / {}",
             format_number(disk.get_total_space() - disk.get_available_space()),
@@ -25,71 +32,71 @@ fn update_disk(label: &gtk::Label, p: &gtk::ProgressBar, disk: &sysinfo::Disk) {
         )
         .as_str(),
     ));
-    p.set_fraction(
+    info.progress.set_fraction(
         (disk.get_total_space() - disk.get_available_space()) as f64
             / disk.get_total_space() as f64,
     );
+    info.updated = true;
 }
 
 fn refresh_disks(
-    grid: &gtk::Grid,
+    container: &gtk::Box,
     disks: &[sysinfo::Disk],
-    grid_elems: &mut Vec<(gtk::Label, gtk::ProgressBar)>,
+    elems: &mut Vec<DiskInfo>,
 ) {
-    let mut done = 0;
-    for (pos, disk) in disks.iter().enumerate() {
-        if pos <= grid_elems.len() {
-            let name = gtk::Label::new(None);
-
-            let p = gtk::ProgressBar::new();
-            p.set_show_text(true);
-
-            grid.attach(&name, 0, pos as i32, 1, 1);
-            grid.attach(&p, 1, pos as i32, 2, 1);
-            grid_elems.push((name, p));
-        }
-        update_disk(&grid_elems[pos].0, &grid_elems[pos].1, disk);
-        done += 1;
-    }
-    // A disk was removed so we need to remove it from the list.
-    while grid_elems.len() > done {
-        if let Some(elem) = grid_elems.pop() {
-            grid.remove(&elem.0);
-            grid.remove(&elem.1);
+    for disk in disks.iter() {
+        let mount_point = disk.get_mount_point().to_str().unwrap_or_else(|| "");
+        update_disk(if let Some(entry) = elems.iter_mut().find(|e| e.mount_point == mount_point) {
+            entry
         } else {
-            break;
-        }
+            let label = gtk::LabelBuilder::new().margin_top(if elems.is_empty() { 8 } else { 20 }).build();
+
+            let progress = gtk::ProgressBar::new();
+            progress.set_show_text(true);
+
+            container.add(&label);
+            container.add(&progress);
+            elems.push(DiskInfo {
+                label,
+                progress,
+                mount_point: mount_point.to_owned(),
+                updated: false,
+            });
+            elems.last_mut().unwrap()
+        }, disk);
+    }
+    for entry in elems.iter().filter(|e| !e.updated) {
+        container.remove(&entry.label);
+        container.remove(&entry.progress);
+    }
+    elems.retain(|e| e.updated);
+    for entry in elems.iter_mut() {
+        entry.updated = false;
     }
 }
 
 pub fn create_disk_info(sys: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook) {
-    let grid_elems: Rc<RefCell<Vec<(gtk::Label, gtk::ProgressBar)>>> =
-        Rc::new(RefCell::new(Vec::new()));
+    let elems: Rc<RefCell<Vec<DiskInfo>>> = Rc::new(RefCell::new(Vec::new()));
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
 
-    let grid = gtk::Grid::new();
-    grid.set_column_homogeneous(true);
-    grid.set_margin_end(5);
-    grid.set_margin_start(5);
-    grid.set_margin_top(10);
-    grid.set_margin_bottom(5);
+    let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
-    let refresh_but = gtk::Button::new_with_label("Refresh");
+    let refresh_but = gtk::Button::new_with_label("Refresh disks");
 
-    refresh_but.connect_clicked(clone!(@weak sys, @weak grid, @weak grid_elems => move |_| {
+    refresh_but.connect_clicked(clone!(@weak sys, @weak container, @strong elems => move |_| {
         sys.borrow_mut().refresh_disks();
-        refresh_disks(&grid, sys.borrow().get_disks(), &mut *grid_elems.borrow_mut());
+        refresh_disks(&container, sys.borrow().get_disks(), &mut *elems.borrow_mut());
     }));
 
-    scroll.add(&grid);
+    scroll.add(&container);
     vertical_layout.pack_start(&scroll, true, true, 0);
     vertical_layout.pack_start(&refresh_but, false, true, 0);
 
     note.create_tab("Disk information", &vertical_layout);
     refresh_disks(
-        &grid,
+        &container,
         sys.borrow().get_disks(),
-        &mut *grid_elems.borrow_mut(),
+        &mut *elems.borrow_mut(),
     );
 }
