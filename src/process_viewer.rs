@@ -81,7 +81,7 @@ fn update_system_network(system: &Rc<RefCell<sysinfo::System>>, info: &mut Displ
 fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
     let mut system = system.borrow_mut();
     system.refresh_processes();
-    let entries: &HashMap<Pid, Process> = system.get_process_list();
+    let entries: &HashMap<Pid, Process> = system.get_processes();
     let mut seen: HashSet<Pid> = HashSet::new();
 
     if let Some(iter) = list.get_iter_first() {
@@ -360,7 +360,7 @@ fn build_ui(application: &gtk::Application) {
     let start_time = get_now();
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
-    let procs = Procs::new(sys.borrow().get_process_list(), &mut note);
+    let procs = Procs::new(sys.borrow().get_processes(), &mut note);
     let current_pid = Rc::clone(&procs.current_pid);
     let info_button = procs.info_button.clone();
 
