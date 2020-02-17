@@ -1,8 +1,8 @@
-use gtk::{self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt};
 use gtk::prelude::{
-    CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewExt,
-    TreeViewColumnExt, WidgetExt,
+    CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewColumnExt,
+    TreeViewExt, WidgetExt,
 };
+use gtk::{self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt};
 use pango;
 use sysinfo::{self, Pid, ProcessExt};
 
@@ -197,10 +197,7 @@ pub fn create_process_dialog(
     );
 
     let env_tree = gtk::TreeView::new();
-    let list_store = gtk::ListStore::new(&[
-        glib::Type::String,
-        glib::Type::String,
-    ]);
+    let list_store = gtk::ListStore::new(&[glib::Type::String, glib::Type::String]);
 
     env_tree.set_headers_visible(false);
     env_tree.set_model(Some(&list_store));
@@ -221,11 +218,7 @@ pub fn create_process_dialog(
             None => continue,
         };
         let value = parts.next().unwrap_or_else(|| "");
-        list_store.insert_with_values(
-            None,
-            &[0, 1],
-            &[&name, &value],
-        );
+        list_store.insert_with_values(None, &[0, 1], &[&name, &value]);
     }
 
     let components = gtk::Box::new(gtk::Orientation::Vertical, 0);

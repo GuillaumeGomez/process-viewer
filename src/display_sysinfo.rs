@@ -533,8 +533,7 @@ impl DisplaySysInfo {
             total_income += data.get_income();
             total_outcome += data.get_outcome();
         }
-        self.in_usage
-            .set_text(format_number(total_income).as_str());
+        self.in_usage.set_text(format_number(total_income).as_str());
         self.out_usage
             .set_text(format_number(total_outcome).as_str());
         t.data[0].move_start();
@@ -547,9 +546,14 @@ impl DisplaySysInfo {
         let v = &*self.procs.borrow_mut();
         let h = &mut *self.cpu_usage_history.borrow_mut();
 
-        v[0].set_text(Some(&format!("{:.1} %", sys.get_global_processor_info().get_cpu_usage())));
+        v[0].set_text(Some(&format!(
+            "{:.1} %",
+            sys.get_global_processor_info().get_cpu_usage()
+        )));
         v[0].set_show_text(true);
-        v[0].set_fraction(f64::from(sys.get_global_processor_info().get_cpu_usage() / 100.));
+        v[0].set_fraction(f64::from(
+            sys.get_global_processor_info().get_cpu_usage() / 100.,
+        ));
         for (i, pro) in sys.get_processors().iter().enumerate() {
             let i = i + 1;
             v[i].set_text(Some(&format!("{:.1} %", pro.get_cpu_usage())));
