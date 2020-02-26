@@ -37,7 +37,12 @@ impl Network {
         let layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
 
+        let mut tmp_elems = Vec::new();
         for (interface_name, _) in sys.get_networks() {
+            tmp_elems.push(interface_name.clone());
+        }
+        tmp_elems.sort_unstable();
+        for interface_name in tmp_elems {
             elems.push(create_network_interface(&layout, interface_name, &settings));
         }
         scroll.add(&layout);
@@ -65,7 +70,7 @@ impl Network {
             }));
         }
         Network { elems, layout }
-        // add button "refresh networks list"
+        // TODO: add button "refresh networks list"
     }
 
     // Maybe move the caller to a higher level?
@@ -106,7 +111,7 @@ impl Network {
     }
 }
 
-fn create_network_interface(layout: &gtk::Box, name: &str, settings: &Settings) -> NetworkData {
+fn create_network_interface(layout: &gtk::Box, name: String, settings: &Settings) -> NetworkData {
     let mut history = Graph::new(Some(1.), false);
     history.set_overhead(Some(20.));
     history.set_label_callbacks(Some(Box::new(|v| {
@@ -191,7 +196,7 @@ fn create_network_interface(layout: &gtk::Box, name: &str, settings: &Settings) 
             show_if_necessary(c, &history.borrow(), &non_graph_layout);
         }));
     NetworkData {
-        name: name.to_owned(),
+        name,
         history,
         check_box,
         non_graph_layout,

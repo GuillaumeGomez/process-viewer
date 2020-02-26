@@ -558,8 +558,8 @@ fn build_ui(application: &gtk::Application) {
         if let Some(g) = g.get_state() {
             let rfs = rfs.borrow();
             is_active = g.get().expect("couldn't get bool");
-            rfs.display_tab.borrow().set_checkboxes_state(is_active);
-            rfs.network_tab.borrow().set_checkboxes_state(is_active);
+            rfs.display_tab.borrow().set_checkboxes_state(!is_active);
+            rfs.network_tab.borrow().set_checkboxes_state(!is_active);
         }
         // We need to change the toggle state ourselves. `gio` dark magic.
         g.change_state(&(!is_active).to_variant());
