@@ -14,15 +14,22 @@ use notebook::NoteBook;
 use settings::Settings;
 use utils::{connect_graph, RotateVec};
 
-pub fn create_header(
+pub fn create_header_complete(
     label_text: &str,
     parent_layout: &gtk::Box,
     display_graph: bool,
+    markup: bool,
 ) -> gtk::CheckButton {
     let check_box = gtk::CheckButton::new_with_label("Graph view");
     check_box.set_active(display_graph);
 
-    let label = gtk::Label::new(Some(label_text));
+    let label = if markup {
+        let l = gtk::Label::new(None);
+        l.set_markup(label_text);
+        l
+    } else {
+        gtk::Label::new(Some(label_text))
+    };
     let empty = gtk::Label::new(None);
     let grid = gtk::Grid::new();
     let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -40,6 +47,14 @@ pub fn create_header(
     grid.set_column_homogeneous(true);
     parent_layout.pack_start(&grid, false, false, 15);
     check_box
+}
+
+pub fn create_header(
+    label_text: &str,
+    parent_layout: &gtk::Box,
+    display_graph: bool,
+) -> gtk::CheckButton {
+    create_header_complete(label_text, parent_layout, display_graph, false)
 }
 
 pub fn create_progress_bar(

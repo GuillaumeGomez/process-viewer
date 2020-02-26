@@ -61,13 +61,13 @@ pub fn format_number(mut nb: u64) -> String {
     }
     nb >>= 10; // / 1_024
     if nb < 100_000 {
-        format!("{} kB", nb)
+        format!("{} KiB", nb)
     } else if nb < 10_000_000 {
-        format!("{} MB", nb >> 10) // / 1_024
+        format!("{} MiB", nb >> 10) // / 1_024
     } else if nb < 10_000_000_000 {
-        format!("{} GB", nb >> 20) // / 1_048_576
+        format!("{} GiB", nb >> 20) // / 1_048_576
     } else {
-        format!("{} TB", nb >> 30) // / 1_073_741_824
+        format!("{} TiB", nb >> 30) // / 1_073_741_824
     }
 }
 
