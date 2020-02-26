@@ -2,8 +2,8 @@ use display_sysinfo::{self, show_if_necessary};
 use glib::Cast;
 use graph::Graph;
 use gtk::{
-    self, AdjustmentExt, BoxExt, ContainerExt, LabelExt, ScrolledWindowExt, ToggleButtonExt,
-    WidgetExt,
+    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt,
+    ToggleButtonExt, WidgetExt,
 };
 use notebook::NoteBook;
 use settings::Settings;
@@ -20,6 +20,7 @@ struct NetworkData {
     check_box: gtk::CheckButton,
     non_graph_layout: gtk::Box,
     updated: bool,
+    container: gtk::Box,
     // network in usage
     in_usage: gtk::Label,
     // network out usage
@@ -36,26 +37,19 @@ struct NetworkData {
 
 pub struct Network {
     elems: Rc<RefCell<Vec<NetworkData>>>,
-    layout: gtk::Box,
 }
 
 impl Network {
-    pub fn new(sys: &sysinfo::System, note: &mut NoteBook, settings: &Settings) -> Network {
-        let mut elems = Vec::new();
+    pub fn new(
+        sys: &Rc<RefCell<sysinfo::System>>,
+        note: &mut NoteBook,
+        settings: &Rc<RefCell<Settings>>,
+    ) -> Network {
         let layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
 
-        let mut tmp_elems = Vec::new();
-        for (interface_name, _) in sys.get_networks() {
-            tmp_elems.push(interface_name.clone());
-        }
-        tmp_elems.sort_unstable();
-        for interface_name in tmp_elems {
-            elems.push(create_network_interface(&layout, interface_name, &settings));
-        }
-        scroll.add(&layout);
-        note.create_tab("Networks", &scroll);
-
+        let mut elems = Vec::new();
+        update_network(&mut elems, &sys.borrow(), &layout, &settings.borrow());
         let elems = Rc::new(RefCell::new(elems));
         scroll.connect_show(clone!(@weak elems => move |_| {
                 let elems = elems.borrow();
@@ -77,8 +71,26 @@ impl Network {
                 }
             }));
         }
-        Network { elems, layout }
-        // TODO: add button "refresh networks list"
+        let refresh_but = gtk::Button::new_with_label("Refresh network interfaces list");
+
+        refresh_but.connect_clicked(
+            clone!(@weak sys, @weak elems, @weak layout, @weak settings => move |_| {
+                sys.borrow_mut().refresh_networks_list();
+                update_network(&mut elems.borrow_mut(), &sys.borrow(), &layout, &settings.borrow());
+                // refresh_networks(&container, sys.borrow().get_disks(), &mut *elems.borrow_mut());
+            }),
+        );
+
+        scroll.add(&layout);
+
+        let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+
+        vertical_layout.pack_start(&scroll, true, true, 0);
+        vertical_layout.pack_start(&refresh_but, false, true, 0);
+
+        note.create_tab("Networks", &vertical_layout);
+
+        Network { elems }
     }
 
     // Maybe move the caller to a higher level?
@@ -132,7 +144,45 @@ impl Network {
     }
 }
 
-fn create_non_graph_labels(label_text: &str, text: &str, non_graph_layout: &gtk::Box) -> gtk::Label {
+fn update_network(
+    interfaces: &mut Vec<NetworkData>,
+    sys: &sysinfo::System,
+    layout: &gtk::Box,
+    settings: &Settings,
+) {
+    for (interface_name, _) in sys.get_networks() {
+        if let Some(item) = interfaces.iter_mut().find(|x| x.name == *interface_name) {
+            item.updated = true;
+        } else {
+            interfaces.push(create_network_interface(
+                &layout,
+                &interface_name,
+                &settings,
+            ));
+        }
+    }
+    interfaces.retain(|x| {
+        if !x.updated {
+            layout.remove(&x.container);
+        }
+        x.updated
+    });
+    interfaces.sort_unstable_by(|a, b| {
+        a.name
+            .partial_cmp(&b.name)
+            .expect("string comparison failed")
+    });
+    for (pos, interface) in interfaces.iter_mut().enumerate() {
+        interface.updated = false;
+        layout.reorder_child(&interface.container, pos as _);
+    }
+}
+
+fn create_non_graph_labels(
+    label_text: &str,
+    text: &str,
+    non_graph_layout: &gtk::Box,
+) -> gtk::Label {
     let label = gtk::Label::new(Some(text));
     let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     horizontal_layout.pack_start(&gtk::Label::new(Some(label_text)), true, false, 0);
@@ -164,7 +214,7 @@ fn better_number(mut f: u64) -> String {
     }
 }
 
-fn create_network_interface(layout: &gtk::Box, name: String, settings: &Settings) -> NetworkData {
+fn create_network_interface(layout: &gtk::Box, name: &str, settings: &Settings) -> NetworkData {
     let mut history = Graph::new(Some(1.), false);
     history.set_overhead(Some(20.));
     history.set_label_callbacks(Some(Box::new(|v| {
@@ -210,8 +260,14 @@ fn create_network_interface(layout: &gtk::Box, name: String, settings: &Settings
     })));
     history.set_labels_width(70);
 
+    let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let non_graph_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let check_box = display_sysinfo::create_header(&name, &layout, settings.display_graph);
+    let check_box = display_sysinfo::create_header_complete(
+        &format!("<b>{}</b>", name),
+        &container,
+        settings.display_graph,
+        true,
+    );
     // input data
     let in_usage = create_non_graph_labels("Input data", &format_number(0), &non_graph_layout);
     history.push(
@@ -233,9 +289,10 @@ fn create_network_interface(layout: &gtk::Box, name: String, settings: &Settings
     let income_errors = create_non_graph_labels("Total income errors", "0", &non_graph_layout);
     let outcome_errors = create_non_graph_labels("Total outcome errors", "0", &non_graph_layout);
 
-    layout.add(&non_graph_layout);
-    history.attach_to(&layout);
+    container.add(&non_graph_layout);
+    history.attach_to(&container);
     history.area.set_margin_bottom(20);
+    layout.add(&container);
 
     let history = connect_graph(history);
 
@@ -246,16 +303,17 @@ fn create_network_interface(layout: &gtk::Box, name: String, settings: &Settings
             show_if_necessary(c, &history.borrow(), &non_graph_layout);
         }));
     NetworkData {
-        name,
+        name: name.to_owned(),
         history,
         check_box,
         non_graph_layout,
         in_usage,
         out_usage,
-        updated: false,
+        updated: true,
         income_packets,
         outcome_packets,
         income_errors,
         outcome_errors,
+        container,
     }
 }

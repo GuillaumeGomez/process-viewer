@@ -392,11 +392,9 @@ fn build_ui(application: &gtk::Application) {
         }));
 
     let display_tab = DisplaySysInfo::new(&sys, &mut note, &settings);
-    let network_tab = Rc::new(RefCell::new(Network::new(
-        &sys.borrow(),
-        &mut note,
-        &settings,
-    )));
+
+    let settings = Rc::new(RefCell::new(settings));
+    let network_tab = Rc::new(RefCell::new(Network::new(&sys, &mut note, &settings)));
     disk_info::create_disk_info(&sys, &mut note);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -423,12 +421,14 @@ fn build_ui(application: &gtk::Application) {
         network_tab,
     }));
 
-    let refresh_processes_rate = settings.refresh_processes_rate;
-    let refresh_system_rate = settings.refresh_system_rate;
-    let refresh_network_rate = settings.refresh_network_rate;
-    let settings = Rc::new(RefCell::new(settings));
-    setup_timeout(refresh_processes_rate, &rfs);
-    setup_network_timeout(refresh_network_rate, &rfs);
+    let refresh_system_rate = {
+        let settings = settings.borrow();
+        let refresh_processes_rate = settings.refresh_processes_rate;
+        let refresh_network_rate = settings.refresh_network_rate;
+        setup_timeout(refresh_processes_rate, &rfs);
+        setup_network_timeout(refresh_network_rate, &rfs);
+        settings.refresh_system_rate
+    };
     setup_system_timeout(refresh_system_rate, &rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
