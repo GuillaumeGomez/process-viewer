@@ -62,7 +62,8 @@ impl Graph {
         g.scroll_layout.set_min_content_width(g.labels_layout_width);
         g.scroll_layout.add(&g.vertical_layout);
         g.horizontal_layout.pack_start(&g.area, true, true, 0);
-        g.horizontal_layout.pack_start(&g.scroll_layout, false, true, 10);
+        g.horizontal_layout
+            .pack_start(&g.scroll_layout, false, true, 10);
         g.horizontal_layout.set_margin_start(5);
         g
     }

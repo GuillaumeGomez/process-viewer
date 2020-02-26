@@ -106,21 +106,22 @@ impl Procs {
 
         left_tree.connect_cursor_changed(
             clone!(@weak current_pid, @weak kill_button, @weak info_button => move |tree_view| {
-                let selection = tree_view.get_selection();
-                let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
-                    if let Ok(Some(x)) = model.get_value(&iter, 0).get::<u32>() {
-                        (Some(x as Pid), true)
+                    let selection = tree_view.get_selection();
+                    let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
+                        if let Ok(Some(x)) = model.get_value(&iter, 0).get::<u32>() {
+                            (Some(x as Pid), true)
+                        } else {
+                            (None, false)
+                        }
                     } else {
                         (None, false)
-                    }
-                } else {
-                    (None, false)
-                };
-                current_pid.set(pid);
-                kill_button.set_sensitive(ret);
-                info_button.set_sensitive(ret);
-            }
-        ));
+                    };
+                    current_pid.set(pid);
+                    kill_button.set_sensitive(ret);
+                    info_button.set_sensitive(ret);
+                }
+            ),
+        );
         kill_button.set_sensitive(false);
         info_button.set_sensitive(false);
 
