@@ -1,8 +1,7 @@
-use gdk;
 use glib::object::Cast;
 use gtk::prelude::{
-    AdjustmentExt, BoxExt, ContainerExt, GridExt, GtkWindowExt, LabelExt, ProgressBarExt,
-    ScrolledWindowExt, ToggleButtonExt, WidgetExt, WidgetExtManual,
+    AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, ScrolledWindowExt,
+    ToggleButtonExt, WidgetExt,
 };
 use sysinfo::{self, ComponentExt, ProcessorExt, SystemExt};
 
@@ -13,7 +12,7 @@ use std::rc::Rc;
 use graph::Graph;
 use notebook::NoteBook;
 use settings::Settings;
-use utils::{connect_graph, format_number, RotateVec};
+use utils::{connect_graph, RotateVec};
 
 pub fn create_header(
     label_text: &str,
@@ -80,7 +79,6 @@ impl DisplaySysInfo {
     pub fn new(
         sys: &Rc<RefCell<sysinfo::System>>,
         note: &mut NoteBook,
-        win: &gtk::ApplicationWindow,
         settings: &Settings,
     ) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -255,9 +253,6 @@ impl DisplaySysInfo {
         //
         // Putting everyting into places now.
         //
-        let area = cpu_usage_history.area.clone();
-        let area2 = ram_usage_history.area.clone();
-        let area3 = temperature_usage_history.area.clone();
         let cpu_usage_history = connect_graph(cpu_usage_history);
         let ram_usage_history = connect_graph(ram_usage_history);
         let temperature_usage_history = connect_graph(temperature_usage_history);
@@ -289,22 +284,6 @@ impl DisplaySysInfo {
             temperature_check_box: check_box3.clone(),
         };
         tmp.update_system_info(&sys.borrow(), settings.display_fahrenheit);
-
-        win.add_events(gdk::EventMask::STRUCTURE_MASK);
-        // TODO: ugly way to resize drawing area, I should find a better way
-        win.connect_configure_event(move |w, _| {
-            // To silence the annoying warning:
-            // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-            // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-            // allocate?"
-            w.get_preferred_width();
-            let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
-            area.set_size_request(w, 200);
-            area2.set_size_request(w, 200);
-            area3.set_size_request(w, 200);
-            networks.set_size_request(w, 200);
-            false
-        });
 
         check_box
             .clone()
@@ -345,17 +324,44 @@ impl DisplaySysInfo {
         tmp
     }
 
+    pub fn set_size_request(&self, width: i32, height: i32) {
+        self.cpu_usage_history
+            .borrow()
+            .area
+            .set_size_request(width, height);
+        self.ram_usage_history
+            .borrow()
+            .area
+            .set_size_request(width, height);
+        self.temperature_usage_history
+            .borrow()
+            .area
+            .set_size_request(width, height);
+    }
+
+    pub fn set_checkboxes_state(&self, active: bool) {
+        self.ram_check_box.set_active(active);
+        self.swap_check_box.set_active(active);
+        if let Some(ref temperature_check_box) = self.temperature_check_box {
+            temperature_check_box.set_active(active);
+        }
+    }
+
     pub fn update_system_info(&mut self, sys: &sysinfo::System, display_fahrenheit: bool) {
         let disp = |total, used| {
             if total < 100_000 {
-                format!("{} / {} kB", used, total)
+                format!("{} / {} KiB", used, total)
             } else if total < 10_000_000 {
-                format!("{:.2} / {} MB", used as f64 / 1_024f64, total >> 10) // / 1024
+                format!("{:.2} / {} MiB", used as f64 / 1_024f64, total >> 10) // / 1024
             } else if total < 10_000_000_000 {
-                format!("{:.2} / {} GB", used as f64 / 1_048_576f64, total >> 20)
+                format!("{:.2} / {} GiB", used as f64 / 1_048_576f64, total >> 20)
             // / 1_048_576
             } else {
-                format!("{:.2} / {} TB", used as f64 / 1_073_741_824f64, total >> 30)
+                format!(
+                    "{:.2} / {} TiB",
+                    used as f64 / 1_073_741_824f64,
+                    total >> 30
+                )
                 // / 1_073_741_824
             }
         };
@@ -442,7 +448,7 @@ impl DisplaySysInfo {
             v[i].set_fraction(f64::from(pro.get_cpu_usage() / 100.));
             h.data[i - 1].move_start();
             if let Some(h) = h.data[i - 1].get_mut(0) {
-                *h = f64::from(pro.get_cpu_usage());
+                *h = f64::from(pro.get_cpu_usage() / 100.);
             }
         }
         h.invalidate();
@@ -451,7 +457,7 @@ impl DisplaySysInfo {
     }
 }
 
-fn show_if_necessary<T: WidgetExt>(
+pub fn show_if_necessary<T: WidgetExt>(
     check_box: &gtk::ToggleButton,
     proc_horizontal_layout: &Graph,
     non_graph_layout: &T,

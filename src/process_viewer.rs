@@ -30,8 +30,8 @@ use glib::{Bytes, Cast, IsA, ToVariant};
 use gtk::prelude::{
     AboutDialogExt, BoxExt, ButtonBoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt,
     GtkApplicationExt, GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual,
-    NotebookExtManual, SearchBarExt, ToggleButtonExt, TreeModelExt, TreeSortableExtManual,
-    TreeViewExt, WidgetExt,
+    NotebookExtManual, SearchBarExt, TreeModelExt, TreeSortableExtManual, TreeViewExt, WidgetExt,
+    WidgetExtManual,
 };
 use gtk::{AboutDialog, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 
@@ -44,13 +44,9 @@ use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::time::SystemTime;
 
-use display_sysinfo::DisplaySysInfo;
-use notebook::NoteBook;
-use procs::{create_and_fill_model, Procs};
-use settings::Settings;
-
 mod color;
 mod disk_info;
+mod display_network;
 mod display_sysinfo;
 mod graph;
 mod notebook;
@@ -58,6 +54,12 @@ mod process_dialog;
 mod procs;
 mod settings;
 mod utils;
+
+use display_network::Network;
+use display_sysinfo::DisplaySysInfo;
+use notebook::NoteBook;
+use procs::{create_and_fill_model, Procs};
+use settings::Settings;
 
 pub const APPLICATION_NAME: &str = "com.github.GuillaumeGomez.process-viewer";
 
@@ -72,7 +74,7 @@ fn update_system_info(
     info.update_system_info_display(&system);
 }
 
-fn update_system_network(system: &Rc<RefCell<sysinfo::System>>, info: &mut DisplaySysInfo) {
+fn update_system_network(system: &Rc<RefCell<sysinfo::System>>, info: &mut Network) {
     let mut system = system.borrow_mut();
     system.refresh_networks();
     info.update_network(&system);
@@ -246,6 +248,7 @@ pub struct RequiredForSettings {
     process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
     list_store: gtk::ListStore,
     display_tab: Rc<RefCell<DisplaySysInfo>>,
+    network_tab: Rc<RefCell<Network>>,
 }
 
 pub fn setup_timeout(refresh_time: u32, rfs: &Rc<RefCell<RequiredForSettings>>) {
@@ -293,8 +296,8 @@ pub fn setup_network_timeout(refresh_time: u32, rfs: &Rc<RefCell<RequiredForSett
 
         Some(gtk::timeout_add(
             refresh_time,
-            clone!(@weak rfs.sys as sys, @weak rfs.display_tab as display_tab => @default-return glib::Continue(true), move || {
-                update_system_network(&sys, &mut display_tab.borrow_mut());
+            clone!(@weak rfs.sys as sys, @weak rfs.network_tab as network_tab => @default-return glib::Continue(true), move || {
+                update_system_network(&sys, &mut network_tab.borrow_mut());
                 glib::Continue(true)
             }),
         ))
@@ -388,15 +391,15 @@ fn build_ui(application: &gtk::Application) {
             }
         }));
 
-    let display_tab = DisplaySysInfo::new(&sys, &mut note, &window, &settings);
+    let display_tab = DisplaySysInfo::new(&sys, &mut note, &settings);
+    let network_tab = Rc::new(RefCell::new(Network::new(
+        &sys.borrow(),
+        &mut note,
+        &settings,
+    )));
     disk_info::create_disk_info(&sys, &mut note);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
-    let ram_check_box = display_tab.ram_check_box.clone();
-    let swap_check_box = display_tab.swap_check_box.clone();
-    let network_check_box = display_tab.network_check_box.clone();
-    let temperature_check_box = display_tab.temperature_check_box.clone();
 
     let display_tab = Rc::new(RefCell::new(display_tab));
 
@@ -417,6 +420,7 @@ fn build_ui(application: &gtk::Application) {
         process_dialogs: process_dialogs.clone(),
         list_store,
         display_tab,
+        network_tab,
     }));
 
     let refresh_processes_rate = settings.refresh_processes_rate;
@@ -428,7 +432,7 @@ fn build_ui(application: &gtk::Application) {
     setup_system_timeout(refresh_system_rate, &rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(clone!(@weak settings => move |_, _| {
+    settings_action.connect_activate(clone!(@weak settings, @weak rfs => move |_, _| {
         settings::show_settings_dialog(&settings, &rfs);
     }));
 
@@ -549,16 +553,13 @@ fn build_ui(application: &gtk::Application) {
         None,
         &settings.borrow().display_graph.to_variant(),
     );
-    graphs.connect_activate(clone!(@weak settings => move |g, _| {
+    graphs.connect_activate(clone!(@weak settings, @weak rfs => move |g, _| {
         let mut is_active = false;
         if let Some(g) = g.get_state() {
+            let rfs = rfs.borrow();
             is_active = g.get().expect("couldn't get bool");
-            ram_check_box.set_active(!is_active);
-            swap_check_box.set_active(!is_active);
-            network_check_box.set_active(!is_active);
-            if let Some(ref temperature_check_box) = temperature_check_box {
-                temperature_check_box.set_active(!is_active);
-            }
+            rfs.display_tab.borrow().set_checkboxes_state(is_active);
+            rfs.network_tab.borrow().set_checkboxes_state(is_active);
         }
         // We need to change the toggle state ourselves. `gio` dark magic.
         g.change_state(&(!is_active).to_variant());
@@ -631,6 +632,21 @@ fn build_ui(application: &gtk::Application) {
     });
 
     window.set_widget_name(utils::MAIN_WINDOW_NAME);
+
+    window.add_events(gdk::EventMask::STRUCTURE_MASK);
+    // TODO: ugly way to resize drawing area, I should find a better way
+    window.connect_configure_event(move |w, _| {
+        // To silence the annoying warning:
+        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+        // allocate?"
+        w.get_preferred_width();
+        let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
+        let rfs = rfs.borrow();
+        rfs.display_tab.borrow().set_size_request(w, 200);
+        rfs.network_tab.borrow().set_size_request(w, 200);
+        false
+    });
 
     application.connect_activate(move |_| {
         window.show_all();
