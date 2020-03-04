@@ -220,23 +220,18 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
 }
 
 fn create_new_proc_diag(
-    process_dialogs: &Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
+    process_dialogs: &Rc<RefCell<Vec<process_dialog::ProcDialog>>>,
     pid: Pid,
     sys: &sysinfo::System,
     starting_time: u64,
 ) {
-    if let Some(ref proc_diag) = process_dialogs.borrow().get(&pid) {
+    if let Some(ref proc_diag) = process_dialogs.borrow().iter().filter(|x| !x.is_dead).find(|x| x.pid == pid) {
         proc_diag.popup.present();
         return;
     }
     let total_memory = sys.get_total_memory();
     if let Some(process) = sys.get_process(pid) {
-        let diag = process_dialog::create_process_dialog(process, starting_time, total_memory);
-        diag.popup
-            .connect_destroy(clone!(@weak process_dialogs => move |_| {
-                process_dialogs.borrow_mut().remove(&pid);
-            }));
-        process_dialogs.borrow_mut().insert(pid, diag);
+        process_dialogs.borrow_mut().push(process_dialog::create_process_dialog(process, starting_time, total_memory));
     }
 }
 
@@ -245,7 +240,7 @@ pub struct RequiredForSettings {
     current_network_source: Option<glib::SourceId>,
     current_system_source: Option<glib::SourceId>,
     sys: Rc<RefCell<sysinfo::System>>,
-    process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>>,
+    process_dialogs: Rc<RefCell<Vec<process_dialog::ProcDialog>>>,
     list_store: gtk::ListStore,
     display_tab: Rc<RefCell<DisplaySysInfo>>,
     network_tab: Rc<RefCell<Network>>,
@@ -275,14 +270,21 @@ pub fn setup_timeout(refresh_time: u32, rfs: &Rc<RefCell<RequiredForSettings>>) 
                     list_store.set_sort_column_id(col, order);
                 }
                 let mut dialogs = process_dialogs.borrow_mut();
+                let mut to_remove = 0;
                 let start_time = get_now();
-                for dialog in dialogs.values_mut().filter(|x| !x.is_dead) {
+                for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
                     // TODO: handle dead process?
                     if let Some(process) = sys.borrow().get_process(dialog.pid) {
                         dialog.update(process, start_time);
                     } else {
                         dialog.set_dead();
                     }
+                    if dialog.need_remove() {
+                        to_remove += 1;
+                    }
+                }
+                if to_remove > 0 {
+                    dialogs.retain(|x| !x.need_remove());
                 }
                 glib::Continue(true)
             }),
@@ -408,8 +410,8 @@ fn build_ui(application: &gtk::Application) {
 
     window.add(&v_box);
 
-    let process_dialogs: Rc<RefCell<HashMap<Pid, process_dialog::ProcDialog>>> =
-        Rc::new(RefCell::new(HashMap::new()));
+    let process_dialogs: Rc<RefCell<Vec<process_dialog::ProcDialog>>> =
+        Rc::new(RefCell::new(Vec::new()));
     let list_store = procs.list_store.clone();
 
     let rfs = Rc::new(RefCell::new(RequiredForSettings {

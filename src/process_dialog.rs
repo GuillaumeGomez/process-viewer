@@ -29,6 +29,7 @@ pub struct ProcDialog {
     memory_peak: RefCell<u64>,
     memory_peak_label: gtk::Label,
     pub is_dead: bool,
+    pub to_be_removed: Rc<RefCell<bool>>,
 }
 
 impl fmt::Debug for ProcDialog {
@@ -63,6 +64,10 @@ impl ProcDialog {
         t.data[0].move_start();
         *t.data[0].get_mut(0).expect("cannot get data 0") = process.cpu_usage().into();
         t.invalidate();
+    }
+
+    pub fn need_remove(&self) -> bool {
+        *self.to_be_removed.borrow()
     }
 
     pub fn set_dead(&mut self) {
@@ -360,6 +365,10 @@ pub fn create_process_dialog(
     close_button.connect_clicked(clone!(@weak popup => move |_| {
         popup.destroy();
     }));
+    let to_be_removed = Rc::new(RefCell::new(false));
+    popup.connect_destroy(clone!(@weak to_be_removed => move |_| {
+        *to_be_removed.borrow_mut() = true;
+    }));
     popup.set_resizable(true);
     popup.show_all();
 
@@ -383,5 +392,6 @@ pub fn create_process_dialog(
         memory_peak: RefCell::new(memory_peak),
         memory_peak_label,
         is_dead: false,
+        to_be_removed,
     }
 }
