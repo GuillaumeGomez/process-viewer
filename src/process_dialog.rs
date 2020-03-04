@@ -52,7 +52,8 @@ impl ProcDialog {
             *self.memory_peak.borrow_mut() = memory;
             self.memory_peak_label.set_text(&memory_s);
         }
-        self.cpu_usage.set_text(&format!("{:.1}%", process.cpu_usage()));
+        self.cpu_usage
+            .set_text(&format!("{:.1}%", process.cpu_usage()));
         let running_since = compute_running_since(process, start_time);
         self.run_time.set_text(&format_time(running_since));
 
@@ -77,7 +78,10 @@ impl ProcDialog {
         self.is_dead = true;
         self.memory_usage.set_text("0");
         self.cpu_usage.set_text("0%");
-        let s = format!("Ran for {}", self.run_time.get_text().unwrap_or("0s".into()));
+        let s = format!(
+            "Ran for {}",
+            self.run_time.get_text().unwrap_or("0s".into())
+        );
         self.run_time.set_text(&s);
     }
 }

@@ -225,13 +225,24 @@ fn create_new_proc_diag(
     sys: &sysinfo::System,
     starting_time: u64,
 ) {
-    if let Some(ref proc_diag) = process_dialogs.borrow().iter().filter(|x| !x.is_dead).find(|x| x.pid == pid) {
+    if let Some(ref proc_diag) = process_dialogs
+        .borrow()
+        .iter()
+        .filter(|x| !x.is_dead)
+        .find(|x| x.pid == pid)
+    {
         proc_diag.popup.present();
         return;
     }
     let total_memory = sys.get_total_memory();
     if let Some(process) = sys.get_process(pid) {
-        process_dialogs.borrow_mut().push(process_dialog::create_process_dialog(process, starting_time, total_memory));
+        process_dialogs
+            .borrow_mut()
+            .push(process_dialog::create_process_dialog(
+                process,
+                starting_time,
+                total_memory,
+            ));
     }
 }
 
