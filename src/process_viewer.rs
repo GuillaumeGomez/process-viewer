@@ -274,12 +274,14 @@ pub fn setup_timeout(refresh_time: u32, rfs: &Rc<RefCell<RequiredForSettings>>) 
                 if let Some((col, order)) = sorted {
                     list_store.set_sort_column_id(col, order);
                 }
-                let dialogs = process_dialogs.borrow();
+                let mut dialogs = process_dialogs.borrow_mut();
                 let start_time = get_now();
-                for dialog in dialogs.values() {
+                for dialog in dialogs.values_mut().filter(|x| !x.is_dead) {
                     // TODO: handle dead process?
                     if let Some(process) = sys.borrow().get_process(dialog.pid) {
                         dialog.update(process, start_time);
+                    } else {
+                        dialog.set_dead();
                     }
                 }
                 glib::Continue(true)
