@@ -28,6 +28,8 @@ pub struct ProcDialog {
     cpu_usage_history: Rc<RefCell<Graph>>,
     memory_peak: RefCell<u64>,
     memory_peak_label: gtk::Label,
+    pub is_dead: bool,
+    pub to_be_removed: Rc<RefCell<bool>>,
 }
 
 impl fmt::Debug for ProcDialog {
@@ -38,6 +40,9 @@ impl fmt::Debug for ProcDialog {
 
 impl ProcDialog {
     pub fn update(&self, process: &sysinfo::Process, start_time: u64) {
+        if self.is_dead {
+            return;
+        }
         self.working_directory
             .set_text(&process.cwd().display().to_string());
         let memory = process.memory() << 10; // * 1024
@@ -60,6 +65,24 @@ impl ProcDialog {
         t.data[0].move_start();
         *t.data[0].get_mut(0).expect("cannot get data 0") = process.cpu_usage().into();
         t.invalidate();
+    }
+
+    pub fn need_remove(&self) -> bool {
+        *self.to_be_removed.borrow()
+    }
+
+    pub fn set_dead(&mut self) {
+        if self.is_dead {
+            return;
+        }
+        self.is_dead = true;
+        self.memory_usage.set_text("0");
+        self.cpu_usage.set_text("0%");
+        let s = format!(
+            "Ran for {}",
+            self.run_time.get_text().unwrap_or("0s".into())
+        );
+        self.run_time.set_text(&s);
     }
 }
 
@@ -346,6 +369,10 @@ pub fn create_process_dialog(
     close_button.connect_clicked(clone!(@weak popup => move |_| {
         popup.destroy();
     }));
+    let to_be_removed = Rc::new(RefCell::new(false));
+    popup.connect_destroy(clone!(@weak to_be_removed => move |_| {
+        *to_be_removed.borrow_mut() = true;
+    }));
     popup.set_resizable(true);
     popup.show_all();
 
@@ -368,5 +395,7 @@ pub fn create_process_dialog(
         cpu_usage_history,
         memory_peak: RefCell::new(memory_peak),
         memory_peak_label,
+        is_dead: false,
+        to_be_removed,
     }
 }
