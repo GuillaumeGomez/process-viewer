@@ -202,7 +202,19 @@ pub fn create_process_dialog(
         &format!("{:.1}%", process.cpu_usage()),
     );
     let run_time = create_and_add_new_label(&labels, "Running since", &format_time(running_since));
-    create_and_add_new_label(&labels, "command", &format!("{:?}", process.cmd()));
+    create_and_add_new_label(
+        &labels,
+        "command",
+        &format!(
+            "[{}]",
+            process
+                .cmd()
+                .iter()
+                .map(|x| format!("\"{}\"", x))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    );
     create_and_add_new_label(
         &labels,
         "executable path",

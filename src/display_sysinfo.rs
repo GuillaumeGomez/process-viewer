@@ -1,4 +1,3 @@
-use glib::object::Cast;
 use gtk::prelude::{
     AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, ScrolledWindowExt,
     ToggleButtonExt, WidgetExt,
@@ -14,22 +13,15 @@ use notebook::NoteBook;
 use settings::Settings;
 use utils::{connect_graph, RotateVec};
 
-pub fn create_header_complete(
+pub fn create_header(
     label_text: &str,
     parent_layout: &gtk::Box,
     display_graph: bool,
-    markup: bool,
 ) -> gtk::CheckButton {
     let check_box = gtk::CheckButton::new_with_label("Graph view");
     check_box.set_active(display_graph);
 
-    let label = if markup {
-        let l = gtk::Label::new(None);
-        l.set_markup(label_text);
-        l
-    } else {
-        gtk::Label::new(Some(label_text))
-    };
+    let label = gtk::Label::new(Some(label_text));
     let empty = gtk::Label::new(None);
     let grid = gtk::Grid::new();
     let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -47,14 +39,6 @@ pub fn create_header_complete(
     grid.set_column_homogeneous(true);
     parent_layout.pack_start(&grid, false, false, 15);
     check_box
-}
-
-pub fn create_header(
-    label_text: &str,
-    parent_layout: &gtk::Box,
-    display_graph: bool,
-) -> gtk::CheckButton {
-    create_header_complete(label_text, parent_layout, display_graph, false)
 }
 
 pub fn create_progress_bar(
@@ -301,24 +285,19 @@ impl DisplaySysInfo {
         tmp.update_system_info(&sys.borrow(), settings.display_fahrenheit);
 
         check_box
-            .clone()
-            .upcast::<gtk::ToggleButton>()
             .connect_toggled(
                 clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
                     show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
                 }),
             );
         check_box2
-            .clone()
-            .upcast::<gtk::ToggleButton>()
             .connect_toggled(
                 clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
                     show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
                 }),
             );
         if let Some(ref check_box3) = check_box3 {
-            check_box3.clone().upcast::<gtk::ToggleButton>()
-                      .connect_toggled(
+            check_box3.connect_toggled(
                           clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
                 show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
             }));
@@ -326,12 +305,12 @@ impl DisplaySysInfo {
 
         scroll.connect_show(
             clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
-                show_if_necessary(&check_box.clone().upcast::<gtk::ToggleButton>(),
+                show_if_necessary(&check_box,
                                   &cpu_usage_history.borrow(), &non_graph_layout);
-                show_if_necessary(&check_box2.clone().upcast::<gtk::ToggleButton>(),
+                show_if_necessary(&check_box2,
                                   &ram_usage_history.borrow(), &non_graph_layout2);
                 if let Some(ref check_box3) = check_box3 {
-                    show_if_necessary(&check_box3.clone().upcast::<gtk::ToggleButton>(),
+                    show_if_necessary(check_box3,
                                       &temperature_usage_history.borrow(), &non_graph_layout3);
                 }
             }),
@@ -472,8 +451,8 @@ impl DisplaySysInfo {
     }
 }
 
-pub fn show_if_necessary<T: WidgetExt>(
-    check_box: &gtk::ToggleButton,
+pub fn show_if_necessary<U: glib::IsA<gtk::ToggleButton>, T: WidgetExt>(
+    check_box: &U,
     proc_horizontal_layout: &Graph,
     non_graph_layout: &T,
 ) {

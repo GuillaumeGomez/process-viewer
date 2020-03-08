@@ -46,8 +46,9 @@ use std::time::SystemTime;
 
 mod color;
 mod disk_info;
-mod display_network;
+#[macro_use]
 mod display_sysinfo;
+mod display_network;
 mod graph;
 mod notebook;
 mod process_dialog;
@@ -656,7 +657,7 @@ fn build_ui(application: &gtk::Application) {
         // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
         // allocate?"
         w.get_preferred_width();
-        let w = w.clone().upcast::<gtk::Window>().get_size().0 - 130;
+        let w = w.get_size().0 - 130;
         let rfs = rfs.borrow();
         rfs.display_tab.borrow().set_size_request(w, 200);
         rfs.network_tab.borrow().set_size_request(w, 200);
