@@ -78,7 +78,7 @@ fn update_system_info(
 fn update_system_network(system: &Rc<RefCell<sysinfo::System>>, info: &mut Network) {
     let mut system = system.borrow_mut();
     system.refresh_networks();
-    info.update_network(&system);
+    info.update_networks(&system);
 }
 
 fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
@@ -92,7 +92,10 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
         while valid {
             let pid = match list.get_value(&iter, 0).get::<u32>() {
                 Ok(pid) => pid,
-                _ => continue,
+                _ => {
+                    valid = list.iter_next(&iter);
+                    continue
+                }
             };
             if let Some(pid) = pid.map(|x| x as Pid) {
                 if let Some(p) = entries.get(&(pid)) {
@@ -410,7 +413,7 @@ fn build_ui(application: &gtk::Application) {
     let display_tab = DisplaySysInfo::new(&sys, &mut note, &settings);
 
     let settings = Rc::new(RefCell::new(settings));
-    let network_tab = Rc::new(RefCell::new(Network::new(&sys, &mut note, &settings)));
+    let network_tab = Rc::new(RefCell::new(Network::new(&mut note)));
     display_disk::create_disk_info(&sys, &mut note);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -575,7 +578,6 @@ fn build_ui(application: &gtk::Application) {
             let rfs = rfs.borrow();
             is_active = g.get().expect("couldn't get bool");
             rfs.display_tab.borrow().set_checkboxes_state(!is_active);
-            rfs.network_tab.borrow().set_checkboxes_state(!is_active);
         }
         // We need to change the toggle state ourselves. `gio` dark magic.
         g.change_state(&(!is_active).to_variant());
@@ -660,7 +662,6 @@ fn build_ui(application: &gtk::Application) {
         let w = w.get_size().0 - 130;
         let rfs = rfs.borrow();
         rfs.display_tab.borrow().set_size_request(w, 200);
-        rfs.network_tab.borrow().set_size_request(w, 200);
         false
     });
 
