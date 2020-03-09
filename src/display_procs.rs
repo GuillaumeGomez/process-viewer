@@ -6,8 +6,8 @@ use glib::Type;
 use gtk;
 use gtk::prelude::{
     BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
-    GtkListStoreExtManual, OverlayExt, SearchBarExt, TreeModelExt, TreeModelFilterExt,
-    TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
+    GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
+    TreeModelFilterExt, TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
 
 use sysinfo::*;
@@ -17,6 +17,8 @@ use notebook::NoteBook;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use utils::create_button_with_image;
 
 #[allow(dead_code)]
 pub struct Procs {
@@ -34,31 +36,19 @@ pub struct Procs {
 }
 
 impl Procs {
-    pub fn new(proc_list: &HashMap<Pid, Process>, note: &mut NoteBook) -> Procs {
+    pub fn new(
+        proc_list: &HashMap<Pid, Process>,
+        note: &mut NoteBook,
+        window: &gtk::ApplicationWindow,
+    ) -> Procs {
         let left_tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
         let current_pid = Rc::new(Cell::new(None));
         let kill_button = gtk::Button::new_with_label("End task");
         let info_button = gtk::Button::new_with_label("More information");
 
-        let filter_button = gtk::Button::new();
-        let memory_stream = MemoryInputStream::new_from_bytes(&Bytes::from_static(include_bytes!(
-            "../assets/magnifier.png"
-        )));
-        let image = Pixbuf::new_from_stream_at_scale(
-            &memory_stream,
-            32,
-            32,
-            true,
-            None::<&gio::Cancellable>,
-        );
-        if let Ok(image) = image {
-            let image = gtk::Image::new_from_pixbuf(Some(&image));
-            filter_button.set_image(Some(&image));
-            filter_button.set_always_show_image(true);
-        } else {
-            filter_button.set_label("Filter");
-        }
+        let filter_button =
+            create_button_with_image(include_bytes!("../assets/magnifier.png"), "Filter");
 
         // TODO: maybe add an 'X' button to close search as well?
         let overlay = gtk::Overlay::new();
@@ -198,6 +188,15 @@ impl Procs {
         });
 
         note.create_tab("Process list", &vertical_layout);
+
+        filter_button.connect_clicked(clone!(@weak filter_entry, @weak window => move |_| {
+            if filter_entry.get_visible() {
+                filter_entry.hide();
+            } else {
+                filter_entry.show_all();
+                window.set_focus(Some(&filter_entry));
+            }
+        }));
 
         Procs {
             left_tree,

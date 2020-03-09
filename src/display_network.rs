@@ -1,16 +1,13 @@
-use gdk_pixbuf::Pixbuf;
-use gio::MemoryInputStream;
-use glib::{Bytes, Cast, IsA, ToVariant};
+use gtk;
 use gtk::prelude::{
     BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
-    GtkListStoreExt, GtkListStoreExtManual, OverlayExt, SearchBarExt, TreeModelExt,
+    GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
     TreeModelFilterExt, TreeSelectionExt, TreeSortableExtManual, TreeViewColumnExt, TreeViewExt,
     WidgetExt,
 };
-use gtk;
 use notebook::NoteBook;
 use sysinfo::{NetworkExt, NetworksExt, SystemExt};
-use utils::{format_number, format_number_full};
+use utils::{create_button_with_image, format_number, format_number_full};
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -48,36 +45,37 @@ fn append_column(
 pub struct Network {
     list_store: gtk::ListStore,
     current_network: Rc<RefCell<Option<String>>>,
+    pub filter_entry: gtk::Entry,
+    pub search_bar: gtk::SearchBar,
 }
 
 impl Network {
-    pub fn new(note: &mut NoteBook) -> Network {
+    pub fn new(note: &mut NoteBook, window: &gtk::ApplicationWindow) -> Network {
         let tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
         let info_button = gtk::Button::new_with_label("More information");
         let current_network = Rc::new(RefCell::new(None));
 
-        let filter_button = gtk::Button::new();
-        let memory_stream = MemoryInputStream::new_from_bytes(&Bytes::from_static(include_bytes!(
-            "../assets/magnifier.png"
-        )));
-        let image = Pixbuf::new_from_stream_at_scale(
-            &memory_stream,
-            32,
-            32,
-            true,
-            None::<&gio::Cancellable>,
-        );
-        if let Ok(image) = image {
-            let image = gtk::Image::new_from_pixbuf(Some(&image));
-            filter_button.set_image(Some(&image));
-            filter_button.set_always_show_image(true);
-        } else {
-            filter_button.set_label("Filter");
-        }
+        let filter_button =
+            create_button_with_image(include_bytes!("../assets/magnifier.png"), "Filter");
+
+        // TODO: maybe add an 'X' button to close search as well?
+        let overlay = gtk::Overlay::new();
+        let filter_entry = gtk::Entry::new();
+        let search_bar = gtk::SearchBar::new();
+
+        // We put the filter entry at the right bottom.
+        filter_entry.set_halign(gtk::Align::End);
+        filter_entry.set_valign(gtk::Align::End);
+        filter_entry.hide(); // By default, we don't show it.
+        search_bar.connect_entry(&filter_entry);
+        search_bar.set_show_close_button(true);
+
+        overlay.add_overlay(&filter_entry);
 
         tree.set_headers_visible(true);
         scroll.add(&tree);
+        overlay.add(&scroll);
 
         let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
 
@@ -103,36 +101,28 @@ impl Network {
 
         // The filter model
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
-        filter_model.set_visible_func(|_, _| true);
-        // filter_model.set_visible_func(
-        //     clone!(@weak filter_entry => @default-return false, move |model, iter| {
-        //         if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
-        //             return true;
-        //         }
-        //         if let Some(text) = filter_entry.get_text() {
-        //             if text.is_empty() {
-        //                 return true;
-        //             }
-        //             let text: &str = text.as_ref();
-        //             let pid = model.get_value(iter, 0)
-        //                            .get::<u32>()
-        //                            .unwrap_or_else(|_| None)
-        //                            .map(|p| p.to_string())
-        //                            .unwrap_or_else(String::new);
-        //             let name = model.get_value(iter, 1)
-        //                             .get::<String>()
-        //                             .unwrap_or_else(|_| None)
-        //                             .map(|s| s.to_lowercase())
-        //                             .unwrap_or_else(String::new);
-        //             pid.contains(text) ||
-        //             text.contains(&pid) ||
-        //             name.contains(text) ||
-        //             text.contains(&name)
-        //         } else {
-        //             true
-        //         }
-        //     }),
-        // );
+        filter_model.set_visible_func(
+            clone!(@weak filter_entry => @default-return false, move |model, iter| {
+                if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
+                    return true;
+                }
+                if let Some(text) = filter_entry.get_text() {
+                    if text.is_empty() {
+                        return true;
+                    }
+                    let text: &str = text.as_ref();
+                    // TODO: Maybe add an option to make searches case sensitive?
+                    let name = model.get_value(iter, 0)
+                                    .get::<String>()
+                                    .unwrap_or_else(|_| None)
+                                    .map(|s| s.to_lowercase())
+                                    .unwrap_or_else(String::new);
+                    name.contains(text)
+                } else {
+                    true
+                }
+            }),
+        );
 
         // For the filtering to be taken into account, we need to add it directly into the
         // "global" model.
@@ -152,10 +142,6 @@ impl Network {
             column.set_sort_column_id(pos as i32 + columns_len as i32);
         }
 
-        // filter_entry.connect_property_text_length_notify(move |_| {
-        //     filter_model.refilter();
-        // });
-
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let horizontal_layout = gtk::Grid::new();
 
@@ -169,8 +155,12 @@ impl Network {
         );
         horizontal_layout.set_column_homogeneous(true);
 
-        vertical_layout.pack_start(&scroll, true, true, 0);
+        vertical_layout.pack_start(&overlay, true, true, 0);
         vertical_layout.pack_start(&horizontal_layout, false, true, 0);
+
+        filter_entry.connect_property_text_length_notify(move |_| {
+            filter_model.refilter();
+        });
 
         note.create_tab("Networks", &vertical_layout);
 
@@ -193,10 +183,27 @@ impl Network {
         );
         info_button.set_sensitive(false);
 
+        filter_button.connect_clicked(clone!(@weak filter_entry, @weak window => move |_| {
+            if filter_entry.get_visible() {
+                filter_entry.hide();
+            } else {
+                filter_entry.show_all();
+                window.set_focus(Some(&filter_entry));
+            }
+        }));
+
         Network {
             list_store,
             current_network,
+            filter_entry,
+            search_bar,
         }
+    }
+
+    pub fn hide_filter(&self) {
+        self.filter_entry.hide();
+        self.filter_entry.set_text("");
+        self.search_bar.set_search_mode(false);
     }
 
     pub fn update_networks(&mut self, sys: &sysinfo::System) {

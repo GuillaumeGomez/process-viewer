@@ -1,8 +1,9 @@
 use graph::Graph;
 
-use gio;
-use glib::Cast;
-use gtk::{GtkApplicationExt, Inhibit, WidgetExt};
+use gdk_pixbuf::Pixbuf;
+use gio::{self, MemoryInputStream};
+use glib::{Bytes, Cast};
+use gtk::{ButtonExt, GtkApplicationExt, Inhibit, WidgetExt};
 
 use std::cell::RefCell;
 use std::ops::Index;
@@ -112,4 +113,19 @@ pub fn get_main_window() -> Option<gtk::Window> {
         }
     }
     None
+}
+
+pub fn create_button_with_image(image_bytes: &'static [u8], fallback_text: &str) -> gtk::Button {
+    let button = gtk::Button::new();
+    let memory_stream = MemoryInputStream::new_from_bytes(&Bytes::from_static(image_bytes));
+    let image =
+        Pixbuf::new_from_stream_at_scale(&memory_stream, 32, 32, true, None::<&gio::Cancellable>);
+    if let Ok(image) = image {
+        let image = gtk::Image::new_from_pixbuf(Some(&image));
+        button.set_image(Some(&image));
+        button.set_always_show_image(true);
+    } else {
+        button.set_label(fallback_text);
+    }
+    button
 }

@@ -382,7 +382,7 @@ fn build_ui(application: &gtk::Application) {
     let start_time = get_now();
     let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
-    let procs = Procs::new(sys.borrow().get_processes(), &mut note);
+    let procs = Procs::new(sys.borrow().get_processes(), &mut note, &window);
     let current_pid = Rc::clone(&procs.current_pid);
     let info_button = procs.info_button.clone();
 
@@ -413,7 +413,7 @@ fn build_ui(application: &gtk::Application) {
     let display_tab = DisplaySysInfo::new(&sys, &mut note, &settings);
 
     let settings = Rc::new(RefCell::new(settings));
-    let network_tab = Rc::new(RefCell::new(Network::new(&mut note)));
+    let network_tab = Rc::new(RefCell::new(Network::new(&mut note, &window)));
     display_disk::create_disk_info(&sys, &mut note);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -437,7 +437,7 @@ fn build_ui(application: &gtk::Application) {
         process_dialogs: process_dialogs.clone(),
         list_store,
         display_tab,
-        network_tab,
+        network_tab: network_tab.clone(),
     }));
 
     let refresh_system_rate = {
@@ -612,43 +612,6 @@ fn build_ui(application: &gtk::Application) {
     application.add_action(&new_task);
     application.add_action(&quit);
 
-    let filter_entry = procs.filter_entry.clone();
-    let notebook = note.notebook.clone();
-
-    procs
-        .filter_button
-        .connect_clicked(clone!(@weak filter_entry, @weak window => move |_| {
-            if filter_entry.get_visible() {
-                filter_entry.hide();
-            } else {
-                filter_entry.show_all();
-                window.set_focus(Some(&filter_entry));
-            }
-        }));
-    window.connect_key_press_event(move |win, key| {
-        if notebook.get_current_page() == Some(0) {
-            // the process list
-            if key.get_keyval() == gdk::enums::key::Escape {
-                procs.hide_filter();
-            } else {
-                let ret = procs.search_bar.handle_event(key);
-                match procs.filter_entry.get_text() {
-                    Some(ref s) if s.len() > 0 => {
-                        procs.filter_entry.show_all();
-                        if win.get_focus()
-                            != Some(procs.filter_entry.clone().upcast::<gtk::Widget>())
-                        {
-                            win.set_focus(Some(&procs.filter_entry));
-                        }
-                    }
-                    _ => {}
-                }
-                return Inhibit(ret);
-            }
-        }
-        Inhibit(false)
-    });
-
     window.set_widget_name(utils::MAIN_WINDOW_NAME);
 
     window.add_events(gdk::EventMask::STRUCTURE_MASK);
@@ -665,11 +628,58 @@ fn build_ui(application: &gtk::Application) {
         false
     });
 
-    application.connect_activate(move |_| {
+    application.connect_activate(clone!(@weak procs.filter_entry as filter_entry, @weak network_tab, @weak window => move |_| {
         window.show_all();
         filter_entry.hide();
+        network_tab.borrow().filter_entry.hide();
         window.present();
-    });
+    }));
+
+    window.connect_key_press_event(
+        clone!(@weak note.notebook as notebook => @default-return Inhibit(false), move |win, key| {
+            let current_page = notebook.get_current_page();
+            if current_page == Some(0) || current_page == Some(2) {
+                // the process list
+                if key.get_keyval() == gdk::enums::key::Escape {
+                    if current_page == Some(0) {
+                        procs.hide_filter();
+                    } else {
+                        network_tab.borrow().hide_filter();
+                    }
+                } else if current_page == Some(0) {
+                    let ret = procs.search_bar.handle_event(key);
+                    match procs.filter_entry.get_text() {
+                        Some(ref s) if s.len() > 0 => {
+                            procs.filter_entry.show_all();
+                            if win.get_focus()
+                                != Some(procs.filter_entry.clone().upcast::<gtk::Widget>())
+                            {
+                                win.set_focus(Some(&procs.filter_entry));
+                            }
+                        }
+                        _ => {}
+                    }
+                    return Inhibit(ret);
+                } else {
+                    let network = network_tab.borrow();
+                    let ret = network.search_bar.handle_event(key);
+                    match network.filter_entry.get_text() {
+                        Some(ref s) if s.len() > 0 => {
+                            network.filter_entry.show_all();
+                            if win.get_focus()
+                                != Some(network.filter_entry.clone().upcast::<gtk::Widget>())
+                            {
+                                win.set_focus(Some(&network.filter_entry));
+                            }
+                        }
+                        _ => {}
+                    }
+                    return Inhibit(ret);
+                }
+            }
+            Inhibit(false)
+        }),
+    );
 }
 
 fn main() {
