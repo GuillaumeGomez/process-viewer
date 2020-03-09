@@ -49,17 +49,17 @@ mod display_disk;
 #[macro_use]
 mod display_sysinfo;
 mod display_network;
+mod display_procs;
 mod graph;
 mod notebook;
 mod process_dialog;
-mod procs;
 mod settings;
 mod utils;
 
 use display_network::Network;
 use display_sysinfo::DisplaySysInfo;
+use display_procs::{create_and_fill_model, Procs};
 use notebook::NoteBook;
-use procs::{create_and_fill_model, Procs};
 use settings::Settings;
 
 pub const APPLICATION_NAME: &str = "com.github.GuillaumeGomez.process-viewer";
