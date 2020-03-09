@@ -57,8 +57,8 @@ mod settings;
 mod utils;
 
 use display_network::Network;
-use display_sysinfo::DisplaySysInfo;
 use display_procs::{create_and_fill_model, Procs};
+use display_sysinfo::DisplaySysInfo;
 use notebook::NoteBook;
 use settings::Settings;
 
@@ -94,7 +94,7 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
                 Ok(pid) => pid,
                 _ => {
                     valid = list.iter_next(&iter);
-                    continue
+                    continue;
                 }
             };
             if let Some(pid) = pid.map(|x| x as Pid) {

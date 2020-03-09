@@ -1,10 +1,20 @@
-use gtk::{self, BoxExt, ButtonExt, ContainerExt};
-use gtk::prelude::{CellLayoutExt, CellRendererExt, GtkListStoreExt, GtkListStoreExtManual, TreeModelExt, TreeModelFilterExt, TreeSortableExtManual, TreeViewColumnExt, TreeViewExt};
+use gdk_pixbuf::Pixbuf;
+use gio::MemoryInputStream;
+use glib::{Bytes, Cast, IsA, ToVariant};
+use gtk::prelude::{
+    BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
+    GtkListStoreExt, GtkListStoreExtManual, OverlayExt, SearchBarExt, TreeModelExt,
+    TreeModelFilterExt, TreeSelectionExt, TreeSortableExtManual, TreeViewColumnExt, TreeViewExt,
+    WidgetExt,
+};
+use gtk;
 use notebook::NoteBook;
 use sysinfo::{NetworkExt, NetworksExt, SystemExt};
-use utils::format_number;
+use utils::{format_number, format_number_full};
 
+use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 
 fn append_column(
     title: &str,
@@ -36,14 +46,35 @@ fn append_column(
 }
 
 pub struct Network {
-    // elems: Rc<RefCell<Vec<NetworkData>>>,
     list_store: gtk::ListStore,
+    current_network: Rc<RefCell<Option<String>>>,
 }
 
 impl Network {
     pub fn new(note: &mut NoteBook) -> Network {
         let tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+        let info_button = gtk::Button::new_with_label("More information");
+        let current_network = Rc::new(RefCell::new(None));
+
+        let filter_button = gtk::Button::new();
+        let memory_stream = MemoryInputStream::new_from_bytes(&Bytes::from_static(include_bytes!(
+            "../assets/magnifier.png"
+        )));
+        let image = Pixbuf::new_from_stream_at_scale(
+            &memory_stream,
+            32,
+            32,
+            true,
+            None::<&gio::Cancellable>,
+        );
+        if let Ok(image) = image {
+            let image = gtk::Image::new_from_pixbuf(Some(&image));
+            filter_button.set_image(Some(&image));
+            filter_button.set_always_show_image(true);
+        } else {
+            filter_button.set_label("Filter");
+        }
 
         tree.set_headers_visible(true);
         scroll.add(&tree);
@@ -126,15 +157,45 @@ impl Network {
         // });
 
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let horizontal_layout = gtk::Grid::new();
+
+        horizontal_layout.attach(&info_button, 0, 0, 4, 1);
+        horizontal_layout.attach_next_to(
+            &filter_button,
+            Some(&info_button),
+            gtk::PositionType::Right,
+            1,
+            1,
+        );
+        horizontal_layout.set_column_homogeneous(true);
 
         vertical_layout.pack_start(&scroll, true, true, 0);
-        //vertical_layout.pack_start(&refresh_but, false, true, 0);
+        vertical_layout.pack_start(&horizontal_layout, false, true, 0);
 
         note.create_tab("Networks", &vertical_layout);
 
+        tree.connect_cursor_changed(
+            clone!(@weak current_network, @weak info_button => move |tree_view| {
+                    let selection = tree_view.get_selection();
+                    let (name, ret) = if let Some((model, iter)) = selection.get_selected() {
+                        if let Ok(Some(x)) = model.get_value(&iter, 0).get::<String>() {
+                            (Some(x), true)
+                        } else {
+                            (None, false)
+                        }
+                    } else {
+                        (None, false)
+                    };
+                    *current_network.borrow_mut() = name;
+                    info_button.set_sensitive(ret);
+                }
+            ),
+        );
+        info_button.set_sensitive(false);
+
         Network {
-            // elems,
             list_store,
+            current_network,
         }
     }
 
@@ -149,24 +210,28 @@ impl Network {
         if let Some(iter) = self.list_store.get_iter_first() {
             let mut valid = true;
             while valid {
-                if let Some(name) = match self.list_store.get_value(&iter, 0).get::<glib::GString>() {
+                if let Some(name) = match self.list_store.get_value(&iter, 0).get::<glib::GString>()
+                {
                     Ok(n) => n,
                     _ => {
                         valid = self.list_store.iter_next(&iter);
-                        continue
+                        continue;
                     }
                 } {
-                    if let Some((_, data)) = networks.iter().find(|(interface_name, _)| interface_name.as_str() == name) {
+                    if let Some((_, data)) = networks
+                        .iter()
+                        .find(|(interface_name, _)| interface_name.as_str() == name)
+                    {
                         self.list_store.set(
                             &iter,
                             &[1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13],
                             &[
                                 &format_number(data.get_income()),
                                 &format_number(data.get_outcome()),
-                                &format_number(data.get_packets_income()),
-                                &format_number(data.get_packets_outcome()),
-                                &format_number(data.get_errors_income()),
-                                &format_number(data.get_errors_outcome()),
+                                &format_number_full(data.get_packets_income(), false),
+                                &format_number_full(data.get_packets_outcome(), false),
+                                &format_number_full(data.get_errors_income(), false),
+                                &format_number_full(data.get_errors_outcome(), false),
                                 &data.get_income(),
                                 &data.get_outcome(),
                                 &data.get_packets_income(),
@@ -223,10 +288,10 @@ fn create_and_fill_model(
             &interface_name,
             &format_number(in_usage),
             &format_number(out_usage),
-            &format_number(income_packets),
-            &format_number(outcome_packets),
-            &format_number(income_errors),
-            &format_number(outcome_errors),
+            &format_number_full(income_packets, false),
+            &format_number_full(outcome_packets, false),
+            &format_number_full(income_errors, false),
+            &format_number_full(outcome_errors, false),
             // sort part
             &interface_name.to_lowercase(),
             &in_usage,
