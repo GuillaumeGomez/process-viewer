@@ -45,21 +45,21 @@ use std::rc::Rc;
 use std::time::SystemTime;
 
 mod color;
-mod disk_info;
+mod display_disk;
 #[macro_use]
 mod display_sysinfo;
 mod display_network;
+mod display_procs;
 mod graph;
 mod notebook;
 mod process_dialog;
-mod procs;
 mod settings;
 mod utils;
 
 use display_network::Network;
 use display_sysinfo::DisplaySysInfo;
+use display_procs::{create_and_fill_model, Procs};
 use notebook::NoteBook;
-use procs::{create_and_fill_model, Procs};
 use settings::Settings;
 
 pub const APPLICATION_NAME: &str = "com.github.GuillaumeGomez.process-viewer";
@@ -411,7 +411,7 @@ fn build_ui(application: &gtk::Application) {
 
     let settings = Rc::new(RefCell::new(settings));
     let network_tab = Rc::new(RefCell::new(Network::new(&sys, &mut note, &settings)));
-    disk_info::create_disk_info(&sys, &mut note);
+    display_disk::create_disk_info(&sys, &mut note);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
