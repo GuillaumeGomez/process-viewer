@@ -149,7 +149,7 @@ fn compute_running_since(process: &sysinfo::Process, running_since: u64) -> u64 
     }
 }
 
-fn append_text_column(tree: &gtk::TreeView, pos: i32) -> gtk::CellRendererText {
+pub fn append_text_column(tree: &gtk::TreeView, pos: i32) -> gtk::CellRendererText {
     let column = gtk::TreeViewColumn::new();
     let cell = gtk::CellRendererText::new();
 
@@ -331,7 +331,7 @@ pub fn create_process_dialog(
                 v.to_string(),
                 format!("{}", v / 2.),
                 "0".to_string(),
-                "kB".to_string(),
+                "KB".to_string(),
             ]
         } else if v < 10_000_000. {
             [

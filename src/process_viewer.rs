@@ -51,6 +51,7 @@ mod display_sysinfo;
 mod display_network;
 mod display_procs;
 mod graph;
+mod network_dialog;
 mod notebook;
 mod process_dialog;
 mod settings;

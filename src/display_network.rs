@@ -1,3 +1,5 @@
+use network_dialog;
+
 use gtk;
 use gtk::prelude::{
     BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
@@ -197,22 +199,21 @@ impl Network {
                 let current_network = current_network.borrow();
                 if let Some(ref interface_name) = *current_network {
                     println!("create network dialog for {}", interface_name);
-                    // create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
+                    // create_network_dialog(&process_dialogs, pid, &*sys.borrow(), start_time);
                 }
             }),
         );
 
         tree.connect_row_activated(move |tree_view, path, _| {
-                let model = tree_view.get_model().expect("couldn't get model");
-                let iter = model.get_iter(path).expect("couldn't get iter");
-                let interface_name = model.get_value(&iter, 0)
-                               .get::<String>()
-                               .expect("Model::get failed")
-                               .expect("failed to get value from model");
-                println!("Create network dialog for {}", interface_name);
-                // create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
-            }
-        );
+            let model = tree_view.get_model().expect("couldn't get model");
+            let iter = model.get_iter(path).expect("couldn't get iter");
+            let interface_name = model.get_value(&iter, 0)
+                           .get::<String>()
+                           .expect("Model::get failed")
+                           .expect("failed to get value from model");
+            println!("Create network dialog for {}", interface_name);
+            // create_network_dialog(&process_dialogs, pid, &*sys.borrow(), start_time);
+        });
 
         Network {
             list_store,
@@ -332,3 +333,7 @@ fn create_and_fill_model(
         ],
     );
 }
+
+// fn create_network_dialog() {
+//     network_dialog::create_network_dialog()
+// }
