@@ -414,7 +414,7 @@ fn build_ui(application: &gtk::Application) {
     let display_tab = DisplaySysInfo::new(&sys, &mut note, &settings);
 
     let settings = Rc::new(RefCell::new(settings));
-    let network_tab = Rc::new(RefCell::new(Network::new(&mut note, &window)));
+    let network_tab = Rc::new(RefCell::new(Network::new(&mut note, &window, &sys)));
     display_disk::create_disk_info(&sys, &mut note);
 
     let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);

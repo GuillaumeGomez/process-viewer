@@ -350,7 +350,7 @@ pub fn create_process_dialog(
         } else {
             [
                 format!("{:.1}", v / 1_073_741_824f64),
-                format!("{:.1}", v / 1_073_741_824f64),
+                format!("{:.1}", v / 2_147_483_648f64),
                 "0".to_string(),
                 "TB".to_string(),
             ]

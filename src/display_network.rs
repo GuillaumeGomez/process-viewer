@@ -1,4 +1,4 @@
-use network_dialog;
+use network_dialog::{self, NetworkDialog};
 
 use gtk;
 use gtk::prelude::{
@@ -8,7 +8,7 @@ use gtk::prelude::{
     WidgetExt,
 };
 use notebook::NoteBook;
-use sysinfo::{NetworkExt, NetworksExt, SystemExt};
+use sysinfo::{NetworkExt, NetworksExt, System, SystemExt};
 use utils::{create_button_with_image, format_number, format_number_full};
 
 use std::cell::RefCell;
@@ -52,7 +52,11 @@ pub struct Network {
 }
 
 impl Network {
-    pub fn new(note: &mut NoteBook, window: &gtk::ApplicationWindow) -> Network {
+    pub fn new(
+        note: &mut NoteBook,
+        window: &gtk::ApplicationWindow,
+        sys: &Rc<RefCell<System>>,
+    ) -> Network {
         let tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
         let info_button = gtk::Button::new_with_label("More information");
@@ -168,20 +172,19 @@ impl Network {
 
         tree.connect_cursor_changed(
             clone!(@weak current_network, @weak info_button => move |tree_view| {
-                    let selection = tree_view.get_selection();
-                    let (name, ret) = if let Some((model, iter)) = selection.get_selected() {
-                        if let Ok(Some(x)) = model.get_value(&iter, 0).get::<String>() {
-                            (Some(x), true)
-                        } else {
-                            (None, false)
-                        }
+                let selection = tree_view.get_selection();
+                let (name, ret) = if let Some((model, iter)) = selection.get_selected() {
+                    if let Ok(Some(x)) = model.get_value(&iter, 0).get::<String>() {
+                        (Some(x), true)
                     } else {
                         (None, false)
-                    };
-                    *current_network.borrow_mut() = name;
-                    info_button.set_sensitive(ret);
-                }
-            ),
+                    }
+                } else {
+                    (None, false)
+                };
+                *current_network.borrow_mut() = name;
+                info_button.set_sensitive(ret);
+            }),
         );
         info_button.set_sensitive(false);
 
@@ -194,26 +197,29 @@ impl Network {
             }
         }));
 
+        let dialogs = Rc::new(RefCell::new(Vec::new()));
+
         info_button.connect_clicked(
-            clone!(@weak current_network/*, @weak process_dialogs, @weak sys*/ => move |_| {
+            clone!(@weak current_network, @weak dialogs, @weak sys => move |_| {
                 let current_network = current_network.borrow();
                 if let Some(ref interface_name) = *current_network {
                     println!("create network dialog for {}", interface_name);
-                    // create_network_dialog(&process_dialogs, pid, &*sys.borrow(), start_time);
+                    create_network_dialog(&mut *dialogs.borrow_mut(), interface_name, &*sys.borrow());
                 }
             }),
         );
 
-        tree.connect_row_activated(move |tree_view, path, _| {
-            let model = tree_view.get_model().expect("couldn't get model");
-            let iter = model.get_iter(path).expect("couldn't get iter");
-            let interface_name = model.get_value(&iter, 0)
-                           .get::<String>()
-                           .expect("Model::get failed")
-                           .expect("failed to get value from model");
-            println!("Create network dialog for {}", interface_name);
-            // create_network_dialog(&process_dialogs, pid, &*sys.borrow(), start_time);
-        });
+        tree.connect_row_activated(
+            clone!(@weak sys => move |tree_view, path, _| {
+                let model = tree_view.get_model().expect("couldn't get model");
+                let iter = model.get_iter(path).expect("couldn't get iter");
+                let interface_name = model.get_value(&iter, 0)
+                                            .get::<String>()
+                                            .expect("Model::get failed")
+                                            .expect("failed to get value from model");
+                create_network_dialog(&mut *dialogs.borrow_mut(), &interface_name, &*sys.borrow());
+            }),
+        );
 
         Network {
             list_store,
@@ -229,7 +235,7 @@ impl Network {
         self.search_bar.set_search_mode(false);
     }
 
-    pub fn update_networks(&mut self, sys: &sysinfo::System) {
+    pub fn update_networks(&mut self, sys: &System) {
         // first part, deactivate sorting
         let sorted = TreeSortableExtManual::get_sort_column_id(&self.list_store);
         self.list_store.set_unsorted();
@@ -334,6 +340,20 @@ fn create_and_fill_model(
     );
 }
 
-// fn create_network_dialog() {
-//     network_dialog::create_network_dialog()
-// }
+fn create_network_dialog(dialogs: &mut Vec<NetworkDialog>, interface_name: &str, sys: &System) {
+    for dialog in dialogs.iter() {
+        if dialog.name == interface_name {
+            dialog.show();
+            return;
+        }
+    }
+    if let Some((_, data)) = sys
+        .get_networks()
+        .iter()
+        .find(|(name, _)| name.as_str() == interface_name)
+    {
+        dialogs.push(network_dialog::create_network_dialog(data, interface_name));
+    } else {
+        eprintln!("couldn't find {}...", interface_name);
+    }
+}

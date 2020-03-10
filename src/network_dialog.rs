@@ -1,6 +1,6 @@
 use gtk::prelude::{
-    CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewColumnExt,
-    TreeViewExt, WidgetExt,
+    CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual,
+    TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
 use gtk::{self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt};
 
@@ -17,7 +17,7 @@ use std::rc::Rc;
 
 pub struct NetworkDialog {
     pub name: String,
-    pub popup: gtk::Window,
+    popup: gtk::Window,
     notebook: NoteBook,
     packets_errors_history: Rc<RefCell<Graph>>,
     in_out_history: Rc<RefCell<Graph>>,
@@ -39,16 +39,34 @@ macro_rules! update_graph {
             *x = $value;
             // TODO: update associated value in the non-graph view
         }
-    }}
+    }};
 }
 
 impl NetworkDialog {
     pub fn update(&self, network: &sysinfo::NetworkData) {
         let mut t = self.packets_errors_history.borrow_mut();
-        update_graph!(self, t, 0, network.get_packets_income(), income_packets_peak);
-        update_graph!(self, t, 1, network.get_packets_outcome(), outcome_packets_peak);
+        update_graph!(
+            self,
+            t,
+            0,
+            network.get_packets_income(),
+            income_packets_peak
+        );
+        update_graph!(
+            self,
+            t,
+            1,
+            network.get_packets_outcome(),
+            outcome_packets_peak
+        );
         update_graph!(self, t, 2, network.get_errors_income(), income_errors_peak);
-        update_graph!(self, t, 3, network.get_errors_outcome(), outcome_errors_peak);
+        update_graph!(
+            self,
+            t,
+            3,
+            network.get_errors_outcome(),
+            outcome_errors_peak
+        );
         t.invalidate();
 
         let mut t = self.in_out_history.borrow_mut();
@@ -57,12 +75,19 @@ impl NetworkDialog {
         t.invalidate();
     }
 
+    pub fn show(&self) {
+        self.popup.present();
+    }
+
     pub fn need_remove(&self) -> bool {
         *self.to_be_removed.borrow()
     }
 }
 
-pub fn create_network_dialog(network: &sysinfo::NetworkData, interface_name: &str) -> NetworkDialog {
+pub fn create_network_dialog(
+    network: &sysinfo::NetworkData,
+    interface_name: &str,
+) -> NetworkDialog {
     let mut notebook = NoteBook::new();
 
     let popup = gtk::Window::new(gtk::WindowType::Toplevel);
@@ -89,24 +114,135 @@ pub fn create_network_dialog(network: &sysinfo::NetworkData, interface_name: &st
     let column = append_text_column(&tree, 1);
     // column.set_property_xalign(1.0);
 
-    list_store.insert_with_values(None, &[0, 1], &[&"income", &format_number(network.get_income())]);
-    list_store.insert_with_values(None, &[0, 1], &[&"total income", &format_number(network.get_total_income())]);
-    list_store.insert_with_values(None, &[0, 1], &[&"income peak", &format_number(network.get_income())]);
-    list_store.insert_with_values(None, &[0, 1], &[&"outcome", &format_number(network.get_outcome())]);
-    list_store.insert_with_values(None, &[0, 1], &[&"total outcome", &format_number(network.get_total_outcome())]);
-    list_store.insert_with_values(None, &[0, 1], &[&"outcome peak", &format_number(network.get_outcome())]);
-    list_store.insert_with_values(None, &[0, 1], &[&"packets in", &format_number_full(network.get_packets_income(), false)]);
-    list_store.insert_with_values(None, &[0, 1], &[&"total packets in", &format_number_full(network.get_total_packets_income(), false)]);
-    list_store.insert_with_values(None, &[0, 1], &[&"packets in peak", &format_number(network.get_packets_income())]);
-    list_store.insert_with_values(None, &[0, 1], &[&"packets out", &format_number_full(network.get_packets_outcome(), false)]);
-    list_store.insert_with_values(None, &[0, 1], &[&"total packets out", &format_number_full(network.get_total_packets_outcome(), false)]);
-    list_store.insert_with_values(None, &[0, 1], &[&"packets out peak", &format_number(network.get_packets_outcome())]);
-    list_store.insert_with_values(None, &[0, 1], &[&"errors in", &format_number_full(network.get_errors_income(), false)]);
-    list_store.insert_with_values(None, &[0, 1], &[&"total errors in", &format_number_full(network.get_total_errors_income(), false)]);
-    list_store.insert_with_values(None, &[0, 1], &[&"errors in peak", &format_number(network.get_errors_income())]);
-    list_store.insert_with_values(None, &[0, 1], &[&"errors out", &format_number_full(network.get_errors_outcome(), false)]);
-    list_store.insert_with_values(None, &[0, 1], &[&"total errors out", &format_number_full(network.get_total_errors_outcome(), false)]);
-    list_store.insert_with_values(None, &[0, 1], &[&"errors out peak", &format_number(network.get_errors_outcome())]);
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[&"income", &format_number(network.get_income())],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[&"total income", &format_number(network.get_total_income())],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[&"income peak", &format_number(network.get_income())],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[&"outcome", &format_number(network.get_outcome())],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"total outcome",
+            &format_number(network.get_total_outcome()),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[&"outcome peak", &format_number(network.get_outcome())],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"packets in",
+            &format_number_full(network.get_packets_income(), false),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"total packets in",
+            &format_number_full(network.get_total_packets_income(), false),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"packets in peak",
+            &format_number(network.get_packets_income()),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"packets out",
+            &format_number_full(network.get_packets_outcome(), false),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"total packets out",
+            &format_number_full(network.get_total_packets_outcome(), false),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"packets out peak",
+            &format_number(network.get_packets_outcome()),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"errors in",
+            &format_number_full(network.get_errors_income(), false),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"total errors in",
+            &format_number_full(network.get_total_errors_income(), false),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"errors in peak",
+            &format_number(network.get_errors_income()),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"errors out",
+            &format_number_full(network.get_errors_outcome(), false),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"total errors out",
+            &format_number_full(network.get_total_errors_outcome(), false),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
+            &"errors out peak",
+            &format_number(network.get_errors_outcome()),
+        ],
+    );
 
     scroll.add(&tree);
 
@@ -146,32 +282,32 @@ pub fn create_network_dialog(network: &sysinfo::NetworkData, interface_name: &st
                 v.to_string(),
                 format!("{}", v / 2.),
                 "0".to_string(),
-                "KB".to_string(),
+                "KiB".to_string(),
             ]
         } else if v < 10_000_000. {
             [
                 format!("{:.1}", v / 1_024f64),
                 format!("{:.1}", v / 2_048f64),
                 "0".to_string(),
-                "MB".to_string(),
+                "MiB".to_string(),
             ]
         } else if v < 10_000_000_000. {
             [
                 format!("{:.1}", v / 1_048_576f64),
                 format!("{:.1}", v / 2_097_152f64),
                 "0".to_string(),
-                "GB".to_string(),
+                "GiB".to_string(),
             ]
         } else {
             [
                 format!("{:.1}", v / 1_073_741_824f64),
-                format!("{:.1}", v / 1_073_741_824f64),
+                format!("{:.1}", v / 2_147_483_648f64),
                 "0".to_string(),
-                "TB".to_string(),
+                "TiB".to_string(),
             ]
         }
     })));
-    vertical_layout.add(&gtk::Label::new(Some("Process usage")));
+    vertical_layout.add(&gtk::Label::new(Some("Network usage")));
     in_out_history.attach_to(&vertical_layout);
     in_out_history.invalidate();
     let in_out_history = connect_graph(in_out_history);
@@ -202,32 +338,32 @@ pub fn create_network_dialog(network: &sysinfo::NetworkData, interface_name: &st
                 v.to_string(),
                 format!("{}", v / 2.),
                 "0".to_string(),
-                "K".to_string(),
+                "Ki".to_string(),
             ]
         } else if v < 10_000_000. {
             [
                 format!("{:.1}", v / 1_024f64),
                 format!("{:.1}", v / 2_048f64),
                 "0".to_string(),
-                "M".to_string(),
+                "Mi".to_string(),
             ]
         } else if v < 10_000_000_000. {
             [
                 format!("{:.1}", v / 1_048_576f64),
                 format!("{:.1}", v / 2_097_152f64),
                 "0".to_string(),
-                "G".to_string(),
+                "Gi".to_string(),
             ]
         } else {
             [
                 format!("{:.1}", v / 1_073_741_824f64),
-                format!("{:.1}", v / 1_073_741_824f64),
+                format!("{:.1}", v / 2_147_483_648f64),
                 "0".to_string(),
-                "T".to_string(),
+                "Ti".to_string(),
             ]
         }
     })));
-    vertical_layout.add(&gtk::Label::new(Some("Memory usage")));
+    vertical_layout.add(&gtk::Label::new(Some("Extra data")));
     packets_errors_history.attach_to(&vertical_layout);
     packets_errors_history.invalidate();
     let packets_errors_history = connect_graph(packets_errors_history);
