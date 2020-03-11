@@ -1,6 +1,6 @@
 use gtk::prelude::{
-    CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual,
-    TreeViewColumnExt, TreeViewExt, WidgetExt,
+    CellLayoutExt, CellRendererExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt,
+    GtkWindowExtManual, TreeModelExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
 use gtk::{self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt};
 
@@ -8,7 +8,6 @@ use sysinfo::{self, NetworkExt};
 
 use graph::{Connecter, Graph};
 use notebook::NoteBook;
-use process_dialog::append_text_column;
 use utils::{connect_graph, format_number, format_number_full, get_main_window, RotateVec};
 
 use std::cell::RefCell;
@@ -18,60 +17,113 @@ use std::rc::Rc;
 pub struct NetworkDialog {
     pub name: String,
     popup: gtk::Window,
-    notebook: NoteBook,
     packets_errors_history: Rc<RefCell<Graph>>,
     in_out_history: Rc<RefCell<Graph>>,
     income_peak: Rc<RefCell<u64>>,
     outcome_peak: Rc<RefCell<u64>>,
-    income_packets_peak: Rc<RefCell<u64>>,
-    outcome_packets_peak: Rc<RefCell<u64>>,
-    income_errors_peak: Rc<RefCell<u64>>,
-    outcome_errors_peak: Rc<RefCell<u64>>,
+    packets_income_peak: Rc<RefCell<u64>>,
+    packets_outcome_peak: Rc<RefCell<u64>>,
+    errors_income_peak: Rc<RefCell<u64>>,
+    errors_outcome_peak: Rc<RefCell<u64>>,
     to_be_removed: Rc<RefCell<bool>>,
+    list_store: gtk::ListStore,
 }
 
 macro_rules! update_graph {
-    ($this:expr, $t:expr, $pos:expr, $value:expr, $peak:ident) => {{
+    ($this:expr, $t:expr, $pos:expr, $value:expr, $total_value:expr, $peak:ident, $list_pos:expr, $formatter:ident) => {{
         $t.data[$pos].move_start();
         *$t.data[$pos].get_mut(0).expect("cannot get data 0") = $value as f64;
         let mut x = $this.$peak.borrow_mut();
         if *x < $value {
             *x = $value;
-            // TODO: update associated value in the non-graph view
+            if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos) {
+                $this.list_store.set(&iter, &[1], &[&$formatter($value)]);
+            }
+        }
+        if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos - 1) {
+            $this.list_store.set(&iter, &[1], &[&$formatter($value)]);
+        }
+        if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos - 2) {
+            $this
+                .list_store
+                .set(&iter, &[1], &[&$formatter($total_value)]);
         }
     }};
 }
 
 impl NetworkDialog {
     pub fn update(&self, network: &sysinfo::NetworkData) {
+        if self.need_remove() {
+            return;
+        }
+        fn formatter(value: u64) -> String {
+            format_number_full(value, false)
+        }
+
         let mut t = self.packets_errors_history.borrow_mut();
         update_graph!(
             self,
             t,
             0,
             network.get_packets_income(),
-            income_packets_peak
+            network.get_total_packets_income(),
+            packets_income_peak,
+            8,
+            formatter
         );
         update_graph!(
             self,
             t,
             1,
             network.get_packets_outcome(),
-            outcome_packets_peak
+            network.get_total_packets_outcome(),
+            packets_outcome_peak,
+            11,
+            formatter
         );
-        update_graph!(self, t, 2, network.get_errors_income(), income_errors_peak);
+        update_graph!(
+            self,
+            t,
+            2,
+            network.get_errors_income(),
+            network.get_total_errors_income(),
+            errors_income_peak,
+            14,
+            formatter
+        );
         update_graph!(
             self,
             t,
             3,
             network.get_errors_outcome(),
-            outcome_errors_peak
+            network.get_total_errors_outcome(),
+            errors_outcome_peak,
+            17,
+            formatter
         );
         t.invalidate();
 
         let mut t = self.in_out_history.borrow_mut();
-        update_graph!(self, t, 0, network.get_income(), income_peak);
-        update_graph!(self, t, 1, network.get_outcome(), outcome_peak);
+        update_graph!(
+            self,
+            t,
+            0,
+            network.get_income(),
+            network.get_total_income(),
+            income_peak,
+            2,
+            format_number
+        );
+        update_graph!(
+            self,
+            t,
+            1,
+            network.get_outcome(),
+            network.get_total_outcome(),
+            outcome_peak,
+            5,
+            format_number
+        );
         t.invalidate();
     }
 
@@ -82,6 +134,24 @@ impl NetworkDialog {
     pub fn need_remove(&self) -> bool {
         *self.to_be_removed.borrow()
     }
+}
+
+fn append_text_column(tree: &gtk::TreeView, title: &str, pos: i32, right_align: bool) {
+    let column = gtk::TreeViewColumn::new();
+    let cell = gtk::CellRendererText::new();
+
+    if right_align {
+        cell.set_property_xalign(1.0);
+    }
+    column.pack_start(&cell, true);
+    column.add_attribute(&cell, "text", pos);
+    if pos == 1 {
+        cell.set_property_wrap_mode(pango::WrapMode::Char);
+        column.set_expand(true);
+    }
+    column.set_title(title);
+    column.set_resizable(true);
+    tree.append_column(&column);
 }
 
 pub fn create_network_dialog(
@@ -107,12 +177,11 @@ pub fn create_network_dialog(
     let tree = gtk::TreeView::new();
     let list_store = gtk::ListStore::new(&[glib::Type::String, glib::Type::String]);
 
-    tree.set_headers_visible(false);
+    tree.set_headers_visible(true);
     tree.set_model(Some(&list_store));
 
-    append_text_column(&tree, 0);
-    let column = append_text_column(&tree, 1);
-    // column.set_property_xalign(1.0);
+    append_text_column(&tree, "property", 0, false);
+    append_text_column(&tree, "value", 1, true);
 
     list_store.insert_with_values(
         None,
@@ -122,17 +191,22 @@ pub fn create_network_dialog(
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"total income", &format_number(network.get_total_income())],
-    );
-    list_store.insert_with_values(
-        None,
-        &[0, 1],
         &[&"income peak", &format_number(network.get_income())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
+        &[&"total income", &format_number(network.get_total_income())],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
         &[&"outcome", &format_number(network.get_outcome())],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[&"outcome peak", &format_number(network.get_outcome())],
     );
     list_store.insert_with_values(
         None,
@@ -145,22 +219,9 @@ pub fn create_network_dialog(
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"outcome peak", &format_number(network.get_outcome())],
-    );
-    list_store.insert_with_values(
-        None,
-        &[0, 1],
         &[
             &"packets in",
             &format_number_full(network.get_packets_income(), false),
-        ],
-    );
-    list_store.insert_with_values(
-        None,
-        &[0, 1],
-        &[
-            &"total packets in",
-            &format_number_full(network.get_total_packets_income(), false),
         ],
     );
     list_store.insert_with_values(
@@ -175,16 +236,16 @@ pub fn create_network_dialog(
         None,
         &[0, 1],
         &[
-            &"packets out",
-            &format_number_full(network.get_packets_outcome(), false),
+            &"total packets in",
+            &format_number_full(network.get_total_packets_income(), false),
         ],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
         &[
-            &"total packets out",
-            &format_number_full(network.get_total_packets_outcome(), false),
+            &"packets out",
+            &format_number_full(network.get_packets_outcome(), false),
         ],
     );
     list_store.insert_with_values(
@@ -199,16 +260,16 @@ pub fn create_network_dialog(
         None,
         &[0, 1],
         &[
-            &"errors in",
-            &format_number_full(network.get_errors_income(), false),
+            &"total packets out",
+            &format_number_full(network.get_total_packets_outcome(), false),
         ],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
         &[
-            &"total errors in",
-            &format_number_full(network.get_total_errors_income(), false),
+            &"errors in",
+            &format_number_full(network.get_errors_income(), false),
         ],
     );
     list_store.insert_with_values(
@@ -223,6 +284,14 @@ pub fn create_network_dialog(
         None,
         &[0, 1],
         &[
+            &"total errors in",
+            &format_number_full(network.get_total_errors_income(), false),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[0, 1],
+        &[
             &"errors out",
             &format_number_full(network.get_errors_outcome(), false),
         ],
@@ -231,16 +300,16 @@ pub fn create_network_dialog(
         None,
         &[0, 1],
         &[
-            &"total errors out",
-            &format_number_full(network.get_total_errors_outcome(), false),
+            &"errors out peak",
+            &format_number(network.get_errors_outcome()),
         ],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
         &[
-            &"errors out peak",
-            &format_number(network.get_errors_outcome()),
+            &"total errors out",
+            &format_number_full(network.get_total_errors_outcome(), false),
         ],
     );
 
@@ -261,10 +330,7 @@ pub fn create_network_dialog(
     vertical_layout.set_margin_start(5);
     vertical_layout.set_margin_end(5);
     let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-    let mut in_out_history = Graph::new(Some(100.), false); // In case a process uses more than 100%
-    in_out_history.set_minimum(Some(100.));
-
-    let mut packets_errors_history = Graph::new(None, false);
+    let mut in_out_history = Graph::new(Some(1.), false);
 
     in_out_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
@@ -307,10 +373,14 @@ pub fn create_network_dialog(
             ]
         }
     })));
-    vertical_layout.add(&gtk::Label::new(Some("Network usage")));
+    let label = gtk::Label::new(None);
+    label.set_markup("<b>Network usage</b>");
+    vertical_layout.add(&label);
     in_out_history.attach_to(&vertical_layout);
     in_out_history.invalidate();
     let in_out_history = connect_graph(in_out_history);
+
+    let mut packets_errors_history = Graph::new(Some(1.), false);
 
     packets_errors_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
@@ -338,32 +408,34 @@ pub fn create_network_dialog(
                 v.to_string(),
                 format!("{}", v / 2.),
                 "0".to_string(),
-                "Ki".to_string(),
+                "K".to_string(),
             ]
         } else if v < 10_000_000. {
             [
-                format!("{:.1}", v / 1_024f64),
-                format!("{:.1}", v / 2_048f64),
+                format!("{:.1}", v / 1_000f64),
+                format!("{:.1}", v / 2_000f64),
                 "0".to_string(),
-                "Mi".to_string(),
+                "M".to_string(),
             ]
         } else if v < 10_000_000_000. {
             [
-                format!("{:.1}", v / 1_048_576f64),
-                format!("{:.1}", v / 2_097_152f64),
+                format!("{:.1}", v / 1_000_000f64),
+                format!("{:.1}", v / 2_000_000f64),
                 "0".to_string(),
-                "Gi".to_string(),
+                "G".to_string(),
             ]
         } else {
             [
-                format!("{:.1}", v / 1_073_741_824f64),
-                format!("{:.1}", v / 2_147_483_648f64),
+                format!("{:.1}", v / 1_000_000_000f64),
+                format!("{:.1}", v / 2_000_000_000f64),
                 "0".to_string(),
-                "Ti".to_string(),
+                "T".to_string(),
             ]
         }
     })));
-    vertical_layout.add(&gtk::Label::new(Some("Extra data")));
+    let label = gtk::Label::new(None);
+    label.set_markup("<b>Extra data</b>");
+    vertical_layout.add(&label);
     packets_errors_history.attach_to(&vertical_layout);
     packets_errors_history.invalidate();
     let packets_errors_history = connect_graph(packets_errors_history);
@@ -405,15 +477,15 @@ pub fn create_network_dialog(
     NetworkDialog {
         name: interface_name.to_owned(),
         popup,
-        notebook,
         packets_errors_history,
         in_out_history,
         income_peak: Rc::new(RefCell::new(network.get_income())),
         outcome_peak: Rc::new(RefCell::new(network.get_outcome())),
-        income_packets_peak: Rc::new(RefCell::new(network.get_packets_income())),
-        outcome_packets_peak: Rc::new(RefCell::new(network.get_packets_outcome())),
-        income_errors_peak: Rc::new(RefCell::new(network.get_errors_income())),
-        outcome_errors_peak: Rc::new(RefCell::new(network.get_errors_outcome())),
+        packets_income_peak: Rc::new(RefCell::new(network.get_packets_income())),
+        packets_outcome_peak: Rc::new(RefCell::new(network.get_packets_outcome())),
+        errors_income_peak: Rc::new(RefCell::new(network.get_errors_income())),
+        errors_outcome_peak: Rc::new(RefCell::new(network.get_errors_outcome())),
         to_be_removed,
+        list_store,
     }
 }

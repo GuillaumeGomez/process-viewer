@@ -1,7 +1,4 @@
-use gdk_pixbuf::Pixbuf;
-use gio::MemoryInputStream;
 use glib::object::Cast;
-use glib::Bytes;
 use glib::Type;
 use gtk;
 use gtk::prelude::{

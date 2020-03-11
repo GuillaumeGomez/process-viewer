@@ -46,9 +46,9 @@ fn append_column(
 
 pub struct Network {
     list_store: gtk::ListStore,
-    current_network: Rc<RefCell<Option<String>>>,
     pub filter_entry: gtk::Entry,
     pub search_bar: gtk::SearchBar,
+    dialogs: Rc<RefCell<Vec<NetworkDialog>>>,
 }
 
 impl Network {
@@ -199,18 +199,16 @@ impl Network {
 
         let dialogs = Rc::new(RefCell::new(Vec::new()));
 
-        info_button.connect_clicked(
-            clone!(@weak current_network, @weak dialogs, @weak sys => move |_| {
-                let current_network = current_network.borrow();
-                if let Some(ref interface_name) = *current_network {
-                    println!("create network dialog for {}", interface_name);
-                    create_network_dialog(&mut *dialogs.borrow_mut(), interface_name, &*sys.borrow());
-                }
-            }),
-        );
+        info_button.connect_clicked(clone!(@weak dialogs, @weak sys => move |_| {
+            let current_network = current_network.borrow();
+            if let Some(ref interface_name) = *current_network {
+                println!("create network dialog for {}", interface_name);
+                create_network_dialog(&mut *dialogs.borrow_mut(), interface_name, &*sys.borrow());
+            }
+        }));
 
         tree.connect_row_activated(
-            clone!(@weak sys => move |tree_view, path, _| {
+            clone!(@weak sys, @weak dialogs => move |tree_view, path, _| {
                 let model = tree_view.get_model().expect("couldn't get model");
                 let iter = model.get_iter(path).expect("couldn't get iter");
                 let interface_name = model.get_value(&iter, 0)
@@ -223,9 +221,9 @@ impl Network {
 
         Network {
             list_store,
-            current_network,
             filter_entry,
             search_bar,
+            dialogs,
         }
     }
 
@@ -298,12 +296,22 @@ impl Network {
                     data.get_errors_outcome(),
                 );
             }
+            if let Some(dialog) = self
+                .dialogs
+                .borrow()
+                .iter()
+                .find(|x| x.name == *interface_name)
+            {
+                dialog.update(data);
+            }
         }
 
         // we re-enable the sorting
         if let Some((col, order)) = sorted {
             self.list_store.set_sort_column_id(col, order);
         }
+
+        self.dialogs.borrow_mut().retain(|x| !x.need_remove());
     }
 }
 
