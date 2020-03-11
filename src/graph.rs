@@ -167,19 +167,22 @@ impl Graph {
             1.0
         };
 
-        c.set_source_rgb(0.95, 0.95, 0.95);
-        c.rectangle(x_start, 1.0, width - 1.0, height - 2.0);
+        // to limit line "fuzziness"
+        #[inline]
+        fn rounder(x: f64) -> f64 {
+            let fract = x.fract();
+            if fract < 0.5 {
+                x.trunc()
+            } else {
+                x.trunc() + 1.
+            }
+        }
+
+        c.set_source_rgb(0., 0., 0.);
+        c.rectangle(x_start, 0., width, height);
         c.fill();
-        c.set_source_rgb(0.0, 0.0, 0.0);
-        c.set_line_width(1.0);
-        c.move_to(x_start, 0.0);
-        c.line_to(x_start, height);
-        c.move_to(width, 0.0);
-        c.line_to(width, height);
-        c.move_to(x_start, 0.0);
-        c.line_to(width, 0.0);
-        c.move_to(x_start, height);
-        c.line_to(width, height);
+        c.set_source_rgb(0.5, 0.5, 0.5);
+        c.set_line_width(0.5);
 
         // For now it's always 60 seconds.
         let time = 60.;
@@ -191,18 +194,20 @@ impl Graph {
         }
 
         while current > x_start {
-            c.move_to(current, 0.0);
-            c.line_to(current, height);
+            c.move_to(rounder(current), 0.0);
+            c.line_to(rounder(current), height);
             current -= x_step;
         }
         let step = height / 10.0;
         current = step - 1.0;
         while current < height - 1. {
-            c.move_to(x_start, current);
-            c.line_to(width - 1.0, current);
+            c.move_to(x_start, rounder(current));
+            c.line_to(width, rounder(current));
             current += step;
         }
         c.stroke();
+
+        c.set_line_width(1.);
 
         if let Some(ref self_max) = self.max {
             let mut max = if self.keep_max {
