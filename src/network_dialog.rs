@@ -166,12 +166,147 @@ pub fn create_network_dialog(
     popup.set_transient_for(get_main_window().as_ref());
     popup.set_destroy_with_parent(true);
 
-    //
-    // NETWORK INFO TAB
-    //
     let close_button = gtk::Button::new_with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
+    vertical_layout.pack_start(&notebook.notebook, true, true, 0);
+    vertical_layout.pack_start(&close_button, false, true, 0);
+    popup.add(&vertical_layout);
+
+    //
+    // GRAPH TAB
+    //
+    let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    vertical_layout.set_spacing(5);
+    vertical_layout.set_margin_top(10);
+    vertical_layout.set_margin_bottom(10);
+    vertical_layout.set_margin_start(5);
+    vertical_layout.set_margin_end(5);
+    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+    let mut in_out_history = Graph::new(Some(1.), false);
+
+    in_out_history.push(
+        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        "income",
+        None,
+    );
+    in_out_history.push(
+        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        "outcome",
+        None,
+    );
+    in_out_history.set_label_callbacks(Some(Box::new(|v| {
+        if v < 100_000. {
+            [
+                v.to_string(),
+                format!("{}", v / 2.),
+                "0".to_string(),
+                "KiB".to_string(),
+            ]
+        } else if v < 10_000_000. {
+            [
+                format!("{:.1}", v / 1_024f64),
+                format!("{:.1}", v / 2_048f64),
+                "0".to_string(),
+                "MiB".to_string(),
+            ]
+        } else if v < 10_000_000_000. {
+            [
+                format!("{:.1}", v / 1_048_576f64),
+                format!("{:.1}", v / 2_097_152f64),
+                "0".to_string(),
+                "GiB".to_string(),
+            ]
+        } else {
+            [
+                format!("{:.1}", v / 1_073_741_824f64),
+                format!("{:.1}", v / 2_147_483_648f64),
+                "0".to_string(),
+                "TiB".to_string(),
+            ]
+        }
+    })));
+    let label = gtk::Label::new(None);
+    label.set_markup("<b>Network usage</b>");
+    vertical_layout.add(&label);
+    in_out_history.attach_to(&vertical_layout);
+    in_out_history.invalidate();
+    in_out_history.set_labels_width(120);
+    let in_out_history = connect_graph(in_out_history);
+
+    let mut packets_errors_history = Graph::new(Some(1.), false);
+
+    packets_errors_history.push(
+        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        "income packets",
+        None,
+    );
+    packets_errors_history.push(
+        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        "outcome packets",
+        None,
+    );
+    packets_errors_history.push(
+        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        "income errors",
+        None,
+    );
+    packets_errors_history.push(
+        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        "outcome errors",
+        None,
+    );
+    packets_errors_history.set_label_callbacks(Some(Box::new(|v| {
+        if v < 100_000. {
+            [
+                v.to_string(),
+                format!("{}", v / 2.),
+                "0".to_string(),
+                "K".to_string(),
+            ]
+        } else if v < 10_000_000. {
+            [
+                format!("{:.1}", v / 1_000f64),
+                format!("{:.1}", v / 2_000f64),
+                "0".to_string(),
+                "M".to_string(),
+            ]
+        } else if v < 10_000_000_000. {
+            [
+                format!("{:.1}", v / 1_000_000f64),
+                format!("{:.1}", v / 2_000_000f64),
+                "0".to_string(),
+                "G".to_string(),
+            ]
+        } else {
+            [
+                format!("{:.1}", v / 1_000_000_000f64),
+                format!("{:.1}", v / 2_000_000_000f64),
+                "0".to_string(),
+                "T".to_string(),
+            ]
+        }
+    })));
+    packets_errors_history.set_labels_width(120);
+    let label = gtk::Label::new(None);
+    label.set_markup("<b>Extra data</b>");
+    vertical_layout.add(&label);
+    packets_errors_history.attach_to(&vertical_layout);
+    packets_errors_history.invalidate();
+    let packets_errors_history = connect_graph(packets_errors_history);
+
+    scroll.add(&vertical_layout);
+    scroll.connect_show(
+        clone!(@weak packets_errors_history, @weak in_out_history => move |_| {
+            packets_errors_history.borrow().show_all();
+            in_out_history.borrow().show_all();
+        }),
+    );
+    notebook.create_tab("Graphics", &scroll);
+
+    //
+    // NETWORK INFO TAB
+    //
     let tree = gtk::TreeView::new();
     let list_store = gtk::ListStore::new(&[glib::Type::String, glib::Type::String]);
 
@@ -312,145 +447,13 @@ pub fn create_network_dialog(
     );
 
     notebook.create_tab("Information", &tree);
-    vertical_layout.pack_start(&notebook.notebook, true, true, 0);
-    vertical_layout.pack_start(&close_button, false, true, 0);
-    popup.add(&vertical_layout);
-
-    //
-    // GRAPH TAB
-    //
-    let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    vertical_layout.set_spacing(5);
-    vertical_layout.set_margin_top(10);
-    vertical_layout.set_margin_bottom(10);
-    vertical_layout.set_margin_start(5);
-    vertical_layout.set_margin_end(5);
-    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-    let mut in_out_history = Graph::new(Some(1.), false);
-
-    in_out_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "income",
-        None,
-    );
-    in_out_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "outcome",
-        None,
-    );
-    in_out_history.set_label_callbacks(Some(Box::new(|v| {
-        if v < 100_000. {
-            [
-                v.to_string(),
-                format!("{}", v / 2.),
-                "0".to_string(),
-                "KiB".to_string(),
-            ]
-        } else if v < 10_000_000. {
-            [
-                format!("{:.1}", v / 1_024f64),
-                format!("{:.1}", v / 2_048f64),
-                "0".to_string(),
-                "MiB".to_string(),
-            ]
-        } else if v < 10_000_000_000. {
-            [
-                format!("{:.1}", v / 1_048_576f64),
-                format!("{:.1}", v / 2_097_152f64),
-                "0".to_string(),
-                "GiB".to_string(),
-            ]
-        } else {
-            [
-                format!("{:.1}", v / 1_073_741_824f64),
-                format!("{:.1}", v / 2_147_483_648f64),
-                "0".to_string(),
-                "TiB".to_string(),
-            ]
-        }
-    })));
-    let label = gtk::Label::new(None);
-    label.set_markup("<b>Network usage</b>");
-    vertical_layout.add(&label);
-    in_out_history.attach_to(&vertical_layout);
-    in_out_history.invalidate();
-    let in_out_history = connect_graph(in_out_history);
-
-    let mut packets_errors_history = Graph::new(Some(1.), false);
-
-    packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "income packets",
-        None,
-    );
-    packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "outcome packets",
-        None,
-    );
-    packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "income errors",
-        None,
-    );
-    packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "outcome errors",
-        None,
-    );
-    packets_errors_history.set_label_callbacks(Some(Box::new(|v| {
-        if v < 100_000. {
-            [
-                v.to_string(),
-                format!("{}", v / 2.),
-                "0".to_string(),
-                "K".to_string(),
-            ]
-        } else if v < 10_000_000. {
-            [
-                format!("{:.1}", v / 1_000f64),
-                format!("{:.1}", v / 2_000f64),
-                "0".to_string(),
-                "M".to_string(),
-            ]
-        } else if v < 10_000_000_000. {
-            [
-                format!("{:.1}", v / 1_000_000f64),
-                format!("{:.1}", v / 2_000_000f64),
-                "0".to_string(),
-                "G".to_string(),
-            ]
-        } else {
-            [
-                format!("{:.1}", v / 1_000_000_000f64),
-                format!("{:.1}", v / 2_000_000_000f64),
-                "0".to_string(),
-                "T".to_string(),
-            ]
-        }
-    })));
-    let label = gtk::Label::new(None);
-    label.set_markup("<b>Extra data</b>");
-    vertical_layout.add(&label);
-    packets_errors_history.attach_to(&vertical_layout);
-    packets_errors_history.invalidate();
-    let packets_errors_history = connect_graph(packets_errors_history);
-
-    scroll.add(&vertical_layout);
-    scroll.connect_show(
-        clone!(@weak packets_errors_history, @weak in_out_history => move |_| {
-            packets_errors_history.borrow().show_all();
-            in_out_history.borrow().show_all();
-        }),
-    );
-    notebook.create_tab("Graphics", &scroll);
 
     // To silence the annoying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
     popup.get_preferred_width();
-    popup.set_size_request(500, 600);
+    popup.set_size_request(700, 540);
 
     close_button.connect_clicked(clone!(@weak popup => move |_| {
         popup.destroy();
