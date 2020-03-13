@@ -164,18 +164,18 @@ impl Graph {
         let x_start = if self.label_callbacks.is_some() {
             LEFT_WIDTH
         } else {
-            1.0
+            0.
         };
 
         // to limit line "fuzziness"
         #[inline]
         fn rounder(x: f64) -> f64 {
             let fract = x.fract();
-            if fract < 0.5 {
-                x.trunc()
+            (if fract < 0.5 {
+                x.trunc() + 0.5
             } else {
-                x.trunc() + 1.
-            }
+                x.trunc() + 1.5
+            })
         }
 
         c.set_source_rgb(0., 0., 0.);
@@ -184,10 +184,9 @@ impl Graph {
         c.set_source_rgb(0.5, 0.5, 0.5);
         c.set_line_width(0.5);
 
-        // For now it's always 60 seconds.
-        let time = 60.;
-        let x_step = (width - 2.0 - x_start) * 5.0 / (time as f64);
-        let mut current = width * (x_step / 5.0) - 1.0;
+        // We always draw 10 lines (12 if we count the borders).
+        let x_step = (width - x_start) / 12.;
+        let mut current = width - width / 12.;
         if x_step < 0.1 {
             c.stroke();
             return;
