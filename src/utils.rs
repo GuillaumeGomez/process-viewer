@@ -1,8 +1,9 @@
 use graph::Graph;
 
-use gio;
-use glib::Cast;
-use gtk::{GtkApplicationExt, Inhibit, WidgetExt};
+use gdk_pixbuf::Pixbuf;
+use gio::{self, MemoryInputStream};
+use glib::{Bytes, Cast};
+use gtk::{ButtonExt, GtkApplicationExt, Inhibit, WidgetExt};
 
 use std::cell::RefCell;
 use std::ops::Index;
@@ -55,19 +56,23 @@ impl<T> RotateVec<T> {
     }
 }
 
-pub fn format_number(mut nb: u64) -> String {
+pub fn format_number(nb: u64) -> String {
+    format_number_full(nb, true)
+}
+
+pub fn format_number_full(mut nb: u64, use_unit: bool) -> String {
     if nb < 1000 {
-        return format!("{} B", nb);
+        return format!("{}{}", nb, if use_unit { " B" } else { "" });
     }
     nb >>= 10; // / 1_024
     if nb < 100_000 {
-        format!("{} KiB", nb)
+        format!("{}{}", nb, if use_unit { " KiB" } else { "" })
     } else if nb < 10_000_000 {
-        format!("{} MiB", nb >> 10) // / 1_024
+        format!("{}{}", nb >> 10, if use_unit { " MiB" } else { "" }) // / 1_024
     } else if nb < 10_000_000_000 {
-        format!("{} GiB", nb >> 20) // / 1_048_576
+        format!("{}{}", nb >> 20, if use_unit { " GiB" } else { "" }) // / 1_048_576
     } else {
-        format!("{} TiB", nb >> 30) // / 1_073_741_824
+        format!("{}{}", nb >> 30, if use_unit { " TiB" } else { "" }) // / 1_073_741_824
     }
 }
 
@@ -108,4 +113,19 @@ pub fn get_main_window() -> Option<gtk::Window> {
         }
     }
     None
+}
+
+pub fn create_button_with_image(image_bytes: &'static [u8], fallback_text: &str) -> gtk::Button {
+    let button = gtk::Button::new();
+    let memory_stream = MemoryInputStream::new_from_bytes(&Bytes::from_static(image_bytes));
+    let image =
+        Pixbuf::new_from_stream_at_scale(&memory_stream, 32, 32, true, None::<&gio::Cancellable>);
+    if let Ok(image) = image {
+        let image = gtk::Image::new_from_pixbuf(Some(&image));
+        button.set_image(Some(&image));
+        button.set_always_show_image(true);
+    } else {
+        button.set_label(fallback_text);
+    }
+    button
 }

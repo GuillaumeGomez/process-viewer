@@ -284,23 +284,22 @@ impl DisplaySysInfo {
         };
         tmp.update_system_info(&sys.borrow(), settings.display_fahrenheit);
 
-        check_box
-            .connect_toggled(
-                clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
-                    show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
-                }),
-            );
-        check_box2
-            .connect_toggled(
-                clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
-                    show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
-                }),
-            );
+        check_box.connect_toggled(
+            clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
+                show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
+            }),
+        );
+        check_box2.connect_toggled(
+            clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
+                show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
+            }),
+        );
         if let Some(ref check_box3) = check_box3 {
             check_box3.connect_toggled(
-                          clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
-                show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
-            }));
+                clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
+                    show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
+                }),
+            );
         }
 
         scroll.connect_show(

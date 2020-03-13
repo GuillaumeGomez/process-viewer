@@ -1,388 +1,367 @@
-use display_sysinfo::show_if_necessary;
-use graph::Graph;
-use gtk::{
-    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, GridExt, LabelExt, ScrolledWindowExt,
-    ToggleButtonExt, WidgetExt,
+use network_dialog::{self, NetworkDialog};
+
+use gtk;
+use gtk::prelude::{
+    BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
+    GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
+    TreeModelFilterExt, TreeSelectionExt, TreeSortableExtManual, TreeViewColumnExt, TreeViewExt,
+    WidgetExt,
 };
 use notebook::NoteBook;
-use settings::Settings;
-use sysinfo::{NetworkExt, SystemExt};
-use utils::{connect_graph, format_number, RotateVec};
+use sysinfo::{NetworkExt, NetworksExt, System, SystemExt};
+use utils::{create_button_with_image, format_number, format_number_full};
 
 use std::cell::RefCell;
-use std::iter;
+use std::collections::HashSet;
 use std::rc::Rc;
 
-// TODO:
-// change this entire tab into a treeview (to allow to sort columns and filter)
-// double-clicking on a network will open a dialog specifically for it
+fn append_column(
+    title: &str,
+    v: &mut Vec<gtk::TreeViewColumn>,
+    tree: &gtk::TreeView,
+    max_width: Option<i32>,
+) {
+    let id = v.len() as i32;
+    let renderer = gtk::CellRendererText::new();
 
-struct NetworkData {
-    name: String,
-    history: Rc<RefCell<Graph>>,
-    check_box: gtk::CheckButton,
-    non_graph_layout: gtk::Box,
-    updated: bool,
-    container: gtk::Box,
-    // network in usage
-    in_usage: gtk::Label,
-    // network out usage
-    out_usage: gtk::Label,
-    // network income packets
-    income_packets: gtk::Label,
-    // network outcome packets
-    outcome_packets: gtk::Label,
-    // network income errors
-    income_errors: gtk::Label,
-    // network outcome errors
-    outcome_errors: gtk::Label,
+    if title != "name" {
+        renderer.set_property_xalign(1.0);
+    }
+
+    let column = gtk::TreeViewColumn::new();
+    column.set_title(title);
+    column.set_resizable(true);
+    if let Some(max_width) = max_width {
+        column.set_max_width(max_width);
+        column.set_expand(true);
+    }
+    column.set_min_width(10);
+    column.pack_start(&renderer, true);
+    column.add_attribute(&renderer, "text", id);
+    column.set_clickable(true);
+    column.set_sort_column_id(id);
+    tree.append_column(&column);
+    v.push(column);
 }
 
 pub struct Network {
-    elems: Rc<RefCell<Vec<NetworkData>>>,
+    list_store: gtk::ListStore,
+    pub filter_entry: gtk::Entry,
+    pub search_bar: gtk::SearchBar,
+    dialogs: Rc<RefCell<Vec<NetworkDialog>>>,
 }
 
 impl Network {
     pub fn new(
-        sys: &Rc<RefCell<sysinfo::System>>,
         note: &mut NoteBook,
-        settings: &Rc<RefCell<Settings>>,
+        window: &gtk::ApplicationWindow,
+        sys: &Rc<RefCell<System>>,
     ) -> Network {
-        let layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+        let info_button = gtk::Button::new_with_label("More information");
+        let current_network = Rc::new(RefCell::new(None));
 
-        let mut elems = Vec::new();
-        update_network(&mut elems, &sys.borrow(), &layout, &settings.borrow());
-        let elems = Rc::new(RefCell::new(elems));
-        scroll.connect_show(clone!(@weak elems => move |_| {
-                let elems = elems.borrow();
-                for elem in elems.iter() {
-                    show_if_necessary(
-                        &elem.check_box,
-                        &elem.history.borrow(),
-                        &elem.non_graph_layout,
-                    );
-                }
-            }
-        ));
-        // It greatly improves the scrolling on the system information tab. No more clipping.
-        if let Some(adjustment) = scroll.get_vadjustment() {
-            adjustment.connect_value_changed(clone!(@weak elems => move |_| {
-                let elems = elems.borrow();
-                for elem in elems.iter() {
-                    elem.history.borrow().invalidate();
-                }
-            }));
-        }
-        let refresh_but = gtk::Button::new_with_label("Refresh network interfaces list");
+        let filter_button =
+            create_button_with_image(include_bytes!("../assets/magnifier.png"), "Filter");
 
-        refresh_but.connect_clicked(
-            clone!(@weak sys, @weak elems, @weak layout, @weak settings => move |_| {
-                sys.borrow_mut().refresh_networks_list();
-                update_network(&mut elems.borrow_mut(), &sys.borrow(), &layout, &settings.borrow());
-                // refresh_networks(&container, sys.borrow().get_disks(), &mut *elems.borrow_mut());
+        // TODO: maybe add an 'X' button to close search as well?
+        let overlay = gtk::Overlay::new();
+        let filter_entry = gtk::Entry::new();
+        let search_bar = gtk::SearchBar::new();
+
+        // We put the filter entry at the right bottom.
+        filter_entry.set_halign(gtk::Align::End);
+        filter_entry.set_valign(gtk::Align::End);
+        filter_entry.hide(); // By default, we don't show it.
+        search_bar.connect_entry(&filter_entry);
+        search_bar.set_show_close_button(true);
+
+        overlay.add_overlay(&filter_entry);
+
+        tree.set_headers_visible(true);
+        scroll.add(&tree);
+        overlay.add(&scroll);
+
+        let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
+
+        let list_store = gtk::ListStore::new(&[
+            // The first four columns of the model are going to be visible in the view.
+            glib::Type::String, // name
+            glib::Type::String, // in usage
+            glib::Type::String, // out usage
+            glib::Type::String, // income packets
+            glib::Type::String, // outcome packets
+            glib::Type::String, // income errors
+            glib::Type::String, // outcome errors
+            // These two will serve as keys when sorting by interface name and other numerical
+            // things.
+            glib::Type::String, // name_lowercase
+            glib::Type::U64,    // in usage
+            glib::Type::U64,    // out usage
+            glib::Type::U64,    // income packets
+            glib::Type::U64,    // outcome packets
+            glib::Type::U64,    // income errors
+            glib::Type::U64,    // outcome errors
+        ]);
+
+        // The filter model
+        let filter_model = gtk::TreeModelFilter::new(&list_store, None);
+        filter_model.set_visible_func(
+            clone!(@weak filter_entry => @default-return false, move |model, iter| {
+                if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
+                    return true;
+                }
+                if let Some(text) = filter_entry.get_text() {
+                    if text.is_empty() {
+                        return true;
+                    }
+                    let text: &str = text.as_ref();
+                    // TODO: Maybe add an option to make searches case sensitive?
+                    let name = model.get_value(iter, 0)
+                                    .get::<String>()
+                                    .unwrap_or_else(|_| None)
+                                    .map(|s| s.to_lowercase())
+                                    .unwrap_or_else(String::new);
+                    name.contains(text)
+                } else {
+                    true
+                }
             }),
         );
 
-        scroll.add(&layout);
+        // For the filtering to be taken into account, we need to add it directly into the
+        // "global" model.
+        let sort_model = gtk::TreeModelSort::new(&filter_model);
+        tree.set_model(Some(&sort_model));
+
+        append_column("name", &mut columns, &tree, Some(200));
+        append_column("in usage", &mut columns, &tree, None);
+        append_column("out usage", &mut columns, &tree, None);
+        append_column("income packets", &mut columns, &tree, None);
+        append_column("outcome packets", &mut columns, &tree, None);
+        append_column("income errors", &mut columns, &tree, None);
+        append_column("outcome errors", &mut columns, &tree, None);
+
+        let columns_len = columns.len();
+        for (pos, column) in columns.iter().enumerate() {
+            column.set_sort_column_id(pos as i32 + columns_len as i32);
+        }
 
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let horizontal_layout = gtk::Grid::new();
 
-        vertical_layout.pack_start(&scroll, true, true, 0);
-        vertical_layout.pack_start(&refresh_but, false, true, 0);
+        horizontal_layout.attach(&info_button, 0, 0, 4, 1);
+        horizontal_layout.attach_next_to(
+            &filter_button,
+            Some(&info_button),
+            gtk::PositionType::Right,
+            1,
+            1,
+        );
+        horizontal_layout.set_column_homogeneous(true);
+
+        vertical_layout.pack_start(&overlay, true, true, 0);
+        vertical_layout.pack_start(&horizontal_layout, false, true, 0);
+
+        filter_entry.connect_property_text_length_notify(move |_| {
+            filter_model.refilter();
+        });
 
         note.create_tab("Networks", &vertical_layout);
 
-        Network { elems }
-    }
+        tree.connect_cursor_changed(
+            clone!(@weak current_network, @weak info_button => move |tree_view| {
+                let selection = tree_view.get_selection();
+                let (name, ret) = if let Some((model, iter)) = selection.get_selected() {
+                    if let Ok(Some(x)) = model.get_value(&iter, 0).get::<String>() {
+                        (Some(x), true)
+                    } else {
+                        (None, false)
+                    }
+                } else {
+                    (None, false)
+                };
+                *current_network.borrow_mut() = name;
+                info_button.set_sensitive(ret);
+            }),
+        );
+        info_button.set_sensitive(false);
 
-    // Maybe move the caller to a higher level?
-    pub fn set_size_request(&self, width: i32, height: i32) {
-        let elems = self.elems.borrow();
-        for elem in elems.iter() {
-            let history = elem.history.borrow();
-            history.area.set_size_request(width, height);
-        }
-    }
-
-    pub fn update_network(&mut self, sys: &sysinfo::System) {
-        let mut networks = self.elems.borrow_mut();
-        for (name, data) in sys.get_networks() {
-            for network in networks.iter_mut().filter(|x| x.name == *name) {
-                network
-                    .in_usage
-                    .set_text(format_number(data.get_income()).as_str());
-                network
-                    .out_usage
-                    .set_text(format_number(data.get_outcome()).as_str());
-
-                let mut history = network.history.borrow_mut();
-                history.data[0].move_start();
-                *history.data[0].get_mut(0).expect("cannot get data 0") = data.get_income() as f64;
-                history.data[1].move_start();
-                *history.data[1].get_mut(0).expect("cannot get data 1") = data.get_outcome() as f64;
-                history.invalidate();
-
-                network
-                    .income_packets
-                    .set_text(&better_number(data.get_total_packets_income()));
-                network
-                    .outcome_packets
-                    .set_text(&better_number(data.get_total_packets_outcome()));
-                network
-                    .income_errors
-                    .set_text(&better_number(data.get_total_errors_income()));
-                network
-                    .outcome_errors
-                    .set_text(&better_number(data.get_total_errors_outcome()));
-            }
-        }
-    }
-
-    pub fn set_checkboxes_state(&self, active: bool) {
-        let elems = self.elems.borrow();
-        for elem in elems.iter() {
-            elem.check_box.set_active(active);
-        }
-    }
-}
-
-fn update_network(
-    interfaces: &mut Vec<NetworkData>,
-    sys: &sysinfo::System,
-    layout: &gtk::Box,
-    settings: &Settings,
-) {
-    for (interface_name, _) in sys.get_networks() {
-        if let Some(item) = interfaces.iter_mut().find(|x| x.name == *interface_name) {
-            item.updated = true;
-        } else {
-            interfaces.push(create_network_interface(
-                &layout,
-                &interface_name,
-                &settings,
-            ));
-        }
-    }
-    interfaces.retain(|x| {
-        if !x.updated {
-            layout.remove(&x.container);
-        }
-        x.updated
-    });
-    interfaces.sort_unstable_by(|a, b| {
-        a.name
-            .partial_cmp(&b.name)
-            .expect("string comparison failed")
-    });
-    for (pos, interface) in interfaces.iter_mut().enumerate() {
-        interface.updated = false;
-        layout.reorder_child(&interface.container, pos as _);
-    }
-}
-
-fn create_non_graph_labels(
-    label_text: &str,
-    text: &str,
-    non_graph_layout: &gtk::Box,
-) -> gtk::Label {
-    let label = gtk::Label::new(Some(text));
-    let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    horizontal_layout.pack_start(&gtk::Label::new(Some(label_text)), true, false, 0);
-    horizontal_layout.pack_start(&label, true, false, 0);
-    horizontal_layout.set_homogeneous(true);
-    non_graph_layout.add(&horizontal_layout);
-    label
-}
-
-fn better_number(mut f: u64) -> String {
-    if f < 1000 {
-        f.to_string()
-    } else {
-        let mut s = String::new();
-        let mut count = 0;
-        while f > 0 {
-            if !s.is_empty() && count % 3 == 0 {
-                s.push(' ');
-            }
-            s.push((((f % 10) as u8) + b'0') as char);
-            f /= 10;
-            count += 1;
-        }
-        {
-            let vec = unsafe { s.as_mut_vec() };
-            vec.reverse();
-        }
-        s
-    }
-}
-
-fn create_header(
-    label_text: &str,
-    parent_layout: &gtk::Box,
-    display_graph: bool,
-    hide_everything: Rc<RefCell<bool>>,
-    history: &Rc<RefCell<Graph>>,
-    non_graph_layout: &gtk::Box,
-) -> gtk::CheckButton {
-    let check_box = gtk::CheckButton::new_with_label("Graph view");
-    check_box.set_active(display_graph);
-
-    let label = gtk::Label::new(None);
-    label.set_markup(label_text);
-
-    let empty = gtk::Label::new(None);
-    let grid = gtk::Grid::new();
-    let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    horizontal_layout.pack_start(&gtk::Label::new(None), true, true, 0);
-    horizontal_layout.pack_start(&check_box, false, false, 0);
-    
-    let hide_button = gtk::Button::new_with_label("-");
-
-    hide_button.connect_clicked(clone!(@weak hide_everything, @weak check_box, @weak history, @weak non_graph_layout => move |hide_button| {
-        let show_necessary = if hide_button.get_label().map(|x| x == "+").unwrap_or(false) {
-            hide_button.set_label("-");
-            *hide_everything.borrow_mut() = false;
-            true
-        } else {
-            hide_button.set_label("+");
-            *hide_everything.borrow_mut() = true;
-            false
-        };
-        if show_necessary {
-            show_if_necessary(&check_box, &history.borrow(), &non_graph_layout);
-        } else {
-            non_graph_layout.hide();
-            history.borrow().hide();
-        }
-    }));
-
-    grid.attach(&hide_button, 0, 0, 1, 1);
-    grid.attach_next_to(&empty, Some(&hide_button), gtk::PositionType::Right, 2, 1);
-    grid.attach_next_to(&label, Some(&empty), gtk::PositionType::Right, 3, 1);
-    grid.attach_next_to(
-        &horizontal_layout,
-        Some(&label),
-        gtk::PositionType::Right,
-        3,
-        1,
-    );
-    grid.set_column_homogeneous(true);
-    parent_layout.pack_start(&grid, false, false, 15);
-
-    check_box
-        .connect_toggled(clone!(@weak non_graph_layout, @weak history => move |c| {
-            if !*hide_everything.borrow() {
-                show_if_necessary(c, &history.borrow(), &non_graph_layout);
+        filter_button.connect_clicked(clone!(@weak filter_entry, @weak window => move |_| {
+            if filter_entry.get_visible() {
+                filter_entry.hide();
+            } else {
+                filter_entry.show_all();
+                window.set_focus(Some(&filter_entry));
             }
         }));
-    check_box
-}
 
-fn create_network_interface(layout: &gtk::Box, name: &str, settings: &Settings) -> NetworkData {
-    let mut history = Graph::new(Some(1.), false);
-    history.set_overhead(Some(20.));
-    history.set_label_callbacks(Some(Box::new(|v| {
-        let v = v as u64;
-        if v < 1000 {
-            return [
-                v.to_string(),
-                (v >> 1).to_string(),
-                "0".to_string(),
-                "B/sec".to_string(),
-            ];
+        let dialogs = Rc::new(RefCell::new(Vec::new()));
+
+        info_button.connect_clicked(clone!(@weak dialogs, @weak sys => move |_| {
+            let current_network = current_network.borrow();
+            if let Some(ref interface_name) = *current_network {
+                println!("create network dialog for {}", interface_name);
+                create_network_dialog(&mut *dialogs.borrow_mut(), interface_name, &*sys.borrow());
+            }
+        }));
+
+        tree.connect_row_activated(
+            clone!(@weak sys, @weak dialogs => move |tree_view, path, _| {
+                let model = tree_view.get_model().expect("couldn't get model");
+                let iter = model.get_iter(path).expect("couldn't get iter");
+                let interface_name = model.get_value(&iter, 0)
+                                            .get::<String>()
+                                            .expect("Model::get failed")
+                                            .expect("failed to get value from model");
+                create_network_dialog(&mut *dialogs.borrow_mut(), &interface_name, &*sys.borrow());
+            }),
+        );
+
+        Network {
+            list_store,
+            filter_entry,
+            search_bar,
+            dialogs,
         }
-        let nb = v / 1000;
-        if nb < 100_000 {
-            [
-                nb.to_string(),
-                (nb >> 1).to_string(),
-                "0".to_string(),
-                "kB/sec".to_string(),
-            ]
-        } else if nb < 10_000_000 {
-            [
-                (nb >> 10).to_string(),
-                (nb >> 11).to_string(),
-                "0".to_string(),
-                "MB/sec".to_string(),
-            ]
-        } else if nb < 10_000_000_000 {
-            [
-                (nb >> 20).to_string(),
-                (nb >> 21).to_string(),
-                "0".to_string(),
-                "GB/sec".to_string(),
-            ]
-        } else {
-            [
-                (nb >> 30).to_string(),
-                (nb >> 31).to_string(),
-                "0".to_string(),
-                "TB/sec".to_string(),
-            ]
-        }
-    })));
-    history.set_labels_width(70);
-
-    let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let non_graph_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
-    history.area.set_margin_bottom(20);
-
-    // input data
-    let in_usage = create_non_graph_labels("Input data", &format_number(0), &non_graph_layout);
-    history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "Input data",
-        None,
-    );
-    // output data
-    let out_usage = create_non_graph_labels("Output data", &format_number(0), &non_graph_layout);
-    history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "Output data",
-        None,
-    );
-
-    let history = connect_graph(history);
-    let hide_everything = Rc::new(RefCell::new(false));
-
-    let check_box = create_header(
-        &format!("<b>{}</b>", name),
-        &container,
-        settings.display_graph,
-        hide_everything,
-        &history,
-        &non_graph_layout,
-    );
-
-    container.add(&non_graph_layout);
-    {
-        history.borrow().attach_to(&container);
     }
 
-    layout.add(&container);
+    pub fn hide_filter(&self) {
+        self.filter_entry.hide();
+        self.filter_entry.set_text("");
+        self.search_bar.set_search_mode(false);
+    }
 
-    // packets
-    let income_packets = create_non_graph_labels("Total income packets", "0", &non_graph_layout);
-    let outcome_packets = create_non_graph_labels("Total outcome packets", "0", &non_graph_layout);
-    // errors
-    let income_errors = create_non_graph_labels("Total income errors", "0", &non_graph_layout);
-    let outcome_errors = create_non_graph_labels("Total outcome errors", "0", &non_graph_layout);
+    pub fn update_networks(&mut self, sys: &System) {
+        // first part, deactivate sorting
+        let sorted = TreeSortableExtManual::get_sort_column_id(&self.list_store);
+        self.list_store.set_unsorted();
 
-    NetworkData {
-        name: name.to_owned(),
-        history,
-        check_box,
-        non_graph_layout,
-        in_usage,
-        out_usage,
-        updated: true,
-        income_packets,
-        outcome_packets,
-        income_errors,
-        outcome_errors,
-        container,
+        let mut seen: HashSet<String> = HashSet::new();
+        let networks = sys.get_networks();
+
+        if let Some(iter) = self.list_store.get_iter_first() {
+            let mut valid = true;
+            while valid {
+                if let Some(name) = match self.list_store.get_value(&iter, 0).get::<glib::GString>()
+                {
+                    Ok(n) => n,
+                    _ => {
+                        valid = self.list_store.iter_next(&iter);
+                        continue;
+                    }
+                } {
+                    if let Some((_, data)) = networks
+                        .iter()
+                        .find(|(interface_name, _)| interface_name.as_str() == name)
+                    {
+                        self.list_store.set(
+                            &iter,
+                            &[1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13],
+                            &[
+                                &format_number(data.get_income()),
+                                &format_number(data.get_outcome()),
+                                &format_number_full(data.get_packets_income(), false),
+                                &format_number_full(data.get_packets_outcome(), false),
+                                &format_number_full(data.get_errors_income(), false),
+                                &format_number_full(data.get_errors_outcome(), false),
+                                &data.get_income(),
+                                &data.get_outcome(),
+                                &data.get_packets_income(),
+                                &data.get_packets_outcome(),
+                                &data.get_errors_income(),
+                                &data.get_errors_outcome(),
+                            ],
+                        );
+                        valid = self.list_store.iter_next(&iter);
+                        seen.insert(name.to_string());
+                    } else {
+                        valid = self.list_store.remove(&iter);
+                    }
+                }
+            }
+        }
+
+        for (interface_name, data) in networks.iter() {
+            if !seen.contains(interface_name.as_str()) {
+                create_and_fill_model(
+                    &self.list_store,
+                    interface_name,
+                    data.get_income(),
+                    data.get_outcome(),
+                    data.get_packets_income(),
+                    data.get_packets_outcome(),
+                    data.get_errors_income(),
+                    data.get_errors_outcome(),
+                );
+            }
+            if let Some(dialog) = self
+                .dialogs
+                .borrow()
+                .iter()
+                .find(|x| x.name == *interface_name)
+            {
+                dialog.update(data);
+            }
+        }
+
+        // we re-enable the sorting
+        if let Some((col, order)) = sorted {
+            self.list_store.set_sort_column_id(col, order);
+        }
+
+        self.dialogs.borrow_mut().retain(|x| !x.need_remove());
+    }
+}
+
+fn create_and_fill_model(
+    list_store: &gtk::ListStore,
+    interface_name: &str,
+    in_usage: u64,
+    out_usage: u64,
+    income_packets: u64,
+    outcome_packets: u64,
+    income_errors: u64,
+    outcome_errors: u64,
+) {
+    list_store.insert_with_values(
+        None,
+        &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+        &[
+            &interface_name,
+            &format_number(in_usage),
+            &format_number(out_usage),
+            &format_number_full(income_packets, false),
+            &format_number_full(outcome_packets, false),
+            &format_number_full(income_errors, false),
+            &format_number_full(outcome_errors, false),
+            // sort part
+            &interface_name.to_lowercase(),
+            &in_usage,
+            &out_usage,
+            &income_packets,
+            &outcome_packets,
+            &income_errors,
+            &outcome_errors,
+        ],
+    );
+}
+
+fn create_network_dialog(dialogs: &mut Vec<NetworkDialog>, interface_name: &str, sys: &System) {
+    for dialog in dialogs.iter() {
+        if dialog.name == interface_name {
+            dialog.show();
+            return;
+        }
+    }
+    if let Some((_, data)) = sys
+        .get_networks()
+        .iter()
+        .find(|(name, _)| name.as_str() == interface_name)
+    {
+        dialogs.push(network_dialog::create_network_dialog(data, interface_name));
+    } else {
+        eprintln!("couldn't find {}...", interface_name);
     }
 }
