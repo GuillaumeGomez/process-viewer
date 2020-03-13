@@ -169,10 +169,8 @@ pub fn create_network_dialog(
     //
     // NETWORK INFO TAB
     //
-    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
     let close_button = gtk::Button::new_with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 
     let tree = gtk::TreeView::new();
     let list_store = gtk::ListStore::new(&[glib::Type::String, glib::Type::String]);
@@ -313,12 +311,10 @@ pub fn create_network_dialog(
         ],
     );
 
-    scroll.add(&tree);
-
-    vertical_layout.pack_start(&scroll, true, true, 0);
+    notebook.create_tab("Information", &tree);
+    vertical_layout.pack_start(&notebook.notebook, true, true, 0);
     vertical_layout.pack_start(&close_button, false, true, 0);
-
-    notebook.create_tab("Information", &vertical_layout);
+    popup.add(&vertical_layout);
 
     //
     // GRAPH TAB
@@ -449,7 +445,6 @@ pub fn create_network_dialog(
     );
     notebook.create_tab("Graphics", &scroll);
 
-    popup.add(&notebook.notebook);
     // To silence the annoying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
