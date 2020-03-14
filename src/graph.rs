@@ -171,11 +171,11 @@ impl Graph {
         #[inline]
         fn rounder(x: f64) -> f64 {
             let fract = x.fract();
-            (if fract < 0.5 {
+            if fract < 0.5 {
                 x.trunc() + 0.5
             } else {
                 x.trunc() + 1.5
-            })
+            }
         }
 
         c.set_source_rgb(0., 0., 0.);

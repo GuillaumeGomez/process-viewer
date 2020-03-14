@@ -19,12 +19,12 @@ pub struct NetworkDialog {
     popup: gtk::Window,
     packets_errors_history: Rc<RefCell<Graph>>,
     in_out_history: Rc<RefCell<Graph>>,
-    income_peak: Rc<RefCell<u64>>,
-    outcome_peak: Rc<RefCell<u64>>,
-    packets_income_peak: Rc<RefCell<u64>>,
-    packets_outcome_peak: Rc<RefCell<u64>>,
-    errors_income_peak: Rc<RefCell<u64>>,
-    errors_outcome_peak: Rc<RefCell<u64>>,
+    incoming_peak: Rc<RefCell<u64>>,
+    outgoing_peak: Rc<RefCell<u64>>,
+    packets_incoming_peak: Rc<RefCell<u64>>,
+    packets_outgoing_peak: Rc<RefCell<u64>>,
+    errors_incoming_peak: Rc<RefCell<u64>>,
+    errors_outgoing_peak: Rc<RefCell<u64>>,
     to_be_removed: Rc<RefCell<bool>>,
     list_store: gtk::ListStore,
 }
@@ -36,14 +36,14 @@ macro_rules! update_graph {
         let mut x = $this.$peak.borrow_mut();
         if *x < $value {
             *x = $value;
-            if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos) {
+            if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos - 1) {
                 $this.list_store.set(&iter, &[1], &[&$formatter($value)]);
             }
         }
-        if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos - 1) {
+        if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos - 2) {
             $this.list_store.set(&iter, &[1], &[&$formatter($value)]);
         }
-        if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos - 2) {
+        if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos) {
             $this
                 .list_store
                 .set(&iter, &[1], &[&$formatter($total_value)]);
@@ -67,7 +67,7 @@ impl NetworkDialog {
             0,
             network.get_packets_income(),
             network.get_total_packets_income(),
-            packets_income_peak,
+            packets_incoming_peak,
             8,
             formatter
         );
@@ -77,7 +77,7 @@ impl NetworkDialog {
             1,
             network.get_packets_outcome(),
             network.get_total_packets_outcome(),
-            packets_outcome_peak,
+            packets_outgoing_peak,
             11,
             formatter
         );
@@ -87,7 +87,7 @@ impl NetworkDialog {
             2,
             network.get_errors_income(),
             network.get_total_errors_income(),
-            errors_income_peak,
+            errors_incoming_peak,
             14,
             formatter
         );
@@ -97,7 +97,7 @@ impl NetworkDialog {
             3,
             network.get_errors_outcome(),
             network.get_total_errors_outcome(),
-            errors_outcome_peak,
+            errors_outgoing_peak,
             17,
             formatter
         );
@@ -110,7 +110,7 @@ impl NetworkDialog {
             0,
             network.get_income(),
             network.get_total_income(),
-            income_peak,
+            incoming_peak,
             2,
             format_number
         );
@@ -120,7 +120,7 @@ impl NetworkDialog {
             1,
             network.get_outcome(),
             network.get_total_outcome(),
-            outcome_peak,
+            outgoing_peak,
             5,
             format_number
         );
@@ -187,12 +187,12 @@ pub fn create_network_dialog(
 
     in_out_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "income",
+        "incoming",
         None,
     );
     in_out_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "outcome",
+        "outgoing",
         None,
     );
     in_out_history.set_label_callbacks(Some(Box::new(|v| {
@@ -238,22 +238,22 @@ pub fn create_network_dialog(
 
     packets_errors_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "income packets",
+        "incoming packets",
         None,
     );
     packets_errors_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "outcome packets",
+        "outgoing packets",
         None,
     );
     packets_errors_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "income errors",
+        "incoming errors",
         None,
     );
     packets_errors_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
-        "outcome errors",
+        "outgoing errors",
         None,
     );
     packets_errors_history.set_label_callbacks(Some(Box::new(|v| {
@@ -319,33 +319,33 @@ pub fn create_network_dialog(
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"income", &format_number(network.get_income())],
+        &[&"incoming", &format_number(network.get_income())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"income peak", &format_number(network.get_income())],
+        &[&"incoming peak", &format_number(network.get_income())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"total income", &format_number(network.get_total_income())],
+        &[&"total incoming", &format_number(network.get_total_income())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"outcome", &format_number(network.get_outcome())],
+        &[&"outgoing", &format_number(network.get_outcome())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"outcome peak", &format_number(network.get_outcome())],
+        &[&"outgoing peak", &format_number(network.get_outcome())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
         &[
-            &"total outcome",
+            &"total outgoing",
             &format_number(network.get_total_outcome()),
         ],
     );
@@ -477,12 +477,12 @@ pub fn create_network_dialog(
         popup,
         packets_errors_history,
         in_out_history,
-        income_peak: Rc::new(RefCell::new(network.get_income())),
-        outcome_peak: Rc::new(RefCell::new(network.get_outcome())),
-        packets_income_peak: Rc::new(RefCell::new(network.get_packets_income())),
-        packets_outcome_peak: Rc::new(RefCell::new(network.get_packets_outcome())),
-        errors_income_peak: Rc::new(RefCell::new(network.get_errors_income())),
-        errors_outcome_peak: Rc::new(RefCell::new(network.get_errors_outcome())),
+        incoming_peak: Rc::new(RefCell::new(network.get_income())),
+        outgoing_peak: Rc::new(RefCell::new(network.get_outcome())),
+        packets_incoming_peak: Rc::new(RefCell::new(network.get_packets_income())),
+        packets_outgoing_peak: Rc::new(RefCell::new(network.get_packets_outcome())),
+        errors_incoming_peak: Rc::new(RefCell::new(network.get_errors_income())),
+        errors_outgoing_peak: Rc::new(RefCell::new(network.get_errors_outcome())),
         to_be_removed,
         list_store,
     }
