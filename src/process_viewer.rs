@@ -365,6 +365,13 @@ fn build_ui(application: &gtk::Application) {
 
     menu.append(Some("Launch new executable"), Some("app.new-task"));
     menu.append(Some("Quit"), Some("app.quit"));
+    let quit = gio::SimpleAction::new("quit", None);
+    quit.connect_activate(
+        clone!(@weak application => move |_,_| {
+            application.quit();
+        }),
+    );
+    application.set_accels_for_action("app.quit", &["<Primary>Q"]);
 
     settings_menu.append(Some("Display temperature in °F"), Some("app.temperature"));
     settings_menu.append(Some("Display graphs"), Some("app.graphs"));
@@ -478,11 +485,6 @@ fn build_ui(application: &gtk::Application) {
                 create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
             }
         ));
-
-    let quit = gio::SimpleAction::new("quit", None);
-    quit.connect_activate(clone!(@weak window => move |_, _| {
-        window.destroy();
-    }));
 
     let about = gio::SimpleAction::new("about", None);
     about.connect_activate(clone!(@weak window => move |_, _| {
