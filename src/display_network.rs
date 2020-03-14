@@ -90,19 +90,19 @@ impl Network {
             glib::Type::String, // name
             glib::Type::String, // in usage
             glib::Type::String, // out usage
-            glib::Type::String, // income packets
-            glib::Type::String, // outcome packets
-            glib::Type::String, // income errors
-            glib::Type::String, // outcome errors
+            glib::Type::String, // incoming packets
+            glib::Type::String, // outgoing packets
+            glib::Type::String, // incoming errors
+            glib::Type::String, // outgoing errors
             // These two will serve as keys when sorting by interface name and other numerical
             // things.
             glib::Type::String, // name_lowercase
             glib::Type::U64,    // in usage
             glib::Type::U64,    // out usage
-            glib::Type::U64,    // income packets
-            glib::Type::U64,    // outcome packets
-            glib::Type::U64,    // income errors
-            glib::Type::U64,    // outcome errors
+            glib::Type::U64,    // incoming packets
+            glib::Type::U64,    // outgoing packets
+            glib::Type::U64,    // incoming errors
+            glib::Type::U64,    // outgoing errors
         ]);
 
         // The filter model
@@ -138,10 +138,10 @@ impl Network {
         append_column("name", &mut columns, &tree, Some(200));
         append_column("in usage", &mut columns, &tree, None);
         append_column("out usage", &mut columns, &tree, None);
-        append_column("income packets", &mut columns, &tree, None);
-        append_column("outcome packets", &mut columns, &tree, None);
-        append_column("income errors", &mut columns, &tree, None);
-        append_column("outcome errors", &mut columns, &tree, None);
+        append_column("incoming packets", &mut columns, &tree, None);
+        append_column("outgoing packets", &mut columns, &tree, None);
+        append_column("incoming errors", &mut columns, &tree, None);
+        append_column("outgoing errors", &mut columns, &tree, None);
 
         let columns_len = columns.len();
         for (pos, column) in columns.iter().enumerate() {
@@ -320,10 +320,10 @@ fn create_and_fill_model(
     interface_name: &str,
     in_usage: u64,
     out_usage: u64,
-    income_packets: u64,
-    outcome_packets: u64,
-    income_errors: u64,
-    outcome_errors: u64,
+    incoming_packets: u64,
+    outgoing_packets: u64,
+    incoming_errors: u64,
+    outgoing_errors: u64,
 ) {
     list_store.insert_with_values(
         None,
@@ -332,18 +332,18 @@ fn create_and_fill_model(
             &interface_name,
             &format_number(in_usage),
             &format_number(out_usage),
-            &format_number_full(income_packets, false),
-            &format_number_full(outcome_packets, false),
-            &format_number_full(income_errors, false),
-            &format_number_full(outcome_errors, false),
+            &format_number_full(incoming_packets, false),
+            &format_number_full(outgoing_packets, false),
+            &format_number_full(incoming_errors, false),
+            &format_number_full(outgoing_errors, false),
             // sort part
             &interface_name.to_lowercase(),
             &in_usage,
             &out_usage,
-            &income_packets,
-            &outcome_packets,
-            &income_errors,
-            &outcome_errors,
+            &incoming_packets,
+            &outgoing_packets,
+            &incoming_errors,
+            &outgoing_errors,
         ],
     );
 }
