@@ -271,8 +271,8 @@ impl DisplaySysInfo {
 
         let mut tmp = DisplaySysInfo {
             procs: Rc::new(RefCell::new(procs)),
-            ram: ram.clone(),
-            swap: swap.clone(),
+            ram,
+            swap,
             vertical_layout,
             components,
             cpu_usage_history: Rc::clone(&cpu_usage_history),

@@ -80,7 +80,7 @@ impl ProcDialog {
         self.cpu_usage.set_text("0%");
         let s = format!(
             "Ran for {}",
-            self.run_time.get_text().unwrap_or("0s".into())
+            self.run_time.get_text().unwrap_or_else(|| "0s".into())
         );
         self.run_time.set_text(&s);
     }
