@@ -492,8 +492,8 @@ fn build_ui(application: &gtk::Application) {
         p.set_authors(&["Guillaume Gomez"]);
         p.set_website_label(Some("my website"));
         p.set_website(Some("https://guillaume-gomez.fr/"));
-        p.set_comments(Some("A process viewer GUI wrote with gtk-rs"));
-        p.set_copyright(Some("This is under MIT license"));
+        p.set_comments(Some("A process viewer GUI written with gtk-rs"));
+        p.set_copyright(Some("Licensed under MIT"));
         p.set_transient_for(Some(&window));
         p.set_program_name("process-viewer");
         let memory_stream = MemoryInputStream::new_from_bytes(
