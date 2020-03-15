@@ -497,7 +497,8 @@ fn build_ui(application: &gtk::Application) {
         p.set_transient_for(Some(&window));
         p.set_program_name("process-viewer");
         let memory_stream = MemoryInputStream::new_from_bytes(
-                                &Bytes::from_static(include_bytes!("../assets/eye.png")));
+            &Bytes::from_static(include_bytes!(
+                    concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png"))));
         let logo = Pixbuf::new_from_stream(&memory_stream, None::<&gio::Cancellable>);
         if let Ok(logo) = logo {
             p.set_logo(Some(&logo));
