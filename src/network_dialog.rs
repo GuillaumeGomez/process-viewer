@@ -52,6 +52,7 @@ macro_rules! update_graph {
 }
 
 impl NetworkDialog {
+    #[allow(clippy::cognitive_complexity)]
     pub fn update(&self, network: &sysinfo::NetworkData) {
         if self.need_remove() {
             return;
