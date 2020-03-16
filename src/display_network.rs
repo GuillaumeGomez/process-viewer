@@ -315,6 +315,7 @@ impl Network {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_and_fill_model(
     list_store: &gtk::ListStore,
     interface_name: &str,
