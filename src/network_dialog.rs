@@ -329,7 +329,10 @@ pub fn create_network_dialog(
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"total incoming", &format_number(network.get_total_income())],
+        &[
+            &"total incoming",
+            &format_number(network.get_total_income()),
+        ],
     );
     list_store.insert_with_values(
         None,
