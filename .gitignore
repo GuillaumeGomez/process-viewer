@@ -1,3 +1,5 @@
 *target
 **.dll
 **-config
+flatpak/.flatpak-builder
+flatpak/repo
