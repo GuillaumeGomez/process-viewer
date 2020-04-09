@@ -63,7 +63,7 @@ use display_sysinfo::DisplaySysInfo;
 use notebook::NoteBook;
 use settings::Settings;
 
-pub const APPLICATION_NAME: &str = "com.github.GuillaumeGomez.process-viewer";
+pub const APPLICATION_NAME: &str = "fr.guillaume_gomez.ProcessViewer";
 
 fn update_system_info(
     system: &Rc<RefCell<sysinfo::System>>,
