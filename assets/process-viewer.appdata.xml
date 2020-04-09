@@ -13,6 +13,10 @@
       this information is available).
     </p>
   </description>
+  <releases>
+    <release version="0.3.5" date="2020-03-15"/>
+  </releases>
+  <content_rating type="oars-1.0" />
   <developer_name>Guillaume Gomez</developer_name>
   <url type="homepage">https://github.com/GuillaumeGomez/process-viewer/</url>
   <url type="bugtracker">https://github.com/GuillaumeGomez/process-viewer/issues</url>
