@@ -20,11 +20,5 @@
   <developer_name>Guillaume Gomez</developer_name>
   <url type="homepage">https://github.com/GuillaumeGomez/process-viewer/</url>
   <url type="bugtracker">https://github.com/GuillaumeGomez/process-viewer/issues</url>
-  <categories>
-    <category>System</category>
-  </categories>
   <launchable type="desktop-id">process-viewer.desktop</launchable>
-  <provides>
-    <binary>process_viewer</binary>
-  </provides>
 </component>
