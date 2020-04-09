@@ -1,0 +1,42 @@
+{
+  "app-id": "fr.guillaume_gomez.ProcessViewer",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "19.08",
+  "sdk": "org.freedesktop.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+  "command": "process_viewer",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=fallback-x11",
+    "--socket=wayland",
+    "--device=all",
+    "--share=network"
+  ],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": {
+      "CARGO_HOME": "/run/build/process_viewer/cargo"
+    }
+  },
+  "modules": [
+    {
+      "name": "process_viewer",
+      "buildsystem": "simple",
+      "build-commands": [
+        "cargo --offline fetch --manifest-path Cargo.toml --verbose",
+        "cargo --offline build --release --verbose",
+        "install -Dm755 ./target/release/process_viewer -t /app/bin/",
+        "install -Dm644 ./assets/${FLATPAK_ID}.metainfo.xml -t /app/share/metainfo/",
+        "install -Dm644 ./assets/${FLATPAK_ID}.desktop -t /app/share/applications/",
+        "install -Dm644 ./assets/${FLATPAK_ID}.svg -t /app/share/icons/hicolor/scalable/apps/"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "../"
+        },
+        "generated-sources.json"
+      ]
+    }
+  ]
+}
