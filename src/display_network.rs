@@ -14,6 +14,7 @@ use utils::{create_button_with_image, format_number, format_number_full};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 fn append_column(
     title: &str,
@@ -55,7 +56,7 @@ impl Network {
     pub fn new(
         note: &mut NoteBook,
         window: &gtk::ApplicationWindow,
-        sys: &Rc<RefCell<System>>,
+        sys: &Arc<Mutex<System>>,
     ) -> Network {
         let tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
@@ -90,19 +91,19 @@ impl Network {
             glib::Type::String, // name
             glib::Type::String, // in usage
             glib::Type::String, // out usage
-            glib::Type::String, // incoming packets
-            glib::Type::String, // outgoing packets
-            glib::Type::String, // incoming errors
-            glib::Type::String, // outgoing errors
+            glib::Type::String, // received packets
+            glib::Type::String, // transmitted packets
+            glib::Type::String, // received errors
+            glib::Type::String, // transmitted errors
             // These two will serve as keys when sorting by interface name and other numerical
             // things.
             glib::Type::String, // name_lowercase
             glib::Type::U64,    // in usage
             glib::Type::U64,    // out usage
-            glib::Type::U64,    // incoming packets
-            glib::Type::U64,    // outgoing packets
-            glib::Type::U64,    // incoming errors
-            glib::Type::U64,    // outgoing errors
+            glib::Type::U64,    // received packets
+            glib::Type::U64,    // transmitted packets
+            glib::Type::U64,    // received errors
+            glib::Type::U64,    // transmitted errors
         ]);
 
         // The filter model
@@ -203,7 +204,7 @@ impl Network {
             let current_network = current_network.borrow();
             if let Some(ref interface_name) = *current_network {
                 println!("create network dialog for {}", interface_name);
-                create_network_dialog(&mut *dialogs.borrow_mut(), interface_name, &*sys.borrow());
+                create_network_dialog(&mut *dialogs.borrow_mut(), interface_name, &*sys.lock().expect("failed to lock for new network dialog"));
             }
         }));
 
@@ -215,7 +216,7 @@ impl Network {
                                             .get::<String>()
                                             .expect("Model::get failed")
                                             .expect("failed to get value from model");
-                create_network_dialog(&mut *dialogs.borrow_mut(), &interface_name, &*sys.borrow());
+                create_network_dialog(&mut *dialogs.borrow_mut(), &interface_name, &*sys.lock().expect("failed to lock for new network dialog (from tree)"));
             }),
         );
 
@@ -260,18 +261,18 @@ impl Network {
                             &iter,
                             &[1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13],
                             &[
-                                &format_number(data.get_income()),
-                                &format_number(data.get_outcome()),
-                                &format_number_full(data.get_packets_income(), false),
-                                &format_number_full(data.get_packets_outcome(), false),
-                                &format_number_full(data.get_errors_income(), false),
-                                &format_number_full(data.get_errors_outcome(), false),
-                                &data.get_income(),
-                                &data.get_outcome(),
-                                &data.get_packets_income(),
-                                &data.get_packets_outcome(),
-                                &data.get_errors_income(),
-                                &data.get_errors_outcome(),
+                                &format_number(data.get_received()),
+                                &format_number(data.get_transmitted()),
+                                &format_number_full(data.get_packets_received(), false),
+                                &format_number_full(data.get_packets_transmitted(), false),
+                                &format_number_full(data.get_errors_on_received(), false),
+                                &format_number_full(data.get_errors_on_transmitted(), false),
+                                &data.get_received(),
+                                &data.get_transmitted(),
+                                &data.get_packets_received(),
+                                &data.get_packets_transmitted(),
+                                &data.get_errors_on_received(),
+                                &data.get_errors_on_transmitted(),
                             ],
                         );
                         valid = self.list_store.iter_next(&iter);
@@ -288,12 +289,12 @@ impl Network {
                 create_and_fill_model(
                     &self.list_store,
                     interface_name,
-                    data.get_income(),
-                    data.get_outcome(),
-                    data.get_packets_income(),
-                    data.get_packets_outcome(),
-                    data.get_errors_income(),
-                    data.get_errors_outcome(),
+                    data.get_received(),
+                    data.get_transmitted(),
+                    data.get_packets_received(),
+                    data.get_packets_transmitted(),
+                    data.get_errors_on_received(),
+                    data.get_errors_on_transmitted(),
                 );
             }
             if let Some(dialog) = self

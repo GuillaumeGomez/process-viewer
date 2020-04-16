@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use notebook::NoteBook;
 use utils::format_number;
@@ -76,7 +77,7 @@ fn refresh_disks(container: &gtk::Box, disks: &[sysinfo::Disk], elems: &mut Vec<
     }
 }
 
-pub fn create_disk_info(sys: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook) {
+pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, note: &mut NoteBook) {
     let elems: Rc<RefCell<Vec<DiskInfo>>> = Rc::new(RefCell::new(Vec::new()));
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
@@ -87,8 +88,9 @@ pub fn create_disk_info(sys: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook)
 
     refresh_but.connect_clicked(
         clone!(@weak sys, @weak container, @strong elems => move |_| {
-            sys.borrow_mut().refresh_disks();
-            refresh_disks(&container, sys.borrow().get_disks(), &mut *elems.borrow_mut());
+            let mut sys = sys.lock().expect("failed to lock to refresh disks");
+            sys.refresh_disks();
+            refresh_disks(&container, sys.get_disks(), &mut *elems.borrow_mut());
         }),
     );
 
@@ -99,7 +101,7 @@ pub fn create_disk_info(sys: &Rc<RefCell<sysinfo::System>>, note: &mut NoteBook)
     note.create_tab("Disk information", &vertical_layout);
     refresh_disks(
         &container,
-        sys.borrow().get_disks(),
+        sys.lock().expect("failed to lock to get disks").get_disks(),
         &mut *elems.borrow_mut(),
     );
 }

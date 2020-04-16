@@ -42,7 +42,9 @@ use std::env::args;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
-use std::time::SystemTime;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, SystemTime};
 
 mod color;
 mod display_disk;
@@ -66,26 +68,23 @@ use settings::Settings;
 pub const APPLICATION_NAME: &str = "fr.guillaume_gomez.ProcessViewer";
 
 fn update_system_info(
-    system: &Rc<RefCell<sysinfo::System>>,
+    system: &Arc<Mutex<sysinfo::System>>,
     info: &mut DisplaySysInfo,
     display_fahrenheit: bool,
 ) {
-    let mut system = system.borrow_mut();
+    let mut system = system.lock().expect("failed to lock for system refresh");
     system.refresh_system();
     info.update_system_info(&system, display_fahrenheit);
     info.update_system_info_display(&system);
 }
 
-fn update_system_network(system: &Rc<RefCell<sysinfo::System>>, info: &mut Network) {
-    let mut system = system.borrow_mut();
+fn update_system_network(system: &Arc<Mutex<sysinfo::System>>, info: &mut Network) {
+    let mut system = system.lock().expect("failed to lock for network refresh");
     system.refresh_networks();
     info.update_networks(&system);
 }
 
-fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
-    let mut system = system.borrow_mut();
-    system.refresh_processes();
-    let entries: &HashMap<Pid, Process> = system.get_processes();
+fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>) {
     let mut seen: HashSet<Pid> = HashSet::new();
 
     if let Some(iter) = list.get_iter_first() {
@@ -122,8 +121,8 @@ fn update_window(list: &gtk::ListStore, system: &Rc<RefCell<sysinfo::System>>) {
         if !seen.contains(pid) {
             create_and_fill_model(
                 list,
-                pro.pid().as_u32(),
-                &format!("{:?}", &pro.cmd()),
+                pid.as_u32(),
+                &pro.cmd(),
                 &pro.name(),
                 pro.cpu_usage(),
                 pro.memory(),
@@ -252,61 +251,74 @@ fn create_new_proc_diag(
 }
 
 pub struct RequiredForSettings {
-    current_source: Option<glib::SourceId>,
+    process_refresh_timeout: Arc<Mutex<u32>>,
     current_network_source: Option<glib::SourceId>,
     current_system_source: Option<glib::SourceId>,
-    sys: Rc<RefCell<sysinfo::System>>,
+    sys: Arc<Mutex<sysinfo::System>>,
     process_dialogs: Rc<RefCell<Vec<process_dialog::ProcDialog>>>,
     list_store: gtk::ListStore,
     display_tab: Rc<RefCell<DisplaySysInfo>>,
     network_tab: Rc<RefCell<Network>>,
 }
 
-pub fn setup_timeout(refresh_time: u32, rfs: &Rc<RefCell<RequiredForSettings>>) {
-    let ret = {
-        let mut rfs = rfs.borrow_mut();
-        rfs.current_source.take().map(glib::Source::remove);
+fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
+    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let rfs = rfs.borrow();
 
-        let sys = &rfs.sys;
-        let process_dialogs = &rfs.process_dialogs;
-        let list_store = &rfs.list_store;
+    let sys = &rfs.sys;
+    let process_dialogs = &rfs.process_dialogs;
+    let list_store = &rfs.list_store;
+    let process_refresh_timeout = &rfs.process_refresh_timeout;
 
-        Some(gtk::timeout_add(
-            refresh_time,
-            clone!(@weak sys, @weak process_dialogs, @weak list_store => @default-return glib::Continue(true), move || {
-                // first part, deactivate sorting
-                let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
-                list_store.set_unsorted();
+    thread::spawn(
+        clone!(@weak sys, @strong ready_tx, @weak process_refresh_timeout => move || {
+            loop {
+                let sleep_dur = Duration::from_millis(
+                    *process_refresh_timeout.lock().expect("failed to lock process refresh mutex") as _);
+                thread::sleep(sleep_dur);
+                sys.lock().expect("failed to lock to refresh processes").refresh_processes();
+                ready_tx.send(false).expect("failed to send data through process refresh channel");
+            }
+        })
+    );
 
-                // we update the tree view
-                update_window(&list_store, &sys);
+    ready_rx.attach(None,
+        clone!(@weak sys, @weak list_store, @weak process_dialogs => @default-panic, move |_: bool| {
+        // first part, deactivate sorting
+        let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
+        list_store.set_unsorted();
 
-                // we re-enable the sorting
-                if let Some((col, order)) = sorted {
-                    list_store.set_sort_column_id(col, order);
+        let mut to_remove = 0;
+        let start_time = get_now();
+        let mut dialogs = process_dialogs.borrow_mut();
+
+        if let Ok(sys) = sys.lock() {
+            // we update the tree view
+            update_window(&list_store, sys.get_processes());
+
+            // we re-enable the sorting
+            if let Some((col, order)) = sorted {
+                list_store.set_sort_column_id(col, order);
+            }
+            for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
+                // TODO: check if the process name matches the PID too!
+                if let Some(process) = sys.get_processes().get(&dialog.pid) {
+                    dialog.update(process, start_time);
+                } else {
+                    dialog.set_dead();
                 }
-                let mut dialogs = process_dialogs.borrow_mut();
-                let mut to_remove = 0;
-                let start_time = get_now();
-                for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
-                    // TODO: handle dead process?
-                    if let Some(process) = sys.borrow().get_process(dialog.pid) {
-                        dialog.update(process, start_time);
-                    } else {
-                        dialog.set_dead();
-                    }
-                    if dialog.need_remove() {
-                        to_remove += 1;
-                    }
+                if dialog.need_remove() {
+                    to_remove += 1;
                 }
-                if to_remove > 0 {
-                    dialogs.retain(|x| !x.need_remove());
-                }
-                glib::Continue(true)
-            }),
-        ))
-    };
-    rfs.borrow_mut().current_source = ret;
+            }
+        } else {
+            panic!("failed to lock sys to refresh UI");
+        }
+        if to_remove > 0 {
+            dialogs.retain(|x| !x.need_remove());
+        }
+        glib::Continue(true)
+    }));
 }
 
 pub fn setup_network_timeout(refresh_time: u32, rfs: &Rc<RefCell<RequiredForSettings>>) {
@@ -384,11 +396,10 @@ fn build_ui(application: &gtk::Application) {
 
     let window = gtk::ApplicationWindow::new(application);
 
-    let sys = sysinfo::System::new_all();
+    let mut sys = sysinfo::System::new_all();
     let start_time = get_now();
-    let sys = Rc::new(RefCell::new(sys));
     let mut note = NoteBook::new();
-    let procs = Procs::new(sys.borrow().get_processes(), &mut note, &window);
+    let procs = Procs::new(sys.get_processes(), &mut note, &window);
     let current_pid = Rc::clone(&procs.current_pid);
     let info_button = procs.info_button.clone();
 
@@ -406,11 +417,12 @@ fn build_ui(application: &gtk::Application) {
         Inhibit(false)
     });
 
-    sys.borrow_mut().refresh_all();
+    sys.refresh_all();
+    let sys = Arc::new(Mutex::new(sys));
     procs
         .kill_button
         .connect_clicked(clone!(@weak current_pid, @weak sys => move |_| {
-            let sys = sys.borrow();
+            let sys = sys.lock().expect("failed to lock to kill a process");
             if let Some(process) = current_pid.get().and_then(|pid| sys.get_process(pid)) {
                 process.kill(Signal::Kill);
             }
@@ -435,8 +447,9 @@ fn build_ui(application: &gtk::Application) {
         Rc::new(RefCell::new(Vec::new()));
     let list_store = procs.list_store.clone();
 
+
     let rfs = Rc::new(RefCell::new(RequiredForSettings {
-        current_source: None,
+        process_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_processes_rate)),
         current_network_source: None,
         current_system_source: None,
         sys: sys.clone(),
@@ -448,9 +461,8 @@ fn build_ui(application: &gtk::Application) {
 
     let refresh_system_rate = {
         let settings = settings.borrow();
-        let refresh_processes_rate = settings.refresh_processes_rate;
         let refresh_network_rate = settings.refresh_network_rate;
-        setup_timeout(refresh_processes_rate, &rfs);
+        setup_timeout(&rfs);
         setup_network_timeout(refresh_network_rate, &rfs);
         settings.refresh_system_rate
     };
@@ -464,7 +476,7 @@ fn build_ui(application: &gtk::Application) {
     info_button.connect_clicked(
         clone!(@weak current_pid, @weak process_dialogs, @weak sys => move |_| {
                 if let Some(pid) = current_pid.get() {
-                    create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
+                    create_new_proc_diag(&process_dialogs, pid, &*sys.lock().expect("failed to lock to create new proc dialog"), start_time);
                 }
             }
         ),
@@ -480,7 +492,7 @@ fn build_ui(application: &gtk::Application) {
                                .expect("Model::get failed")
                                .map(|x| x as Pid)
                                .expect("failed to get value from model");
-                create_new_proc_diag(&process_dialogs, pid, &*sys.borrow(), start_time);
+                create_new_proc_diag(&process_dialogs, pid, &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"), start_time);
             }
         ));
 

@@ -78,7 +78,7 @@ impl Procs {
             create_and_fill_model(
                 &list_store,
                 pro.pid().as_u32(),
-                &format!("{:?}", &pro.cmd()),
+                &pro.cmd(),
                 &pro.name(),
                 pro.cpu_usage(),
                 pro.memory(),
@@ -250,7 +250,7 @@ fn append_column(
 pub fn create_and_fill_model(
     list_store: &gtk::ListStore,
     pid: u32,
-    cmdline: &str,
+    cmdline: &[String],
     name: &str,
     cpu: f32,
     memory: u64,

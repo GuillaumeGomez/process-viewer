@@ -66,8 +66,8 @@ impl NetworkDialog {
             self,
             t,
             0,
-            network.get_packets_income(),
-            network.get_total_packets_income(),
+            network.get_packets_received(),
+            network.get_total_packets_received(),
             packets_incoming_peak,
             8,
             formatter
@@ -76,8 +76,8 @@ impl NetworkDialog {
             self,
             t,
             1,
-            network.get_packets_outcome(),
-            network.get_total_packets_outcome(),
+            network.get_packets_transmitted(),
+            network.get_total_packets_transmitted(),
             packets_outgoing_peak,
             11,
             formatter
@@ -86,8 +86,8 @@ impl NetworkDialog {
             self,
             t,
             2,
-            network.get_errors_income(),
-            network.get_total_errors_income(),
+            network.get_errors_on_received(),
+            network.get_total_errors_on_received(),
             errors_incoming_peak,
             14,
             formatter
@@ -96,8 +96,8 @@ impl NetworkDialog {
             self,
             t,
             3,
-            network.get_errors_outcome(),
-            network.get_total_errors_outcome(),
+            network.get_errors_on_transmitted(),
+            network.get_total_errors_on_transmitted(),
             errors_outgoing_peak,
             17,
             formatter
@@ -109,8 +109,8 @@ impl NetworkDialog {
             self,
             t,
             0,
-            network.get_income(),
-            network.get_total_income(),
+            network.get_received(),
+            network.get_total_received(),
             incoming_peak,
             2,
             format_number
@@ -119,8 +119,8 @@ impl NetworkDialog {
             self,
             t,
             1,
-            network.get_outcome(),
-            network.get_total_outcome(),
+            network.get_transmitted(),
+            network.get_total_transmitted(),
             outgoing_peak,
             5,
             format_number
@@ -320,37 +320,37 @@ pub fn create_network_dialog(
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"incoming", &format_number(network.get_income())],
+        &[&"incoming", &format_number(network.get_received())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"incoming peak", &format_number(network.get_income())],
+        &[&"incoming peak", &format_number(network.get_received())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
         &[
             &"total incoming",
-            &format_number(network.get_total_income()),
+            &format_number(network.get_total_received()),
         ],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"outgoing", &format_number(network.get_outcome())],
+        &[&"outgoing", &format_number(network.get_transmitted())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
-        &[&"outgoing peak", &format_number(network.get_outcome())],
+        &[&"outgoing peak", &format_number(network.get_transmitted())],
     );
     list_store.insert_with_values(
         None,
         &[0, 1],
         &[
             &"total outgoing",
-            &format_number(network.get_total_outcome()),
+            &format_number(network.get_total_transmitted()),
         ],
     );
     list_store.insert_with_values(
@@ -358,7 +358,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"packets in",
-            &format_number_full(network.get_packets_income(), false),
+            &format_number_full(network.get_packets_received(), false),
         ],
     );
     list_store.insert_with_values(
@@ -366,7 +366,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"packets in peak",
-            &format_number(network.get_packets_income()),
+            &format_number(network.get_packets_received()),
         ],
     );
     list_store.insert_with_values(
@@ -374,7 +374,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"total packets in",
-            &format_number_full(network.get_total_packets_income(), false),
+            &format_number_full(network.get_total_packets_received(), false),
         ],
     );
     list_store.insert_with_values(
@@ -382,7 +382,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"packets out",
-            &format_number_full(network.get_packets_outcome(), false),
+            &format_number_full(network.get_packets_transmitted(), false),
         ],
     );
     list_store.insert_with_values(
@@ -390,7 +390,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"packets out peak",
-            &format_number(network.get_packets_outcome()),
+            &format_number(network.get_packets_transmitted()),
         ],
     );
     list_store.insert_with_values(
@@ -398,7 +398,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"total packets out",
-            &format_number_full(network.get_total_packets_outcome(), false),
+            &format_number_full(network.get_total_packets_transmitted(), false),
         ],
     );
     list_store.insert_with_values(
@@ -406,7 +406,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"errors in",
-            &format_number_full(network.get_errors_income(), false),
+            &format_number_full(network.get_errors_on_received(), false),
         ],
     );
     list_store.insert_with_values(
@@ -414,7 +414,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"errors in peak",
-            &format_number(network.get_errors_income()),
+            &format_number(network.get_errors_on_received()),
         ],
     );
     list_store.insert_with_values(
@@ -422,7 +422,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"total errors in",
-            &format_number_full(network.get_total_errors_income(), false),
+            &format_number_full(network.get_total_errors_on_received(), false),
         ],
     );
     list_store.insert_with_values(
@@ -430,7 +430,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"errors out",
-            &format_number_full(network.get_errors_outcome(), false),
+            &format_number_full(network.get_errors_on_transmitted(), false),
         ],
     );
     list_store.insert_with_values(
@@ -438,7 +438,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"errors out peak",
-            &format_number(network.get_errors_outcome()),
+            &format_number(network.get_errors_on_transmitted()),
         ],
     );
     list_store.insert_with_values(
@@ -446,7 +446,7 @@ pub fn create_network_dialog(
         &[0, 1],
         &[
             &"total errors out",
-            &format_number_full(network.get_total_errors_outcome(), false),
+            &format_number_full(network.get_total_errors_on_transmitted(), false),
         ],
     );
 
@@ -481,12 +481,12 @@ pub fn create_network_dialog(
         popup,
         packets_errors_history,
         in_out_history,
-        incoming_peak: Rc::new(RefCell::new(network.get_income())),
-        outgoing_peak: Rc::new(RefCell::new(network.get_outcome())),
-        packets_incoming_peak: Rc::new(RefCell::new(network.get_packets_income())),
-        packets_outgoing_peak: Rc::new(RefCell::new(network.get_packets_outcome())),
-        errors_incoming_peak: Rc::new(RefCell::new(network.get_errors_income())),
-        errors_outgoing_peak: Rc::new(RefCell::new(network.get_errors_outcome())),
+        incoming_peak: Rc::new(RefCell::new(network.get_received())),
+        outgoing_peak: Rc::new(RefCell::new(network.get_transmitted())),
+        packets_incoming_peak: Rc::new(RefCell::new(network.get_packets_received())),
+        packets_outgoing_peak: Rc::new(RefCell::new(network.get_packets_transmitted())),
+        errors_incoming_peak: Rc::new(RefCell::new(network.get_errors_on_received())),
+        errors_outgoing_peak: Rc::new(RefCell::new(network.get_errors_on_transmitted())),
         to_be_removed,
         list_store,
     }

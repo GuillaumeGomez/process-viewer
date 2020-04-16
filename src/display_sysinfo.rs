@@ -7,6 +7,7 @@ use sysinfo::{self, ComponentExt, ProcessorExt, SystemExt};
 use std::cell::RefCell;
 use std::iter;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use graph::Graph;
 use notebook::NoteBook;
@@ -76,7 +77,7 @@ pub struct DisplaySysInfo {
 
 impl DisplaySysInfo {
     pub fn new(
-        sys: &Rc<RefCell<sysinfo::System>>,
+        sys: &Arc<Mutex<sysinfo::System>>,
         note: &mut NoteBook,
         settings: &Settings,
     ) -> DisplaySysInfo {
@@ -96,8 +97,9 @@ impl DisplaySysInfo {
             ]
         })));
 
+        let sys = sys.lock().expect("failed to lock in DisplaySysInfo::new");
         // RAM
-        let mut ram_usage_history = Graph::new(Some(sys.borrow().get_total_memory() as f64), true);
+        let mut ram_usage_history = Graph::new(Some(sys.get_total_memory() as f64), true);
         ram_usage_history.set_label_callbacks(Some(Box::new(|v| {
             if v < 100_000. {
                 [
@@ -166,18 +168,17 @@ impl DisplaySysInfo {
         {
             procs.push(gtk::ProgressBar::new());
             let p: &gtk::ProgressBar = &procs[0];
-            let s = sys.borrow();
 
             p.set_margin_end(5);
             p.set_margin_start(5);
             p.set_show_text(true);
-            let processor = s.get_global_processor_info();
+            let processor = sys.get_global_processor_info();
             p.set_text(Some(&format!("{:.1} %", processor.get_cpu_usage())));
             p.set_fraction(f64::from(processor.get_cpu_usage() / 100.));
             vertical_layout.add(p);
         }
         let check_box = create_header("Processors usage", &vertical_layout, settings.display_graph);
-        for (i, pro) in sys.borrow().get_processors().iter().enumerate() {
+        for (i, pro) in sys.get_processors().iter().enumerate() {
             procs.push(gtk::ProgressBar::new());
             let p: &gtk::ProgressBar = &procs[i + 1];
             let l = gtk::Label::new(Some(&format!("{}", i)));
@@ -219,13 +220,13 @@ impl DisplaySysInfo {
         //
         // TEMPERATURES PART
         //
-        if !sys.borrow().get_components().is_empty() {
+        if !sys.get_components().is_empty() {
             check_box3 = Some(create_header(
                 "Components' temperature",
                 &vertical_layout,
                 settings.display_graph,
             ));
-            for component in sys.borrow().get_components() {
+            for component in sys.get_components() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
                 let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.get_temperature())));
@@ -282,7 +283,7 @@ impl DisplaySysInfo {
             temperature_usage_history: Rc::clone(&temperature_usage_history),
             temperature_check_box: check_box3.clone(),
         };
-        tmp.update_system_info(&sys.borrow(), settings.display_fahrenheit);
+        tmp.update_system_info(&sys, settings.display_fahrenheit);
 
         check_box.connect_toggled(
             clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {

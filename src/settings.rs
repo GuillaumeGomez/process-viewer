@@ -22,7 +22,7 @@ use std::rc::Rc;
 use utils::{get_app, get_main_window};
 use RequiredForSettings;
 use APPLICATION_NAME;
-use {setup_network_timeout, setup_system_timeout, setup_timeout};
+use {setup_network_timeout, setup_system_timeout};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Settings {
@@ -203,10 +203,8 @@ pub fn show_settings_dialog(
     // Whenever something is changing we directly save the configuration file with the new values.
     refresh_procs.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
         let mut settings = settings.borrow_mut();
-        let refresh_processes_rate = settings.refresh_processes_rate;
-        setup_timeout(refresh_processes_rate, &rfs);
-
         settings.refresh_processes_rate = (entry.get_value() * 1000.) as u32;
+        *rfs.borrow().process_refresh_timeout.lock().expect("failed to lock process_refresh_timeout") = settings.refresh_processes_rate;
         settings.save();
     }));
     refresh_network.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
