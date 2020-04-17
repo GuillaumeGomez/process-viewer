@@ -67,23 +67,6 @@ use settings::Settings;
 
 pub const APPLICATION_NAME: &str = "fr.guillaume_gomez.ProcessViewer";
 
-fn update_system_info(
-    system: &Arc<Mutex<sysinfo::System>>,
-    info: &mut DisplaySysInfo,
-    display_fahrenheit: bool,
-) {
-    let mut system = system.lock().expect("failed to lock for system refresh");
-    system.refresh_system();
-    info.update_system_info(&system, display_fahrenheit);
-    info.update_system_info_display(&system);
-}
-
-fn update_system_network(system: &Arc<Mutex<sysinfo::System>>, info: &mut Network) {
-    let mut system = system.lock().expect("failed to lock for network refresh");
-    system.refresh_networks();
-    info.update_networks(&system);
-}
-
 fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>) {
     let mut seen: HashSet<Pid> = HashSet::new();
 
@@ -252,8 +235,8 @@ fn create_new_proc_diag(
 
 pub struct RequiredForSettings {
     process_refresh_timeout: Arc<Mutex<u32>>,
-    current_network_source: Option<glib::SourceId>,
-    current_system_source: Option<glib::SourceId>,
+    network_refresh_timeout: Arc<Mutex<u32>>,
+    system_refresh_timeout: Arc<Mutex<u32>>,
     sys: Arc<Mutex<sysinfo::System>>,
     process_dialogs: Rc<RefCell<Vec<process_dialog::ProcDialog>>>,
     list_store: gtk::ListStore,
@@ -279,7 +262,7 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
                 sys.lock().expect("failed to lock to refresh processes").refresh_processes();
                 ready_tx.send(false).expect("failed to send data through process refresh channel");
             }
-        })
+        }),
     );
 
     ready_rx.attach(None,
@@ -321,43 +304,66 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
     }));
 }
 
-pub fn setup_network_timeout(refresh_time: u32, rfs: &Rc<RefCell<RequiredForSettings>>) {
-    let ret = {
-        let mut rfs = rfs.borrow_mut();
-        rfs.current_network_source.take().map(glib::Source::remove);
+fn setup_network_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
+    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let rfs = rfs.borrow();
 
-        Some(gtk::timeout_add(
-            refresh_time,
-            clone!(@weak rfs.sys as sys, @weak rfs.network_tab as network_tab => @default-return glib::Continue(true), move || {
-                update_system_network(&sys, &mut network_tab.borrow_mut());
-                glib::Continue(true)
-            }),
-        ))
-    };
-    rfs.borrow_mut().current_network_source = ret;
+    let network_refresh_timeout = &rfs.network_refresh_timeout;
+    let network_tab = &rfs.network_tab;
+    let sys = &rfs.sys;
+
+    thread::spawn(
+        clone!(@weak sys, @strong ready_tx, @weak network_refresh_timeout => move || {
+            loop {
+                let sleep_dur = Duration::from_millis(
+                    *network_refresh_timeout.lock().expect("failed to lock networks refresh mutex") as _);
+                thread::sleep(sleep_dur);
+                sys.lock().expect("failed to lock to refresh networks").refresh_networks();
+                ready_tx.send(false).expect("failed to send data through networks refresh channel");
+            }
+        }),
+    );
+
+    ready_rx.attach(None,
+        clone!(@weak sys, @weak network_tab => @default-panic, move |_: bool| {
+            network_tab.borrow_mut().update_networks(&*sys.lock().expect("failed to lock to update networks"));
+            glib::Continue(true)
+        })
+    );
 }
 
-pub fn setup_system_timeout(
-    refresh_time: u32,
-    rfs: &Rc<RefCell<RequiredForSettings>>,
-    settings: &Rc<RefCell<Settings>>,
-) {
-    let ret = {
-        let mut rfs = rfs.borrow_mut();
-        rfs.current_system_source.take().map(glib::Source::remove);
+fn setup_system_timeout(rfs: &Rc<RefCell<RequiredForSettings>>, settings: &Rc<RefCell<Settings>>) {
+    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let rfs = rfs.borrow();
 
-        let sys = &rfs.sys;
-        let display_tab = &rfs.display_tab;
+    let system_refresh_timeout = &rfs.system_refresh_timeout;
+    let sys = &rfs.sys;
+    let display_tab = &rfs.display_tab;
 
-        Some(gtk::timeout_add(
-            refresh_time,
-            clone!(@weak sys, @weak display_tab, @weak settings => @default-return glib::Continue(true), move || {
-                update_system_info(&sys, &mut display_tab.borrow_mut(), settings.borrow().display_fahrenheit);
-                glib::Continue(true)
-            }),
-        ))
-    };
-    rfs.borrow_mut().current_system_source = ret;
+    thread::spawn(
+        clone!(@weak sys, @strong ready_tx, @weak system_refresh_timeout => move || {
+            loop {
+                let sleep_dur = Duration::from_millis(
+                    *system_refresh_timeout.lock().expect("failed to lock system refresh mutex") as _);
+                thread::sleep(sleep_dur);
+                sys.lock().expect("failed to lock to refresh system").refresh_system();
+                ready_tx.send(false).expect("failed to send data through system refresh channel");
+            }
+        }),
+    );
+
+    ready_rx.attach(
+        None,
+        clone!(@weak sys, @weak display_tab, @weak settings => @default-panic, move |_: bool| {
+            let mut info = display_tab.borrow_mut();
+            let sys = sys.lock().expect("failed to lock to update system");
+            let display_fahrenheit = settings.borrow().display_fahrenheit;
+
+            info.update_system_info(&*sys, display_fahrenheit);
+            info.update_system_info_display(&*sys);
+            glib::Continue(true)
+        }),
+    );
 }
 
 fn get_now() -> u64 {
@@ -447,11 +453,10 @@ fn build_ui(application: &gtk::Application) {
         Rc::new(RefCell::new(Vec::new()));
     let list_store = procs.list_store.clone();
 
-
     let rfs = Rc::new(RefCell::new(RequiredForSettings {
         process_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_processes_rate)),
-        current_network_source: None,
-        current_system_source: None,
+        network_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_network_rate)),
+        system_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_system_rate)),
         sys: sys.clone(),
         process_dialogs: process_dialogs.clone(),
         list_store,
@@ -459,14 +464,9 @@ fn build_ui(application: &gtk::Application) {
         network_tab: network_tab.clone(),
     }));
 
-    let refresh_system_rate = {
-        let settings = settings.borrow();
-        let refresh_network_rate = settings.refresh_network_rate;
-        setup_timeout(&rfs);
-        setup_network_timeout(refresh_network_rate, &rfs);
-        settings.refresh_system_rate
-    };
-    setup_system_timeout(refresh_system_rate, &rfs, &settings);
+    setup_timeout(&rfs);
+    setup_network_timeout(&rfs);
+    setup_system_timeout(&rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
     settings_action.connect_activate(clone!(@weak settings, @weak rfs => move |_, _| {
