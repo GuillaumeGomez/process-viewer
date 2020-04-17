@@ -22,7 +22,6 @@ use std::rc::Rc;
 use utils::{get_app, get_main_window};
 use RequiredForSettings;
 use APPLICATION_NAME;
-use {setup_network_timeout, setup_system_timeout, setup_timeout};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Settings {
@@ -203,26 +202,20 @@ pub fn show_settings_dialog(
     // Whenever something is changing we directly save the configuration file with the new values.
     refresh_procs.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
         let mut settings = settings.borrow_mut();
-        let refresh_processes_rate = settings.refresh_processes_rate;
-        setup_timeout(refresh_processes_rate, &rfs);
-
         settings.refresh_processes_rate = (entry.get_value() * 1000.) as u32;
+        *rfs.borrow().process_refresh_timeout.lock().expect("failed to lock process_refresh_timeout") = settings.refresh_processes_rate;
         settings.save();
     }));
     refresh_network.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
         let mut settings = settings.borrow_mut();
-        let refresh_network_rate = settings.refresh_network_rate;
-        setup_network_timeout(refresh_network_rate, &rfs);
-
         settings.refresh_network_rate = (entry.get_value() * 1000.) as u32;
+        *rfs.borrow().network_refresh_timeout.lock().expect("failed to lock network_refresh_timeout") = settings.refresh_network_rate;
         settings.save();
     }));
     refresh_sys.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
-        let refresh_system_rate = settings.borrow().refresh_system_rate;
-        setup_system_timeout(refresh_system_rate, &rfs, &settings);
-
         let mut settings = settings.borrow_mut();
         settings.refresh_system_rate = (entry.get_value() * 1000.) as u32;
+        *rfs.borrow().system_refresh_timeout.lock().expect("failed to lock system_refresh_timeout") = settings.refresh_system_rate;
         settings.save();
     }));
 
