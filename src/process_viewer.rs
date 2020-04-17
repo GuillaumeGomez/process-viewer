@@ -82,12 +82,14 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
             };
             if let Some(pid) = pid.map(|x| x as Pid) {
                 if let Some(p) = entries.get(&(pid)) {
+                    let disk_usage = p.disk_usage();
                     list.set(
                         &iter,
-                        &[2, 3, 5],
+                        &[2, 3, 4, 6],
                         &[
                             &format!("{:.1}", p.cpu_usage()),
                             &p.memory(),
+                            &(disk_usage.written_bytes + disk_usage.read_bytes),
                             &p.cpu_usage(),
                         ],
                     );
@@ -416,7 +418,7 @@ fn build_ui(application: &gtk::Application) {
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
     window.get_preferred_width();
-    window.set_default_size(600, 700);
+    window.set_default_size(715, 700);
 
     window.connect_delete_event(|w, _| {
         w.destroy();

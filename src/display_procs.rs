@@ -7,7 +7,7 @@ use gtk::prelude::{
     TreeModelFilterExt, TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
 
-use sysinfo::*;
+use sysinfo::{AsU32, Pid, Process, ProcessExt};
 
 use notebook::NoteBook;
 
@@ -69,6 +69,7 @@ impl Procs {
             Type::String, // name
             Type::String, // CPU
             Type::U64,    // mem
+            Type::U64,    // disk I/O
             // These two will serve as keys when sorting by process name and CPU usage.
             Type::String, // name_lowercase
             Type::F32,    // CPU_f32
@@ -171,13 +172,21 @@ impl Procs {
         append_column("process name", &mut columns, &left_tree, Some(200));
         append_column("cpu usage", &mut columns, &left_tree, None);
         append_column("memory usage (in kB)", &mut columns, &left_tree, None);
+        #[cfg(windows)]
+        {
+            append_column("I/O usage (in B)", &mut columns, &left_tree, None);
+        }
+        #[cfg(not(windows))]
+        {
+            append_column("disk I/O usage (in B)", &mut columns, &left_tree, None);
+        }
 
         // When we click the "name" column the order is defined by the
         // "name_lowercase" effectively making the built-in comparator ignore case.
-        columns[1].set_sort_column_id(4);
+        columns[1].set_sort_column_id(5);
         // Likewise clicking the "CPU" column sorts by the "CPU_f32" one because
         // we want the order to be numerical not lexicographical.
-        columns[2].set_sort_column_id(5);
+        columns[2].set_sort_column_id(6);
 
         filter_entry.connect_property_text_length_notify(move |_| {
             filter_model.refilter();
@@ -260,12 +269,13 @@ pub fn create_and_fill_model(
     }
     list_store.insert_with_values(
         None,
-        &[0, 1, 2, 3, 4, 5],
+        &[0, 1, 2, 3, 4, 5, 6],
         &[
             &pid,
             &name,
             &format!("{:.1}", cpu),
             &memory,
+            &0,
             &name.to_lowercase(),
             &cpu,
         ],
