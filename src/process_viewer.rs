@@ -64,6 +64,7 @@ use display_procs::{create_and_fill_model, Procs};
 use display_sysinfo::DisplaySysInfo;
 use notebook::NoteBook;
 use settings::Settings;
+use utils::format_number;
 
 pub const APPLICATION_NAME: &str = "fr.guillaume_gomez.ProcessViewer";
 
@@ -83,14 +84,21 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
             if let Some(pid) = pid.map(|x| x as Pid) {
                 if let Some(p) = entries.get(&(pid)) {
                     let disk_usage = p.disk_usage();
+                    let disk_usage = disk_usage.written_bytes + disk_usage.read_bytes;
                     list.set(
                         &iter,
-                        &[2, 3, 4, 6],
+                        &[2, 3, 4, 6, 7, 8],
                         &[
                             &format!("{:.1}", p.cpu_usage()),
-                            &p.memory(),
-                            &(disk_usage.written_bytes + disk_usage.read_bytes),
+                            &format_number(p.memory()),
+                            &if disk_usage > 0 {
+                                format_number(disk_usage)
+                            } else {
+                                String::new()
+                            },
                             &p.cpu_usage(),
+                            &p.memory(),
+                            &disk_usage,
                         ],
                     );
                     valid = list.iter_next(&iter);
@@ -418,7 +426,7 @@ fn build_ui(application: &gtk::Application) {
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
     window.get_preferred_width();
-    window.set_default_size(715, 700);
+    window.set_default_size(630, 700);
 
     window.connect_delete_event(|w, _| {
         w.destroy();

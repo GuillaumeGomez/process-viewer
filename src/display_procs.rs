@@ -15,7 +15,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use utils::create_button_with_image;
+use utils::{create_button_with_image, format_number};
 
 #[allow(dead_code)]
 pub struct Procs {
@@ -68,11 +68,13 @@ impl Procs {
             Type::U32,    // pid
             Type::String, // name
             Type::String, // CPU
-            Type::U64,    // mem
-            Type::U64,    // disk I/O
+            Type::String, // mem
+            Type::String, // disk I/O
             // These two will serve as keys when sorting by process name and CPU usage.
             Type::String, // name_lowercase
             Type::F32,    // CPU_f32
+            Type::U64,    // mem
+            Type::U64,    // disk I/O
         ]);
 
         for pro in proc_list.values() {
@@ -171,14 +173,14 @@ impl Procs {
         append_column("pid", &mut columns, &left_tree, None);
         append_column("process name", &mut columns, &left_tree, Some(200));
         append_column("cpu usage", &mut columns, &left_tree, None);
-        append_column("memory usage (in kB)", &mut columns, &left_tree, None);
-        #[cfg(windows)]
-        {
-            append_column("I/O usage (in B)", &mut columns, &left_tree, None);
-        }
+        append_column("memory usage", &mut columns, &left_tree, None);
         #[cfg(not(windows))]
         {
-            append_column("disk I/O usage (in B)", &mut columns, &left_tree, None);
+            append_column("disk I/O usage", &mut columns, &left_tree, None);
+        }
+        #[cfg(windows)]
+        {
+            append_column("I/O usage", &mut columns, &left_tree, None);
         }
 
         // When we click the "name" column the order is defined by the
@@ -187,6 +189,12 @@ impl Procs {
         // Likewise clicking the "CPU" column sorts by the "CPU_f32" one because
         // we want the order to be numerical not lexicographical.
         columns[2].set_sort_column_id(6);
+        // The memory usage display has been improved, so to make efficient sort,
+        // we have to separate the display and the actual number.
+        columns[3].set_sort_column_id(7);
+        // The disk I/O usage display has been improved, so to make efficient sort,
+        // we have to separate the display and the actual number.
+        columns[4].set_sort_column_id(8);
 
         filter_entry.connect_property_text_length_notify(move |_| {
             filter_model.refilter();
@@ -269,15 +277,17 @@ pub fn create_and_fill_model(
     }
     list_store.insert_with_values(
         None,
-        &[0, 1, 2, 3, 4, 5, 6],
+        &[0, 1, 2, 3, 4, 5, 6, 7, 8],
         &[
             &pid,
             &name,
             &format!("{:.1}", cpu),
-            &memory,
-            &0,
+            &format_number(memory),
+            &String::new(),
             &name.to_lowercase(),
             &cpu,
+            &memory,
+            &0,
         ],
     );
 }
