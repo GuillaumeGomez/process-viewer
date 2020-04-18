@@ -64,6 +64,7 @@ use display_procs::{create_and_fill_model, Procs};
 use display_sysinfo::DisplaySysInfo;
 use notebook::NoteBook;
 use settings::Settings;
+use utils::format_number;
 
 pub const APPLICATION_NAME: &str = "fr.guillaume_gomez.ProcessViewer";
 
@@ -82,13 +83,23 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
             };
             if let Some(pid) = pid.map(|x| x as Pid) {
                 if let Some(p) = entries.get(&(pid)) {
+                    let disk_usage = p.disk_usage();
+                    let disk_usage = disk_usage.written_bytes + disk_usage.read_bytes;
+                    let memory = p.memory() * 1_000;
                     list.set(
                         &iter,
-                        &[2, 3, 5],
+                        &[2, 3, 4, 6, 7, 8],
                         &[
                             &format!("{:.1}", p.cpu_usage()),
-                            &p.memory(),
+                            &format_number(memory),
+                            &if disk_usage > 0 {
+                                format_number(disk_usage)
+                            } else {
+                                String::new()
+                            },
                             &p.cpu_usage(),
+                            &memory,
+                            &disk_usage,
                         ],
                     );
                     valid = list.iter_next(&iter);
@@ -108,7 +119,7 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
                 &pro.cmd(),
                 &pro.name(),
                 pro.cpu_usage(),
-                pro.memory(),
+                pro.memory() * 1_000,
             );
         }
     }
@@ -185,7 +196,7 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
         } else {
             "The command started successfully".to_owned()
         };
-        d.destroy();
+        d.close();
         let m = MessageDialog::new(
             Some(window),
             gtk::DialogFlags::DESTROY_WITH_PARENT,
@@ -199,7 +210,7 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
                 || response == gtk::ResponseType::Close
                 || response == gtk::ResponseType::Ok
             {
-                dialog.destroy();
+                dialog.close();
             }
         });
         m.show_all();
@@ -416,12 +427,7 @@ fn build_ui(application: &gtk::Application) {
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
     window.get_preferred_width();
-    window.set_default_size(600, 700);
-
-    window.connect_delete_event(|w, _| {
-        w.destroy();
-        Inhibit(false)
-    });
+    window.set_default_size(630, 700);
 
     sys.refresh_all();
     let sys = Arc::new(Mutex::new(sys));
@@ -517,7 +523,7 @@ fn build_ui(application: &gtk::Application) {
         p.connect_response(|dialog, response| {
             if response == gtk::ResponseType::DeleteEvent ||
                response == gtk::ResponseType::Close {
-                dialog.destroy();
+                dialog.close();
             }
         });
         p.show_all();
@@ -562,7 +568,7 @@ fn build_ui(application: &gtk::Application) {
         dialog.connect_response(clone!(@weak input, @weak window => move |dialog, response| {
             match response {
                 gtk::ResponseType::Close => {
-                    dialog.destroy();
+                    dialog.close();
                 }
                 gtk::ResponseType::Other(0) => {
                     run_command(&input, &window, &dialog);

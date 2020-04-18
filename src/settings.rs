@@ -128,7 +128,7 @@ fn show_error_dialog(fatal: bool, text: &str) {
     );
 
     dialog.connect_response(move |dialog, _| {
-        dialog.destroy();
+        dialog.close();
 
         if fatal {
             get_app().quit();
@@ -220,7 +220,7 @@ pub fn show_settings_dialog(
     }));
 
     dialog.connect_response(move |dialog, _| {
-        dialog.destroy();
+        dialog.close();
     });
 
     dialog.set_resizable(false);

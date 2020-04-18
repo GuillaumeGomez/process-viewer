@@ -2,7 +2,9 @@ use gtk::prelude::{
     CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewColumnExt,
     TreeViewExt, WidgetExt,
 };
-use gtk::{self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt};
+use gtk::{
+    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, Inhibit, LabelExt, ScrolledWindowExt,
+};
 use pango;
 use sysinfo::{self, Pid, ProcessExt};
 
@@ -19,6 +21,7 @@ use utils::{connect_graph, format_number, get_main_window, RotateVec};
 pub struct ProcDialog {
     working_directory: gtk::Label,
     memory_usage: gtk::Label,
+    disk_usage: gtk::Label,
     cpu_usage: gtk::Label,
     run_time: gtk::Label,
     pub popup: gtk::Window,
@@ -26,8 +29,11 @@ pub struct ProcDialog {
     notebook: NoteBook,
     ram_usage_history: Rc<RefCell<Graph>>,
     cpu_usage_history: Rc<RefCell<Graph>>,
+    disk_usage_history: Rc<RefCell<Graph>>,
     memory_peak: RefCell<u64>,
     memory_peak_label: gtk::Label,
+    disk_peak: RefCell<u64>,
+    disk_peak_label: gtk::Label,
     pub is_dead: bool,
     pub to_be_removed: Rc<RefCell<bool>>,
 }
@@ -45,12 +51,20 @@ impl ProcDialog {
         }
         self.working_directory
             .set_text(&process.cwd().display().to_string());
-        let memory = process.memory() << 10; // * 1024
+        let memory = process.memory() * 1_000; // It returns in kB so we have to convert it to B
         let memory_s = format_number(memory);
         self.memory_usage.set_text(&memory_s);
         if memory > *self.memory_peak.borrow() {
             *self.memory_peak.borrow_mut() = memory;
             self.memory_peak_label.set_text(&memory_s);
+        }
+        let disk_usage = process.disk_usage();
+        let disk_usage = disk_usage.written_bytes + disk_usage.read_bytes;
+        let disk_usage_s = format_number(disk_usage);
+        self.disk_usage.set_text(&disk_usage_s);
+        if disk_usage > *self.memory_peak.borrow() {
+            *self.disk_peak.borrow_mut() = disk_usage;
+            self.disk_peak_label.set_text(&disk_usage_s);
         }
         self.cpu_usage
             .set_text(&format!("{:.1}%", process.cpu_usage()));
@@ -59,11 +73,15 @@ impl ProcDialog {
 
         let mut t = self.ram_usage_history.borrow_mut();
         t.data[0].move_start();
-        *t.data[0].get_mut(0).expect("cannot get data 0") = process.memory() as f64;
+        *t.data[0].get_mut(0).expect("cannot get data 0") = memory as f64;
         t.invalidate();
         let mut t = self.cpu_usage_history.borrow_mut();
         t.data[0].move_start();
         *t.data[0].get_mut(0).expect("cannot get data 0") = process.cpu_usage().into();
+        t.invalidate();
+        let mut t = self.disk_usage_history.borrow_mut();
+        t.data[0].move_start();
+        *t.data[0].get_mut(0).expect("cannot get data 0") = disk_usage as f64;
         t.invalidate();
     }
 
@@ -77,6 +95,7 @@ impl ProcDialog {
         }
         self.is_dead = true;
         self.memory_usage.set_text("0");
+        self.disk_usage.set_text("0");
         self.cpu_usage.set_text("0%");
         let s = format!(
             "Ran for {}",
@@ -191,11 +210,25 @@ pub fn create_process_dialog(
 
     create_and_add_new_label(&labels, "name", process.name());
     create_and_add_new_label(&labels, "pid", &process.pid().to_string());
-    let memory_peak = process.memory() << 10; // * 1024
+    let memory_peak = process.memory() * 1_000;
     let memory_usage =
         create_and_add_new_label(&labels, "memory usage", &format_number(memory_peak));
     let memory_peak_label =
         create_and_add_new_label(&labels, "memory usage peak", &format_number(memory_peak));
+    let disk_peak = process.disk_usage();
+    let disk_peak = disk_peak.written_bytes + disk_peak.read_bytes;
+    let s;
+    #[cfg(not(windows))]
+    {
+        s = "disk I/O usage";
+    }
+    #[cfg(windows)]
+    {
+        s = "I/O usage";
+    }
+    let disk_usage = create_and_add_new_label(&labels, s, &format_number(disk_peak));
+    let disk_peak_label =
+        create_and_add_new_label(&labels, &format!("{} peak", s), &format_number(disk_peak));
     let cpu_usage = create_and_add_new_label(
         &labels,
         "cpu usage",
@@ -292,6 +325,10 @@ pub fn create_process_dialog(
     ram_usage_history.set_display_labels(false);
     ram_usage_history.set_overhead(Some(20.));
 
+    let mut disk_usage_history = Graph::new(Some(0f64), false);
+    disk_usage_history.set_display_labels(false);
+    disk_usage_history.set_overhead(Some(20.));
+
     cpu_usage_history.push(
         RotateVec::new(iter::repeat(0f64).take(61).collect()),
         "",
@@ -325,47 +362,71 @@ pub fn create_process_dialog(
         "",
         None,
     );
-    ram_usage_history.set_label_callbacks(Some(Box::new(|v| {
+
+    disk_usage_history.push(
+        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        "",
+        None,
+    );
+
+    fn nb_label(v: f64) -> [String; 4] {
         if v < 100_000. {
             [
                 v.to_string(),
                 format!("{}", v / 2.),
                 "0".to_string(),
-                "KiB".to_string(),
+                "kB".to_string(),
             ]
         } else if v < 10_000_000. {
             [
                 format!("{:.1}", v / 1_024f64),
                 format!("{:.1}", v / 2_048f64),
                 "0".to_string(),
-                "MiB".to_string(),
+                "MB".to_string(),
             ]
         } else if v < 10_000_000_000. {
             [
                 format!("{:.1}", v / 1_048_576f64),
                 format!("{:.1}", v / 2_097_152f64),
                 "0".to_string(),
-                "GiB".to_string(),
+                "GB".to_string(),
             ]
         } else {
             [
                 format!("{:.1}", v / 1_073_741_824f64),
                 format!("{:.1}", v / 2_147_483_648f64),
                 "0".to_string(),
-                "TiB".to_string(),
+                "TB".to_string(),
             ]
         }
-    })));
+    }
+
+    ram_usage_history.set_label_callbacks(Some(Box::new(nb_label)));
+    disk_usage_history.set_label_callbacks(Some(Box::new(nb_label)));
+
     vertical_layout.add(&gtk::Label::new(Some("Memory usage")));
     ram_usage_history.attach_to(&vertical_layout);
     ram_usage_history.invalidate();
     let ram_usage_history = connect_graph(ram_usage_history);
 
+    #[cfg(not(windows))]
+    {
+        vertical_layout.add(&gtk::Label::new(Some("Disk I/O usage")));
+    }
+    #[cfg(windows)]
+    {
+        vertical_layout.add(&gtk::Label::new(Some("I/O usage")));
+    }
+    disk_usage_history.attach_to(&vertical_layout);
+    disk_usage_history.invalidate();
+    let disk_usage_history = connect_graph(disk_usage_history);
+
     scroll.add(&vertical_layout);
     scroll.connect_show(
-        clone!(@weak ram_usage_history, @weak cpu_usage_history => move |_| {
+        clone!(@weak ram_usage_history, @weak cpu_usage_history, @weak disk_usage_history => move |_| {
             ram_usage_history.borrow().show_all();
             cpu_usage_history.borrow().show_all();
+            disk_usage_history.borrow().show_all();
         }),
     );
     notebook.create_tab("Resources usage", &scroll);
@@ -379,12 +440,18 @@ pub fn create_process_dialog(
     popup.set_size_request(500, 600);
 
     close_button.connect_clicked(clone!(@weak popup => move |_| {
-        popup.destroy();
+        popup.close();
     }));
     let to_be_removed = Rc::new(RefCell::new(false));
     popup.connect_destroy(clone!(@weak to_be_removed => move |_| {
         *to_be_removed.borrow_mut() = true;
     }));
+    popup.connect_key_press_event(|win, key| {
+        if key.get_keyval() == gdk::enums::key::Escape {
+            win.close();
+        }
+        Inhibit(false)
+    });
     popup.set_resizable(true);
     popup.show_all();
 
@@ -394,10 +461,12 @@ pub fn create_process_dialog(
     }
     ram_usage_history.connect_to_window_events();
     cpu_usage_history.connect_to_window_events();
+    disk_usage_history.connect_to_window_events();
 
     ProcDialog {
         working_directory,
         memory_usage,
+        disk_usage,
         cpu_usage,
         run_time,
         popup,
@@ -405,8 +474,11 @@ pub fn create_process_dialog(
         notebook,
         ram_usage_history,
         cpu_usage_history,
+        disk_usage_history,
         memory_peak: RefCell::new(memory_peak),
         memory_peak_label,
+        disk_peak: RefCell::new(disk_peak),
+        disk_peak_label,
         is_dead: false,
         to_be_removed,
     }
