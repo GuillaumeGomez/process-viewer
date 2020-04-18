@@ -2,7 +2,9 @@ use gtk::prelude::{
     CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewColumnExt,
     TreeViewExt, WidgetExt,
 };
-use gtk::{self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt};
+use gtk::{
+    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, Inhibit, LabelExt, ScrolledWindowExt,
+};
 use pango;
 use sysinfo::{self, Pid, ProcessExt};
 
@@ -438,7 +440,7 @@ pub fn create_process_dialog(
     popup.set_size_request(500, 600);
 
     close_button.connect_clicked(clone!(@weak popup => move |_| {
-        popup.destroy();
+        popup.close();
     }));
     let to_be_removed = Rc::new(RefCell::new(false));
     popup.connect_destroy(clone!(@weak to_be_removed => move |_| {
@@ -446,7 +448,7 @@ pub fn create_process_dialog(
     }));
     popup.connect_key_press_event(|win, key| {
         if key.get_keyval() == gdk::enums::key::Escape {
-            win.destroy();
+            win.close();
         }
         Inhibit(false)
     });

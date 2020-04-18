@@ -195,7 +195,7 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
         } else {
             "The command started successfully".to_owned()
         };
-        d.destroy();
+        d.close();
         let m = MessageDialog::new(
             Some(window),
             gtk::DialogFlags::DESTROY_WITH_PARENT,
@@ -209,7 +209,7 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
                 || response == gtk::ResponseType::Close
                 || response == gtk::ResponseType::Ok
             {
-                dialog.destroy();
+                dialog.close();
             }
         });
         m.show_all();
@@ -429,7 +429,7 @@ fn build_ui(application: &gtk::Application) {
     window.set_default_size(630, 700);
 
     window.connect_delete_event(|w, _| {
-        w.destroy();
+        w.close();
         Inhibit(false)
     });
 
@@ -527,7 +527,7 @@ fn build_ui(application: &gtk::Application) {
         p.connect_response(|dialog, response| {
             if response == gtk::ResponseType::DeleteEvent ||
                response == gtk::ResponseType::Close {
-                dialog.destroy();
+                dialog.close();
             }
         });
         p.show_all();
@@ -572,7 +572,7 @@ fn build_ui(application: &gtk::Application) {
         dialog.connect_response(clone!(@weak input, @weak window => move |dialog, response| {
             match response {
                 gtk::ResponseType::Close => {
-                    dialog.destroy();
+                    dialog.close();
                 }
                 gtk::ResponseType::Other(0) => {
                     run_command(&input, &window, &dialog);
