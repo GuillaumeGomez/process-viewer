@@ -62,7 +62,7 @@ impl ProcDialog {
         let disk_usage = disk_usage.written_bytes + disk_usage.read_bytes;
         let disk_usage_s = format_number(disk_usage);
         self.disk_usage.set_text(&disk_usage_s);
-        if disk_usage > *self.memory_peak.borrow() {
+        if disk_usage > *self.disk_peak.borrow() {
             *self.disk_peak.borrow_mut() = disk_usage;
             self.disk_peak_label.set_text(&disk_usage_s);
         }
