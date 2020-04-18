@@ -84,7 +84,7 @@ impl Procs {
                 &pro.cmd(),
                 &pro.name(),
                 pro.cpu_usage(),
-                pro.memory(),
+                pro.memory() * 1_000,
             );
         }
 

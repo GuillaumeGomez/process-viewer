@@ -85,19 +85,20 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
                 if let Some(p) = entries.get(&(pid)) {
                     let disk_usage = p.disk_usage();
                     let disk_usage = disk_usage.written_bytes + disk_usage.read_bytes;
+                    let memory = p.memory() * 1_000;
                     list.set(
                         &iter,
                         &[2, 3, 4, 6, 7, 8],
                         &[
                             &format!("{:.1}", p.cpu_usage()),
-                            &format_number(p.memory()),
+                            &format_number(memory),
                             &if disk_usage > 0 {
                                 format_number(disk_usage)
                             } else {
                                 String::new()
                             },
                             &p.cpu_usage(),
-                            &p.memory(),
+                            &memory,
                             &disk_usage,
                         ],
                     );
@@ -118,7 +119,7 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
                 &pro.cmd(),
                 &pro.name(),
                 pro.cpu_usage(),
-                pro.memory(),
+                pro.memory() * 1_000,
             );
         }
     }
@@ -427,11 +428,6 @@ fn build_ui(application: &gtk::Application) {
     // allocate?"
     window.get_preferred_width();
     window.set_default_size(630, 700);
-
-    window.connect_delete_event(|w, _| {
-        w.close();
-        Inhibit(false)
-    });
 
     sys.refresh_all();
     let sys = Arc::new(Mutex::new(sys));
