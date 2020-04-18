@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use graph::Graph;
 use notebook::NoteBook;
 use settings::Settings;
-use utils::{connect_graph, RotateVec};
+use utils::{connect_graph, format_number, format_number_full, RotateVec};
 
 pub fn create_header(
     label_text: &str,
@@ -343,21 +343,11 @@ impl DisplaySysInfo {
 
     pub fn update_system_info(&mut self, sys: &sysinfo::System, display_fahrenheit: bool) {
         let disp = |total, used| {
-            if total < 100_000 {
-                format!("{} / {} KiB", used, total)
-            } else if total < 10_000_000 {
-                format!("{:.2} / {} MiB", used as f64 / 1_024f64, total >> 10) // / 1024
-            } else if total < 10_000_000_000 {
-                format!("{:.2} / {} GiB", used as f64 / 1_048_576f64, total >> 20)
-            // / 1_048_576
-            } else {
-                format!(
-                    "{:.2} / {} TiB",
-                    used as f64 / 1_073_741_824f64,
-                    total >> 30
-                )
-                // / 1_073_741_824
-            }
+            format!(
+                "{} / {}",
+                format_number_full(used, false),
+                format_number(total)
+            )
         };
 
         let total_ram = sys.get_total_memory();

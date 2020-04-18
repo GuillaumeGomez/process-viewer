@@ -45,7 +45,7 @@ impl ProcDialog {
         }
         self.working_directory
             .set_text(&process.cwd().display().to_string());
-        let memory = process.memory() << 10; // * 1024
+        let memory = process.memory() * 1_000; // It returns in kB so we have to convert it to B
         let memory_s = format_number(memory);
         self.memory_usage.set_text(&memory_s);
         if memory > *self.memory_peak.borrow() {
@@ -331,28 +331,28 @@ pub fn create_process_dialog(
                 v.to_string(),
                 format!("{}", v / 2.),
                 "0".to_string(),
-                "KiB".to_string(),
+                "kB".to_string(),
             ]
         } else if v < 10_000_000. {
             [
                 format!("{:.1}", v / 1_024f64),
                 format!("{:.1}", v / 2_048f64),
                 "0".to_string(),
-                "MiB".to_string(),
+                "MB".to_string(),
             ]
         } else if v < 10_000_000_000. {
             [
                 format!("{:.1}", v / 1_048_576f64),
                 format!("{:.1}", v / 2_097_152f64),
                 "0".to_string(),
-                "GiB".to_string(),
+                "GB".to_string(),
             ]
         } else {
             [
                 format!("{:.1}", v / 1_073_741_824f64),
                 format!("{:.1}", v / 2_147_483_648f64),
                 "0".to_string(),
-                "TiB".to_string(),
+                "TB".to_string(),
             ]
         }
     })));

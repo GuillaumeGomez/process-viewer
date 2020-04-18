@@ -60,19 +60,38 @@ pub fn format_number(nb: u64) -> String {
     format_number_full(nb, true)
 }
 
-pub fn format_number_full(mut nb: u64, use_unit: bool) -> String {
-    if nb < 1000 {
+pub fn format_number_full(nb: u64, use_unit: bool) -> String {
+    if nb < 1_000 {
         return format!("{}{}", nb, if use_unit { " B" } else { "" });
     }
-    nb >>= 10; // / 1_024
-    if nb < 100_000 {
-        format!("{}{}", nb, if use_unit { " KiB" } else { "" })
-    } else if nb < 10_000_000 {
-        format!("{}{}", nb >> 10, if use_unit { " MiB" } else { "" }) // / 1_024
-    } else if nb < 10_000_000_000 {
-        format!("{}{}", nb >> 20, if use_unit { " GiB" } else { "" }) // / 1_048_576
+    if nb < 1_000_000 {
+        format!(
+            "{}.{}{}",
+            nb / 1_000,
+            nb / 100 % 10,
+            if use_unit { " KB" } else { "" }
+        )
+    } else if nb < 1_000_000_000 {
+        format!(
+            "{}.{}{}",
+            nb / 1_000_000,
+            nb / 100_000 % 10,
+            if use_unit { " MB" } else { "" }
+        )
+    } else if nb < 1_000_000_000_000 {
+        format!(
+            "{}.{}{}",
+            nb / 1_000_000_000,
+            nb / 100_000_000 % 10,
+            if use_unit { " GB" } else { "" }
+        )
     } else {
-        format!("{}{}", nb >> 30, if use_unit { " TiB" } else { "" }) // / 1_073_741_824
+        format!(
+            "{}.{}{}",
+            nb / 1_000_000_000_000,
+            nb / 100_000_000_000 % 10,
+            if use_unit { " TB" } else { "" }
+        )
     }
 }
 
