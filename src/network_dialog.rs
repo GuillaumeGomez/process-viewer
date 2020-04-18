@@ -2,7 +2,7 @@ use gtk::prelude::{
     CellLayoutExt, CellRendererExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt,
     GtkWindowExtManual, TreeModelExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
-use gtk::{self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, LabelExt, ScrolledWindowExt};
+use gtk::{self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, Inhibit, LabelExt, ScrolledWindowExt};
 
 use sysinfo::{self, NetworkExt};
 
@@ -469,6 +469,12 @@ pub fn create_network_dialog(
     popup.connect_destroy(clone!(@weak to_be_removed => move |_| {
         *to_be_removed.borrow_mut() = true;
     }));
+    popup.connect_key_press_event(|win, key| {
+        if key.get_keyval() == gdk::enums::key::Escape {
+            win.destroy();
+        }
+        Inhibit(false)
+    });
     popup.set_resizable(true);
     popup.show_all();
 

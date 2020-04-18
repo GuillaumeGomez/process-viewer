@@ -444,6 +444,12 @@ pub fn create_process_dialog(
     popup.connect_destroy(clone!(@weak to_be_removed => move |_| {
         *to_be_removed.borrow_mut() = true;
     }));
+    popup.connect_key_press_event(|win, key| {
+        if key.get_keyval() == gdk::enums::key::Escape {
+            win.destroy();
+        }
+        Inhibit(false)
+    });
     popup.set_resizable(true);
     popup.show_all();
 
