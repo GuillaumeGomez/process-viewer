@@ -379,22 +379,22 @@ pub fn create_process_dialog(
             ]
         } else if v < 10_000_000. {
             [
-                format!("{:.1}", v / 1_024f64),
-                format!("{:.1}", v / 2_048f64),
+                format!("{:.1}", v / 1_000f64),
+                format!("{:.1}", v / 2_000f64),
                 "0".to_string(),
                 "MB".to_string(),
             ]
         } else if v < 10_000_000_000. {
             [
-                format!("{:.1}", v / 1_048_576f64),
-                format!("{:.1}", v / 2_097_152f64),
+                format!("{:.1}", v / 1_000_000f64),
+                format!("{:.1}", v / 2_000_000f64),
                 "0".to_string(),
                 "GB".to_string(),
             ]
         } else {
             [
-                format!("{:.1}", v / 1_073_741_824f64),
-                format!("{:.1}", v / 2_147_483_648f64),
+                format!("{:.1}", v / 1_000_000_000f64),
+                format!("{:.1}", v / 2_000_000_000f64),
                 "0".to_string(),
                 "TB".to_string(),
             ]

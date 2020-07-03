@@ -204,7 +204,7 @@ pub fn create_network_dialog(
                 v.to_string(),
                 format!("{}", v / 2f64),
                 "0".to_string(),
-                "kB".to_string(),
+                "KB".to_string(),
             ]
         } else if v < 10_000_000. {
             [
