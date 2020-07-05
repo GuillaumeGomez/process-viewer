@@ -60,7 +60,7 @@ impl Network {
     ) -> Network {
         let tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-        let info_button = gtk::Button::new_with_label("More information");
+        let info_button = gtk::Button::with_label("More information");
         let current_network = Rc::new(RefCell::new(None));
 
         let filter_button =
@@ -113,7 +113,7 @@ impl Network {
                 if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
                     return true;
                 }
-                if let Some(text) = filter_entry.get_text() {
+                let text = filter_entry.get_text();
                     if text.is_empty() {
                         return true;
                     }
@@ -125,9 +125,6 @@ impl Network {
                                     .map(|s| s.to_lowercase())
                                     .unwrap_or_else(String::new);
                     name.contains(text)
-                } else {
-                    true
-                }
             }),
         );
 

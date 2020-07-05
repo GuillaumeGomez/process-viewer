@@ -143,7 +143,7 @@ pub fn build_spin(label: &str, grid: &gtk::Grid, top: i32, refresh: u32) -> gtk:
     // Refresh rate.
     let refresh_label = gtk::Label::new(Some(label));
     // We allow 0.5 to 5 seconds, in 0.1 second steps.
-    let refresh_entry = gtk::SpinButton::new_with_range(0.5, 5., 0.1);
+    let refresh_entry = gtk::SpinButton::with_range(0.5, 5., 0.1);
 
     refresh_label.set_halign(gtk::Align::Start);
     refresh_entry.set_hexpand(true);
@@ -161,7 +161,7 @@ pub fn show_settings_dialog(
 ) {
     let bsettings = &*settings.borrow();
     // Create an empty dialog with close button.
-    let dialog = gtk::Dialog::new_with_buttons(
+    let dialog = gtk::Dialog::with_buttons(
         Some("Process Viewer settings"),
         get_main_window().as_ref(),
         gtk::DialogFlags::MODAL,

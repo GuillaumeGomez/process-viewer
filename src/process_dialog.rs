@@ -97,10 +97,8 @@ impl ProcDialog {
         self.memory_usage.set_text("0");
         self.disk_usage.set_text("0");
         self.cpu_usage.set_text("0%");
-        let s = format!(
-            "Ran for {}",
-            self.run_time.get_text().unwrap_or_else(|| "0s".into())
-        );
+        let time = self.run_time.get_text();
+        let s = format!("Ran for {}", if time.is_empty() { "0s" } else { &time },);
         self.run_time.set_text(&s);
     }
 }
@@ -200,7 +198,7 @@ pub fn create_process_dialog(
     // PROCESS INFO TAB
     //
     let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-    let close_button = gtk::Button::new_with_label("Close");
+    let close_button = gtk::Button::with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 
@@ -447,7 +445,7 @@ pub fn create_process_dialog(
         *to_be_removed.borrow_mut() = true;
     }));
     popup.connect_key_press_event(|win, key| {
-        if key.get_keyval() == gdk::enums::key::Escape {
+        if key.get_keyval() == gdk::keys::constants::Escape {
             win.close();
         }
         Inhibit(false)

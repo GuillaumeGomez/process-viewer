@@ -127,7 +127,7 @@ pub fn get_app() -> gtk::Application {
 
 pub fn get_main_window() -> Option<gtk::Window> {
     for window in get_app().get_windows() {
-        if window.get_widget_name().as_ref().map(|ref s| s.as_str()) == Some(MAIN_WINDOW_NAME) {
+        if window.get_widget_name() == MAIN_WINDOW_NAME {
             return Some(window);
         }
     }
@@ -136,11 +136,11 @@ pub fn get_main_window() -> Option<gtk::Window> {
 
 pub fn create_button_with_image(image_bytes: &'static [u8], fallback_text: &str) -> gtk::Button {
     let button = gtk::Button::new();
-    let memory_stream = MemoryInputStream::new_from_bytes(&Bytes::from_static(image_bytes));
+    let memory_stream = MemoryInputStream::from_bytes(&Bytes::from_static(image_bytes));
     let image =
-        Pixbuf::new_from_stream_at_scale(&memory_stream, 32, 32, true, None::<&gio::Cancellable>);
+        Pixbuf::from_stream_at_scale(&memory_stream, 32, 32, true, None::<&gio::Cancellable>);
     if let Ok(image) = image {
-        let image = gtk::Image::new_from_pixbuf(Some(&image));
+        let image = gtk::Image::from_pixbuf(Some(&image));
         button.set_image(Some(&image));
         button.set_always_show_image(true);
     } else {

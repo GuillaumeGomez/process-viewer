@@ -12,14 +12,14 @@ use std::sync::{Arc, Mutex};
 use graph::Graph;
 use notebook::NoteBook;
 use settings::Settings;
-use utils::{connect_graph, format_number, format_number_full, RotateVec};
+use utils::{connect_graph, format_number, RotateVec};
 
 pub fn create_header(
     label_text: &str,
     parent_layout: &gtk::Box,
     display_graph: bool,
 ) -> gtk::CheckButton {
-    let check_box = gtk::CheckButton::new_with_label("Graph view");
+    let check_box = gtk::CheckButton::with_label("Graph view");
     check_box.set_active(display_graph);
 
     let label = gtk::Label::new(Some(label_text));
@@ -345,7 +345,7 @@ impl DisplaySysInfo {
         let disp = |total, used| {
             format!(
                 "{} / {}",
-                format_number_full(used, false),
+                format_number(used * 1_000),
                 format_number(total * 1_000) // We need to multiply to get the "right" unit.
             )
         };
