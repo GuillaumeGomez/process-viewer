@@ -169,7 +169,7 @@ pub fn create_network_dialog(
     popup.set_transient_for(get_main_window().as_ref());
     popup.set_destroy_with_parent(true);
 
-    let close_button = gtk::Button::new_with_label("Close");
+    let close_button = gtk::Button::with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
     vertical_layout.pack_start(&notebook.notebook, true, true, 0);
@@ -472,7 +472,7 @@ pub fn create_network_dialog(
         *to_be_removed.borrow_mut() = true;
     }));
     popup.connect_key_press_event(|win, key| {
-        if key.get_keyval() == gdk::enums::key::Escape {
+        if key.get_keyval() == gdk::keys::constants::Escape {
             win.close();
         }
         Inhibit(false)

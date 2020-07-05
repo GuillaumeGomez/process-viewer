@@ -190,31 +190,30 @@ fn start_detached_process(line: &str) -> Option<String> {
 }
 
 fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
-    if let Some(text) = input.get_text() {
-        let x = if let Some(x) = start_detached_process(&text) {
-            x
-        } else {
-            "The command started successfully".to_owned()
-        };
-        d.close();
-        let m = MessageDialog::new(
-            Some(window),
-            gtk::DialogFlags::DESTROY_WITH_PARENT,
-            gtk::MessageType::Info,
-            gtk::ButtonsType::Ok,
-            &x,
-        );
-        m.set_modal(true);
-        m.connect_response(|dialog, response| {
-            if response == gtk::ResponseType::DeleteEvent
-                || response == gtk::ResponseType::Close
-                || response == gtk::ResponseType::Ok
-            {
-                dialog.close();
-            }
-        });
-        m.show_all();
-    }
+    let text = input.get_text();
+    let x = if let Some(x) = start_detached_process(&text) {
+        x
+    } else {
+        "The command started successfully".to_owned()
+    };
+    d.close();
+    let m = MessageDialog::new(
+        Some(window),
+        gtk::DialogFlags::DESTROY_WITH_PARENT,
+        gtk::MessageType::Info,
+        gtk::ButtonsType::Ok,
+        &x,
+    );
+    m.set_modal(true);
+    m.connect_response(|dialog, response| {
+        if response == gtk::ResponseType::DeleteEvent
+            || response == gtk::ResponseType::Close
+            || response == gtk::ResponseType::Ok
+        {
+            dialog.close();
+        }
+    });
+    m.show_all();
 }
 
 fn create_new_proc_diag(
@@ -512,10 +511,10 @@ fn build_ui(application: &gtk::Application) {
         p.set_copyright(Some("Licensed under MIT"));
         p.set_transient_for(Some(&window));
         p.set_program_name("process-viewer");
-        let memory_stream = MemoryInputStream::new_from_bytes(
+        let memory_stream = MemoryInputStream::from_bytes(
             &Bytes::from_static(include_bytes!(
                     concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png"))));
-        let logo = Pixbuf::new_from_stream(&memory_stream, None::<&gio::Cancellable>);
+        let logo = Pixbuf::from_stream(&memory_stream, None::<&gio::Cancellable>);
         if let Ok(logo) = logo {
             p.set_logo(Some(&logo));
         }
@@ -531,7 +530,7 @@ fn build_ui(application: &gtk::Application) {
 
     let new_task = gio::SimpleAction::new("new-task", None);
     new_task.connect_activate(clone!(@weak window => move |_, _| {
-        let dialog = gtk::Dialog::new_with_buttons(
+        let dialog = gtk::Dialog::with_buttons(
             Some("Launch new executable"),
             Some(&window),
             gtk::DialogFlags::USE_HEADER_BAR,
@@ -555,11 +554,10 @@ fn build_ui(application: &gtk::Application) {
             }
         }
         input.connect_changed(clone!(@weak dialog => move |input| {
-            match input.get_text() {
-                Some(ref x) if !x.is_empty() => {
+            if !input.get_text().is_empty() {
                     dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
-                }
-                _ => dialog.set_response_sensitive(gtk::ResponseType::Other(0), false),
+               }
+               else { dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
             }
         }));
         input.connect_activate(clone!(@weak window, @weak dialog => move |input| {
@@ -660,7 +658,7 @@ fn build_ui(application: &gtk::Application) {
             let current_page = notebook.get_current_page();
             if current_page == Some(0) || current_page == Some(2) {
                 // the process list
-                if key.get_keyval() == gdk::enums::key::Escape {
+                if key.get_keyval() == gdk::keys::constants::Escape {
                     if current_page == Some(0) {
                         procs.hide_filter();
                     } else {
@@ -668,31 +666,25 @@ fn build_ui(application: &gtk::Application) {
                     }
                 } else if current_page == Some(0) {
                     let ret = procs.search_bar.handle_event(key);
-                    match procs.filter_entry.get_text() {
-                        Some(ref s) if s.len() > 0 => {
+                    if !procs.filter_entry.get_text().is_empty() {
                             procs.filter_entry.show_all();
                             if win.get_focus()
                                 != Some(procs.filter_entry.clone().upcast::<gtk::Widget>())
                             {
                                 win.set_focus(Some(&procs.filter_entry));
                             }
-                        }
-                        _ => {}
                     }
                     return Inhibit(ret);
                 } else {
                     let network = network_tab.borrow();
                     let ret = network.search_bar.handle_event(key);
-                    match network.filter_entry.get_text() {
-                        Some(ref s) if s.len() > 0 => {
+                    if !network.filter_entry.get_text().is_empty() {
                             network.filter_entry.show_all();
                             if win.get_focus()
                                 != Some(network.filter_entry.clone().upcast::<gtk::Widget>())
                             {
                                 win.set_focus(Some(&network.filter_entry));
                             }
-                        }
-                        _ => {}
                     }
                     return Inhibit(ret);
                 }

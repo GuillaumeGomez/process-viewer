@@ -41,8 +41,8 @@ impl Procs {
         let left_tree = gtk::TreeView::new();
         let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
         let current_pid = Rc::new(Cell::new(None));
-        let kill_button = gtk::Button::new_with_label("End task");
-        let info_button = gtk::Button::new_with_label("More information");
+        let kill_button = gtk::Button::with_label("End task");
+        let info_button = gtk::Button::with_label("More information");
 
         let filter_button =
             create_button_with_image(include_bytes!("../assets/magnifier.png"), "Filter");
@@ -140,7 +140,7 @@ impl Procs {
                 if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
                     return true;
                 }
-                if let Some(text) = filter_entry.get_text() {
+                let text = filter_entry.get_text();
                     if text.is_empty() {
                         return true;
                     }
@@ -160,9 +160,6 @@ impl Procs {
                     text.contains(&pid) ||
                     name.contains(text) ||
                     text.contains(&name)
-                } else {
-                    true
-                }
             }),
         );
         // For the filtering to be taken into account, we need to add it directly into the

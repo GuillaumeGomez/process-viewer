@@ -84,7 +84,7 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, note: &mut NoteBook) 
 
     let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
-    let refresh_but = gtk::Button::new_with_label("Refresh disks");
+    let refresh_but = gtk::Button::with_label("Refresh disks");
 
     refresh_but.connect_clicked(
         clone!(@weak sys, @weak container, @strong elems => move |_| {

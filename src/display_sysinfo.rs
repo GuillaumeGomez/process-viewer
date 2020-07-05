@@ -19,7 +19,7 @@ pub fn create_header(
     parent_layout: &gtk::Box,
     display_graph: bool,
 ) -> gtk::CheckButton {
-    let check_box = gtk::CheckButton::new_with_label("Graph view");
+    let check_box = gtk::CheckButton::with_label("Graph view");
     check_box.set_active(display_graph);
 
     let label = gtk::Label::new(Some(label_text));
