@@ -580,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "process_viewer"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "cairo-rs 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "gdk 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
