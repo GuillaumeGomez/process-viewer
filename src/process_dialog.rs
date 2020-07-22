@@ -15,7 +15,7 @@ use std::rc::Rc;
 
 use graph::{Connecter, Graph};
 use notebook::NoteBook;
-use utils::{connect_graph, format_number, get_main_window, RotateVec};
+use utils::{connect_graph, format_number, get_main_window, graph_label_units, RotateVec};
 
 #[allow(dead_code)]
 pub struct ProcDialog {
@@ -367,40 +367,8 @@ pub fn create_process_dialog(
         None,
     );
 
-    fn nb_label(v: f64) -> [String; 4] {
-        if v < 100_000. {
-            [
-                v.to_string(),
-                format!("{}", v / 2.),
-                "0".to_string(),
-                "kB".to_string(),
-            ]
-        } else if v < 10_000_000. {
-            [
-                format!("{:.1}", v / 1_000f64),
-                format!("{:.1}", v / 2_000f64),
-                "0".to_string(),
-                "MB".to_string(),
-            ]
-        } else if v < 10_000_000_000. {
-            [
-                format!("{:.1}", v / 1_000_000f64),
-                format!("{:.1}", v / 2_000_000f64),
-                "0".to_string(),
-                "GB".to_string(),
-            ]
-        } else {
-            [
-                format!("{:.1}", v / 1_000_000_000f64),
-                format!("{:.1}", v / 2_000_000_000f64),
-                "0".to_string(),
-                "TB".to_string(),
-            ]
-        }
-    }
-
-    ram_usage_history.set_label_callbacks(Some(Box::new(nb_label)));
-    disk_usage_history.set_label_callbacks(Some(Box::new(nb_label)));
+    ram_usage_history.set_label_callbacks(Some(Box::new(graph_label_units)));
+    disk_usage_history.set_label_callbacks(Some(Box::new(graph_label_units)));
 
     vertical_layout.add(&gtk::Label::new(Some("Memory usage")));
     ram_usage_history.attach_to(&vertical_layout);
