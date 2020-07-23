@@ -29,12 +29,10 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gtk+3 cairo atk; fi
 script:
   - rustc --version
-  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-    rustup component add clippy-preview || touch cargo_failed;
+  - if [ "$TRAVIS_RUST_VERSION" != "nightly" ]; then
+      rustup component add rustfmt;
+      cargo fmt -- --check;
+      rustup component add clippy;
+      cargo clippy;
     fi
-  - rustup component add rustfmt
-  - cargo fmt -- --check
   - RUST_BACKTRACE=1 cargo build
-  - if [ "$TRAVIS_RUST_VERSION" == "nightly" ] && [ ! -f "cargo_failed"  ]; then
-    cargo clippy;
-    fi
