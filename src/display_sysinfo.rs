@@ -125,7 +125,7 @@ impl DisplaySysInfo {
             } else {
                 [
                     format!("{:.1}", v / 1_000_000_000f64),
-                    format!("{:.1}", v / 1_000_000_000f64),
+                    format!("{:.1}", v / 2_000_000_000f64),
                     "0".to_string(),
                     "TB".to_string(),
                 ]

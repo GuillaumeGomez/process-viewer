@@ -10,7 +10,10 @@ use sysinfo::{self, NetworkExt};
 
 use graph::{Connecter, Graph};
 use notebook::NoteBook;
-use utils::{connect_graph, format_number, format_number_full, get_main_window, RotateVec};
+use utils::{
+    connect_graph, format_number, format_number_full, get_main_window, graph_label,
+    graph_label_units, RotateVec,
+};
 
 use std::cell::RefCell;
 use std::iter;
@@ -198,37 +201,7 @@ pub fn create_network_dialog(
         "transmitted",
         None,
     );
-    in_out_history.set_label_callbacks(Some(Box::new(|v| {
-        if v < 100_000. {
-            [
-                v.to_string(),
-                format!("{}", v / 2f64),
-                "0".to_string(),
-                "KB".to_string(),
-            ]
-        } else if v < 10_000_000. {
-            [
-                format!("{:.1}", v / 1_000f64),
-                format!("{:.1}", v / 2_000f64),
-                "0".to_string(),
-                "MB".to_string(),
-            ]
-        } else if v < 10_000_000_000. {
-            [
-                format!("{:.1}", v / 1_000_000f64),
-                format!("{:.1}", v / 2_000_000f64),
-                "0".to_string(),
-                "GB".to_string(),
-            ]
-        } else {
-            [
-                format!("{:.1}", v / 1_000_000_000f64),
-                format!("{:.1}", v / 2_000_000_000f64),
-                "0".to_string(),
-                "TB".to_string(),
-            ]
-        }
-    })));
+    in_out_history.set_label_callbacks(Some(Box::new(graph_label_units)));
     let label = gtk::Label::new(None);
     label.set_markup("<b>Network usage</b>");
     vertical_layout.add(&label);
@@ -259,37 +232,7 @@ pub fn create_network_dialog(
         "errors on transmitted",
         None,
     );
-    packets_errors_history.set_label_callbacks(Some(Box::new(|v| {
-        if v < 100_000. {
-            [
-                v.to_string(),
-                format!("{}", v / 2f64),
-                "0".to_string(),
-                "K".to_string(),
-            ]
-        } else if v < 10_000_000. {
-            [
-                format!("{:.1}", v / 1_000f64),
-                format!("{:.1}", v / 2_000f64),
-                "0".to_string(),
-                "M".to_string(),
-            ]
-        } else if v < 10_000_000_000. {
-            [
-                format!("{:.1}", v / 1_000_000f64),
-                format!("{:.1}", v / 2_000_000f64),
-                "0".to_string(),
-                "G".to_string(),
-            ]
-        } else {
-            [
-                format!("{:.1}", v / 1_000_000_000f64),
-                format!("{:.1}", v / 2_000_000_000f64),
-                "0".to_string(),
-                "T".to_string(),
-            ]
-        }
-    })));
+    packets_errors_history.set_label_callbacks(Some(Box::new(graph_label)));
     packets_errors_history.set_labels_width(120);
     let label = gtk::Label::new(None);
     label.set_markup("<b>Extra data</b>");

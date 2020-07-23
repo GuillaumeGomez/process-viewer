@@ -89,21 +89,21 @@ impl Network {
         let list_store = gtk::ListStore::new(&[
             // The first four columns of the model are going to be visible in the view.
             glib::Type::String, // name
-            glib::Type::String, // in usage
-            glib::Type::String, // out usage
+            glib::Type::String, // received data
+            glib::Type::String, // transmitted data
             glib::Type::String, // received packets
             glib::Type::String, // transmitted packets
-            glib::Type::String, // received errors
-            glib::Type::String, // transmitted errors
+            glib::Type::String, // errors on received
+            glib::Type::String, // errors on transmitted
             // These two will serve as keys when sorting by interface name and other numerical
             // things.
             glib::Type::String, // name_lowercase
-            glib::Type::U64,    // in usage
-            glib::Type::U64,    // out usage
+            glib::Type::U64,    // received data
+            glib::Type::U64,    // transmitted data
             glib::Type::U64,    // received packets
             glib::Type::U64,    // transmitted packets
-            glib::Type::U64,    // received errors
-            glib::Type::U64,    // transmitted errors
+            glib::Type::U64,    // errors on received
+            glib::Type::U64,    // errors on transmitted
         ]);
 
         // The filter model
@@ -134,12 +134,12 @@ impl Network {
         tree.set_model(Some(&sort_model));
 
         append_column("name", &mut columns, &tree, Some(200));
-        append_column("in usage", &mut columns, &tree, None);
-        append_column("out usage", &mut columns, &tree, None);
-        append_column("incoming packets", &mut columns, &tree, None);
-        append_column("outgoing packets", &mut columns, &tree, None);
-        append_column("incoming errors", &mut columns, &tree, None);
-        append_column("outgoing errors", &mut columns, &tree, None);
+        append_column("received data", &mut columns, &tree, None);
+        append_column("transmitted data", &mut columns, &tree, None);
+        append_column("received packets", &mut columns, &tree, None);
+        append_column("transmitted packets", &mut columns, &tree, None);
+        append_column("errors on received", &mut columns, &tree, None);
+        append_column("errors on transmitted", &mut columns, &tree, None);
 
         let columns_len = columns.len();
         for (pos, column) in columns.iter().enumerate() {

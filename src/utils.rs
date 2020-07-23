@@ -62,9 +62,8 @@ pub fn format_number(nb: u64) -> String {
 
 pub fn format_number_full(nb: u64, use_unit: bool) -> String {
     if nb < 1_000 {
-        return format!("{}{}", nb, if use_unit { " B" } else { "" });
-    }
-    if nb < 1_000_000 {
+        format!("{}{}", nb, if use_unit { " B" } else { "" })
+    } else if nb < 1_000_000 {
         format!(
             "{}.{}{}",
             nb / 1_000,
@@ -92,6 +91,53 @@ pub fn format_number_full(nb: u64, use_unit: bool) -> String {
             nb / 100_000_000_000 % 10,
             if use_unit { " TB" } else { "" }
         )
+    }
+}
+
+pub fn graph_label_units(v: f64) -> [String; 4] {
+    graph_label_units_full(v, true)
+}
+
+pub fn graph_label(v: f64) -> [String; 4] {
+    graph_label_units_full(v, false)
+}
+
+pub fn graph_label_units_full(v: f64, use_unit: bool) -> [String; 4] {
+    if v < 1_000. {
+        [
+            v.to_string(),
+            format!("{}", v / 2.),
+            "0".to_owned(),
+            if use_unit { "B" } else { "" }.to_owned(),
+        ]
+    } else if v < 1_000_000. {
+        [
+            format!("{:.1}", v / 1_000f64),
+            format!("{:.1}", v / 2_000f64),
+            "0".to_owned(),
+            if use_unit { "KB" } else { "K" }.to_owned(),
+        ]
+    } else if v < 1_000_000_000. {
+        [
+            format!("{:.1}", v / 1_000_000f64),
+            format!("{:.1}", v / 2_000_000f64),
+            "0".to_owned(),
+            if use_unit { "MB" } else { "M" }.to_owned(),
+        ]
+    } else if v < 1_000_000_000_000. {
+        [
+            format!("{:.1}", v / 1_000_000_000f64),
+            format!("{:.1}", v / 2_000_000_000f64),
+            "0".to_owned(),
+            if use_unit { "GB" } else { "G" }.to_owned(),
+        ]
+    } else {
+        [
+            format!("{:.1}", v / 1_000_000_000_000f64),
+            format!("{:.1}", v / 2_000_000_000_000f64),
+            "0".to_owned(),
+            if use_unit { "TB" } else { "T" }.to_owned(),
+        ]
     }
 }
 
