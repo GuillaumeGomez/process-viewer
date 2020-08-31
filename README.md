@@ -20,10 +20,16 @@ or to install it as binary
 cargo install process_viewer
 ```
 
-### Building/running on Linux, MacOS and Ubuntu-based Distros
+### Building/running on Linux, MacOS
 
 Running ```process-viewer``` on Gnome-based Ubuntu (>=17.10) should work out of the box.  
-For Debian, Ubuntu-derivatives, Fedora and MacOS refer to the [gtk-rs installation guide](http://gtk-rs.org/docs/requirements.html).
+For Debian, Fedora and MacOS refer to the [gtk-rs installation guide](http://gtk-rs.org/docs/requirements.html).
+
+### Bulding on Ubuntu-based Distros
+
+```bash
+sudo apt install -y libgtk-3-dev
+```
 
 ### Building/running on Windows
 
