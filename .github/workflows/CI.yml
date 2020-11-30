@@ -1,0 +1,53 @@
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+name: CI
+
+jobs:
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+          - "1.48.0" # Minimum supported version (from gtk-rs)
+        os:
+          - ubuntu-latest
+          - macos-latest
+    steps:
+      - run: apt-get update -y
+        if: matrix.os == 'ubuntu-latest'
+      - run: apt-get install -y libgtk-3-dev libglib2.0-dev curl libcairo-gobject2 libcairo2-dev
+        if: matrix.os == 'ubuntu-latest'
+      - run: brew update
+        if: matrix.os == 'macos-latest'
+      - run: brew install gtk+3 cairo atk
+        if: matrix.os == 'macos-latest'
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+	  os: $${{ matrix.os }}
+	  components: clippy
+          override: true
+      - name: compile
+        run: cargo build
+      - name: clippy
+        run: cargo clippy
