@@ -31,9 +31,9 @@ jobs:
           - ubuntu-latest
           - macos-latest
     steps:
-      - run: apt-get update -y
+      - run: sudo apt-get update -y
         if: matrix.os == 'ubuntu-latest'
-      - run: apt-get install -y libgtk-3-dev libglib2.0-dev curl libcairo-gobject2 libcairo2-dev
+      - run: sudo apt-get install -y libgtk-3-dev libglib2.0-dev curl libcairo-gobject2 libcairo2-dev
         if: matrix.os == 'ubuntu-latest'
       - run: brew update
         if: matrix.os == 'macos-latest'
