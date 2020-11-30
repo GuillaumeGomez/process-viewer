@@ -44,8 +44,8 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
-	  os: $${{ matrix.os }}
-	  components: clippy
+          os: $${{ matrix.os }}
+          components: clippy
           override: true
       - name: compile
         run: cargo build
