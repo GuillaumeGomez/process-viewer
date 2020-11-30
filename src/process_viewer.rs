@@ -412,7 +412,8 @@ fn build_ui(application: &gtk::Application) {
 
     let window = gtk::ApplicationWindow::new(application);
 
-    let mut sys = sysinfo::System::new_all();
+    let mut sys =
+        sysinfo::System::new_with_specifics(RefreshKind::everything().without_users_list());
     let start_time = get_now();
     let mut note = NoteBook::new();
     let procs = Procs::new(sys.get_processes(), &mut note, &window);
