@@ -33,7 +33,7 @@ sudo apt install -y libgtk-3-dev
 
 ### Building/running on Windows
 
-You'll need to follow the [gtk-rs installation guide](http://gtk-rs.org/docs/requirements.html#windows). If you still have issues to run the generated binary, just copy the `.dll`s into the executable's folder.
+You'll need to follow the [GTK installation guide](https://www.gtk.org/docs/installations/windows/). If you still have issues to run the generated binary, just copy the `.dll`s into the executable's folder.
 
 ### Running on Raspberry
 
