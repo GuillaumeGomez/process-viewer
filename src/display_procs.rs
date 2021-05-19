@@ -148,12 +148,12 @@ impl Procs {
                     // TODO: Maybe add an option to make searches case sensitive?
                     let pid = model.get_value(iter, 0)
                                    .get::<u32>()
-                                   .unwrap_or_else(|_| None)
+                                   .unwrap_or(None)
                                    .map(|p| p.to_string())
                                    .unwrap_or_else(String::new);
                     let name = model.get_value(iter, 1)
                                     .get::<String>()
-                                    .unwrap_or_else(|_| None)
+                                    .unwrap_or(None)
                                     .map(|s| s.to_lowercase())
                                     .unwrap_or_else(String::new);
                     pid.contains(text) ||

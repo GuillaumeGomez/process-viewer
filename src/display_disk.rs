@@ -20,7 +20,7 @@ fn update_disk(info: &mut DiskInfo, disk: &sysinfo::Disk) {
     info.label.set_text(
         format!(
             "{} mounted on \"{}\"",
-            disk.get_name().to_str().unwrap_or_else(|| ""),
+            disk.get_name().to_str().unwrap_or(""),
             &info.mount_point,
         )
         .as_str(),
@@ -42,7 +42,7 @@ fn update_disk(info: &mut DiskInfo, disk: &sysinfo::Disk) {
 
 fn refresh_disks(container: &gtk::Box, disks: &[sysinfo::Disk], elems: &mut Vec<DiskInfo>) {
     for disk in disks.iter() {
-        let mount_point = disk.get_mount_point().to_str().unwrap_or_else(|| "");
+        let mount_point = disk.get_mount_point().to_str().unwrap_or("");
         update_disk(
             if let Some(entry) = elems.iter_mut().find(|e| e.mount_point == mount_point) {
                 entry

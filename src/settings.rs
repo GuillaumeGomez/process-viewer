@@ -16,7 +16,7 @@ use gtk::{
 use std::cell::RefCell;
 use std::fs::{create_dir_all, File};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use utils::{get_app, get_main_window};
@@ -48,7 +48,7 @@ impl Default for Settings {
 }
 
 impl Settings {
-    fn load_from_file(p: &PathBuf) -> Result<Settings, String> {
+    fn load_from_file(p: &Path) -> Result<Settings, String> {
         let mut input = String::new();
         let mut file =
             File::open(p).map_err(|e| format!("Error while opening '{}': {}", p.display(), e))?;

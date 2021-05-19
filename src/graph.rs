@@ -46,11 +46,7 @@ impl Graph {
             ),
             horizontal_layout: gtk::Box::new(gtk::Orientation::Horizontal, 0),
             area: DrawingArea::new(),
-            max: if let Some(max) = max {
-                Some(RefCell::new(max))
-            } else {
-                None
-            },
+            max: max.map(RefCell::new),
             keep_max,
             display_labels: RefCell::new(true),
             initial_diff: None,
