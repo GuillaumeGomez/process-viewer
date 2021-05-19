@@ -283,7 +283,7 @@ pub fn create_process_dialog(
             Some(n) => n,
             None => continue,
         };
-        let value = parts.next().unwrap_or_else(|| "");
+        let value = parts.next().unwrap_or("");
         list_store.insert_with_values(None, &[0, 1], &[&name, &value]);
     }
 

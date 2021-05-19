@@ -121,7 +121,7 @@ impl Network {
                     // TODO: Maybe add an option to make searches case sensitive?
                     let name = model.get_value(iter, 0)
                                     .get::<String>()
-                                    .unwrap_or_else(|_| None)
+                                    .unwrap_or(None)
                                     .map(|s| s.to_lowercase())
                                     .unwrap_or_else(String::new);
                     name.contains(text)
