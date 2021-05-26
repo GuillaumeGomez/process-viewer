@@ -6,7 +6,7 @@ It can be run on the following platforms:
  * Linux
  * Raspberry
  * Mac OSX
- * Windows
+ * Windows (for cross-compilation to Windows, you can give a try to https://hub.docker.com/r/etrombly/rust-crosscompile)
 
 Please run it in release mode to have good performance:
 
