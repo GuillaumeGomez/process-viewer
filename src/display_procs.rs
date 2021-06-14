@@ -78,14 +78,21 @@ impl Procs {
         ]);
 
         for pro in proc_list.values() {
-            create_and_fill_model(
-                &list_store,
-                pro.pid().as_u32(),
-                &pro.cmd(),
-                &pro.name(),
-                pro.cpu_usage(),
-                pro.memory() * 1_000,
-            );
+            if let Some(exe) = pro
+                .exe()
+                .file_name()
+                .and_then(|f| f.to_str())
+                .or_else(|| Some(pro.name()))
+            {
+                create_and_fill_model(
+                    &list_store,
+                    pro.pid().as_u32(),
+                    &pro.cmd(),
+                    exe,
+                    pro.cpu_usage(),
+                    pro.memory() * 1_000,
+                );
+            }
         }
 
         left_tree.set_headers_visible(true);
