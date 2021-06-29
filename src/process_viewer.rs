@@ -231,8 +231,8 @@ fn create_new_proc_diag(
         proc_diag.popup.present();
         return;
     }
-    let total_memory = sys.get_total_memory();
-    if let Some(process) = sys.get_process(pid) {
+    let total_memory = sys.total_memory();
+    if let Some(process) = sys.process(pid) {
         process_dialogs
             .borrow_mut()
             .push(process_dialog::create_process_dialog(
@@ -287,7 +287,7 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
 
         if let Ok(sys) = sys.lock() {
             // we update the tree view
-            update_window(&list_store, sys.get_processes());
+            update_window(&list_store, sys.processes());
 
             // we re-enable the sorting
             if let Some((col, order)) = sorted {
@@ -295,7 +295,7 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
             }
             for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
                 // TODO: check if the process name matches the PID too!
-                if let Some(process) = sys.get_processes().get(&dialog.pid) {
+                if let Some(process) = sys.processes().get(&dialog.pid) {
                     dialog.update(process, start_time);
                 } else {
                     dialog.set_dead();
@@ -416,7 +416,7 @@ fn build_ui(application: &gtk::Application) {
         sysinfo::System::new_with_specifics(RefreshKind::everything().without_users_list());
     let start_time = get_now();
     let mut note = NoteBook::new();
-    let procs = Procs::new(sys.get_processes(), &mut note, &window);
+    let procs = Procs::new(sys.processes(), &mut note, &window);
     let current_pid = Rc::clone(&procs.current_pid);
     let info_button = procs.info_button.clone();
 
@@ -435,7 +435,7 @@ fn build_ui(application: &gtk::Application) {
         .kill_button
         .connect_clicked(clone!(@weak current_pid, @weak sys => move |_| {
             let sys = sys.lock().expect("failed to lock to kill a process");
-            if let Some(process) = current_pid.get().and_then(|pid| sys.get_process(pid)) {
+            if let Some(process) = current_pid.get().and_then(|pid| sys.process(pid)) {
                 process.kill(Signal::Kill);
             }
         }));

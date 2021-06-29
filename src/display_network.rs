@@ -237,7 +237,7 @@ impl Network {
         self.list_store.set_unsorted();
 
         let mut seen: HashSet<String> = HashSet::new();
-        let networks = sys.get_networks();
+        let networks = sys.networks();
 
         if let Some(iter) = self.list_store.get_iter_first() {
             let mut valid = true;
@@ -258,18 +258,18 @@ impl Network {
                             &iter,
                             &[1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13],
                             &[
-                                &format_number(data.get_received()),
-                                &format_number(data.get_transmitted()),
-                                &format_number_full(data.get_packets_received(), false),
-                                &format_number_full(data.get_packets_transmitted(), false),
-                                &format_number_full(data.get_errors_on_received(), false),
-                                &format_number_full(data.get_errors_on_transmitted(), false),
-                                &data.get_received(),
-                                &data.get_transmitted(),
-                                &data.get_packets_received(),
-                                &data.get_packets_transmitted(),
-                                &data.get_errors_on_received(),
-                                &data.get_errors_on_transmitted(),
+                                &format_number(data.received()),
+                                &format_number(data.transmitted()),
+                                &format_number_full(data.packets_received(), false),
+                                &format_number_full(data.packets_transmitted(), false),
+                                &format_number_full(data.errors_on_received(), false),
+                                &format_number_full(data.errors_on_transmitted(), false),
+                                &data.received(),
+                                &data.transmitted(),
+                                &data.packets_received(),
+                                &data.packets_transmitted(),
+                                &data.errors_on_received(),
+                                &data.errors_on_transmitted(),
                             ],
                         );
                         valid = self.list_store.iter_next(&iter);
@@ -286,12 +286,12 @@ impl Network {
                 create_and_fill_model(
                     &self.list_store,
                     interface_name,
-                    data.get_received(),
-                    data.get_transmitted(),
-                    data.get_packets_received(),
-                    data.get_packets_transmitted(),
-                    data.get_errors_on_received(),
-                    data.get_errors_on_transmitted(),
+                    data.received(),
+                    data.transmitted(),
+                    data.packets_received(),
+                    data.packets_transmitted(),
+                    data.errors_on_received(),
+                    data.errors_on_transmitted(),
                 );
             }
             if let Some(dialog) = self
@@ -355,7 +355,7 @@ fn create_network_dialog(dialogs: &mut Vec<NetworkDialog>, interface_name: &str,
         }
     }
     if let Some((_, data)) = sys
-        .get_networks()
+        .networks()
         .iter()
         .find(|(name, _)| name.as_str() == interface_name)
     {

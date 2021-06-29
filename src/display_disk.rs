@@ -20,7 +20,7 @@ fn update_disk(info: &mut DiskInfo, disk: &sysinfo::Disk) {
     info.label.set_text(
         format!(
             "{} mounted on \"{}\"",
-            disk.get_name().to_str().unwrap_or(""),
+            disk.name().to_str().unwrap_or(""),
             &info.mount_point,
         )
         .as_str(),
@@ -28,21 +28,20 @@ fn update_disk(info: &mut DiskInfo, disk: &sysinfo::Disk) {
     info.progress.set_text(Some(
         format!(
             "{} / {}",
-            format_number(disk.get_total_space() - disk.get_available_space()),
-            format_number(disk.get_total_space())
+            format_number(disk.total_space() - disk.available_space()),
+            format_number(disk.total_space())
         )
         .as_str(),
     ));
     info.progress.set_fraction(
-        (disk.get_total_space() - disk.get_available_space()) as f64
-            / disk.get_total_space() as f64,
+        (disk.total_space() - disk.available_space()) as f64 / disk.total_space() as f64,
     );
     info.updated = true;
 }
 
 fn refresh_disks(container: &gtk::Box, disks: &[sysinfo::Disk], elems: &mut Vec<DiskInfo>) {
     for disk in disks.iter() {
-        let mount_point = disk.get_mount_point().to_str().unwrap_or("");
+        let mount_point = disk.mount_point().to_str().unwrap_or("");
         update_disk(
             if let Some(entry) = elems.iter_mut().find(|e| e.mount_point == mount_point) {
                 entry
@@ -90,7 +89,7 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, note: &mut NoteBook) 
         clone!(@weak sys, @weak container, @strong elems => move |_| {
             let mut sys = sys.lock().expect("failed to lock to refresh disks");
             sys.refresh_disks();
-            refresh_disks(&container, sys.get_disks(), &mut *elems.borrow_mut());
+            refresh_disks(&container, sys.disks(), &mut *elems.borrow_mut());
         }),
     );
 
@@ -101,7 +100,7 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, note: &mut NoteBook) 
     note.create_tab("Disk information", &vertical_layout);
     refresh_disks(
         &container,
-        sys.lock().expect("failed to lock to get disks").get_disks(),
+        sys.lock().expect("failed to lock to get disks").disks(),
         &mut *elems.borrow_mut(),
     );
 }
