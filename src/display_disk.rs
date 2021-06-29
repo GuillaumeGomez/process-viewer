@@ -2,10 +2,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use notebook::NoteBook;
-use utils::format_number;
+use crate::notebook::NoteBook;
+use crate::utils::format_number;
 
-use gtk::{self, BoxExt, ButtonExt, ContainerExt, LabelExt, ProgressBarExt};
+use gtk::prelude::{BoxExt, ButtonExt, ContainerExt, LabelExt, ProgressBarExt};
+use gtk::{self, glib};
 
 use sysinfo::{self, DiskExt, SystemExt};
 
@@ -86,7 +87,7 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, note: &mut NoteBook) 
     let refresh_but = gtk::Button::with_label("Refresh disks");
 
     refresh_but.connect_clicked(
-        clone!(@weak sys, @weak container, @strong elems => move |_| {
+        glib::clone!(@weak sys, @weak container, @strong elems => move |_| {
             let mut sys = sys.lock().expect("failed to lock to refresh disks");
             sys.refresh_disks();
             refresh_disks(&container, sys.disks(), &mut *elems.borrow_mut());

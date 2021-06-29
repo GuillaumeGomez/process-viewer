@@ -1,3 +1,4 @@
+use gtk::glib;
 use gtk::prelude::{
     AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, ScrolledWindowExt,
     ToggleButtonExt, WidgetExt,
@@ -9,10 +10,10 @@ use std::iter;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use graph::Graph;
-use notebook::NoteBook;
-use settings::Settings;
-use utils::{connect_graph, format_number, RotateVec};
+use crate::graph::Graph;
+use crate::notebook::NoteBook;
+use crate::settings::Settings;
+use crate::utils::{connect_graph, format_number, RotateVec};
 
 pub fn create_header(
     label_text: &str,
@@ -261,14 +262,13 @@ impl DisplaySysInfo {
         note.create_tab("System usage", &scroll);
 
         // It greatly improves the scrolling on the system information tab. No more clipping.
-        if let Some(adjustment) = scroll.get_vadjustment() {
-            adjustment.connect_value_changed(
-                clone!(@weak cpu_usage_history, @weak ram_usage_history, @weak temperature_usage_history => move |_| {
-                cpu_usage_history.borrow().invalidate();
-                ram_usage_history.borrow().invalidate();
-                temperature_usage_history.borrow().invalidate();
-            }));
-        }
+        let adjustment = scroll.vadjustment();
+        adjustment.connect_value_changed(
+            glib::clone!(@weak cpu_usage_history, @weak ram_usage_history, @weak temperature_usage_history => move |_| {
+            cpu_usage_history.borrow().invalidate();
+            ram_usage_history.borrow().invalidate();
+            temperature_usage_history.borrow().invalidate();
+        }));
 
         let mut tmp = DisplaySysInfo {
             procs: Rc::new(RefCell::new(procs)),
@@ -286,25 +286,25 @@ impl DisplaySysInfo {
         tmp.update_system_info(&sys, settings.display_fahrenheit);
 
         check_box.connect_toggled(
-            clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
+            glib::clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
                 show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
             }),
         );
         check_box2.connect_toggled(
-            clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
+            glib::clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
                 show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
             }),
         );
         if let Some(ref check_box3) = check_box3 {
             check_box3.connect_toggled(
-                clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
+                glib::clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
                     show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
                 }),
             );
         }
 
         scroll.connect_show(
-            clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
+            glib::clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
                 show_if_necessary(&check_box,
                                   &cpu_usage_history.borrow(), &non_graph_layout);
                 show_if_necessary(&check_box2,
@@ -436,12 +436,12 @@ impl DisplaySysInfo {
     }
 }
 
-pub fn show_if_necessary<U: glib::IsA<gtk::ToggleButton>, T: WidgetExt>(
+pub fn show_if_necessary<U: gtk::glib::IsA<gtk::ToggleButton>, T: WidgetExt>(
     check_box: &U,
     proc_horizontal_layout: &Graph,
     non_graph_layout: &T,
 ) {
-    if check_box.get_active() {
+    if check_box.is_active() {
         proc_horizontal_layout.show_all();
         non_graph_layout.hide();
     } else {

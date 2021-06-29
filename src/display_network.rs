@@ -1,15 +1,15 @@
-use network_dialog::{self, NetworkDialog};
+use crate::network_dialog::{self, NetworkDialog};
 
-use gtk;
+use crate::notebook::NoteBook;
+use crate::utils::{create_button_with_image, format_number, format_number_full};
 use gtk::prelude::{
     BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
     GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
     TreeModelFilterExt, TreeSelectionExt, TreeSortableExtManual, TreeViewColumnExt, TreeViewExt,
     WidgetExt,
 };
-use notebook::NoteBook;
+use gtk::{self, glib};
 use sysinfo::{NetworkExt, NetworksExt, System, SystemExt};
-use utils::{create_button_with_image, format_number, format_number_full};
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -26,7 +26,7 @@ fn append_column(
     let renderer = gtk::CellRendererText::new();
 
     if title != "name" {
-        renderer.set_property_xalign(1.0);
+        renderer.set_xalign(1.0);
     }
 
     let column = gtk::TreeViewColumn::new();
@@ -88,16 +88,16 @@ impl Network {
 
         let list_store = gtk::ListStore::new(&[
             // The first four columns of the model are going to be visible in the view.
-            glib::Type::String, // name
-            glib::Type::String, // received data
-            glib::Type::String, // transmitted data
-            glib::Type::String, // received packets
-            glib::Type::String, // transmitted packets
-            glib::Type::String, // errors on received
-            glib::Type::String, // errors on transmitted
+            glib::Type::STRING, // name
+            glib::Type::STRING, // received data
+            glib::Type::STRING, // transmitted data
+            glib::Type::STRING, // received packets
+            glib::Type::STRING, // transmitted packets
+            glib::Type::STRING, // errors on received
+            glib::Type::STRING, // errors on transmitted
             // These two will serve as keys when sorting by interface name and other numerical
             // things.
-            glib::Type::String, // name_lowercase
+            glib::Type::STRING, // name_lowercase
             glib::Type::U64,    // received data
             glib::Type::U64,    // transmitted data
             glib::Type::U64,    // received packets
@@ -109,20 +109,20 @@ impl Network {
         // The filter model
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
         filter_model.set_visible_func(
-            clone!(@weak filter_entry => @default-return false, move |model, iter| {
-                if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
+            glib::clone!(@weak filter_entry => @default-return false, move |model, iter| {
+                if !WidgetExt::is_visible(&filter_entry) || filter_entry.text_length() < 1 {
                     return true;
                 }
-                let text = filter_entry.get_text();
+                let text = filter_entry.text();
                     if text.is_empty() {
                         return true;
                     }
                     let text: &str = text.as_ref();
                     // TODO: Maybe add an option to make searches case sensitive?
-                    let name = model.get_value(iter, 0)
+                    let name = model.value(iter, 0)
                                     .get::<String>()
-                                    .unwrap_or(None)
                                     .map(|s| s.to_lowercase())
+                                    .ok()
                                     .unwrap_or_else(String::new);
                     name.contains(text)
             }),
@@ -162,17 +162,17 @@ impl Network {
         vertical_layout.pack_start(&overlay, true, true, 0);
         vertical_layout.pack_start(&horizontal_layout, false, true, 0);
 
-        filter_entry.connect_property_text_length_notify(move |_| {
+        filter_entry.connect_text_length_notify(move |_| {
             filter_model.refilter();
         });
 
         note.create_tab("Networks", &vertical_layout);
 
         tree.connect_cursor_changed(
-            clone!(@weak current_network, @weak info_button => move |tree_view| {
-                let selection = tree_view.get_selection();
-                let (name, ret) = if let Some((model, iter)) = selection.get_selected() {
-                    if let Ok(Some(x)) = model.get_value(&iter, 0).get::<String>() {
+            glib::clone!(@weak current_network, @weak info_button => move |tree_view| {
+                let selection = tree_view.selection();
+                let (name, ret) = if let Some((model, iter)) = selection.selected() {
+                    if let Ok(x) = model.value(&iter, 0).get::<String>() {
                         (Some(x), true)
                     } else {
                         (None, false)
@@ -186,8 +186,8 @@ impl Network {
         );
         info_button.set_sensitive(false);
 
-        filter_button.connect_clicked(clone!(@weak filter_entry, @weak window => move |_| {
-            if filter_entry.get_visible() {
+        filter_button.connect_clicked(glib::clone!(@weak filter_entry, @weak window => move |_| {
+            if WidgetExt::is_visible(&filter_entry) {
                 filter_entry.hide();
             } else {
                 filter_entry.show_all();
@@ -197,7 +197,7 @@ impl Network {
 
         let dialogs = Rc::new(RefCell::new(Vec::new()));
 
-        info_button.connect_clicked(clone!(@weak dialogs, @weak sys => move |_| {
+        info_button.connect_clicked(glib::clone!(@weak dialogs, @weak sys => move |_| {
             let current_network = current_network.borrow();
             if let Some(ref interface_name) = *current_network {
                 println!("create network dialog for {}", interface_name);
@@ -206,13 +206,12 @@ impl Network {
         }));
 
         tree.connect_row_activated(
-            clone!(@weak sys, @weak dialogs => move |tree_view, path, _| {
-                let model = tree_view.get_model().expect("couldn't get model");
-                let iter = model.get_iter(path).expect("couldn't get iter");
-                let interface_name = model.get_value(&iter, 0)
+            glib::clone!(@weak sys, @weak dialogs => move |tree_view, path, _| {
+                let model = tree_view.model().expect("couldn't get model");
+                let iter = model.iter(path).expect("couldn't get iter");
+                let interface_name = model.value(&iter, 0)
                                             .get::<String>()
-                                            .expect("Model::get failed")
-                                            .expect("failed to get value from model");
+                                            .expect("Model::get failed");
                 create_network_dialog(&mut *dialogs.borrow_mut(), &interface_name, &*sys.lock().expect("failed to lock for new network dialog (from tree)"));
             }),
         );
@@ -233,50 +232,47 @@ impl Network {
 
     pub fn update_networks(&mut self, sys: &System) {
         // first part, deactivate sorting
-        let sorted = TreeSortableExtManual::get_sort_column_id(&self.list_store);
+        let sorted = TreeSortableExtManual::sort_column_id(&self.list_store);
         self.list_store.set_unsorted();
 
         let mut seen: HashSet<String> = HashSet::new();
         let networks = sys.networks();
 
-        if let Some(iter) = self.list_store.get_iter_first() {
+        if let Some(iter) = self.list_store.iter_first() {
             let mut valid = true;
             while valid {
-                if let Some(name) = match self.list_store.get_value(&iter, 0).get::<glib::GString>()
-                {
+                let name = match self.list_store.value(&iter, 0).get::<glib::GString>() {
                     Ok(n) => n,
                     _ => {
                         valid = self.list_store.iter_next(&iter);
                         continue;
                     }
-                } {
-                    if let Some((_, data)) = networks
-                        .iter()
-                        .find(|(interface_name, _)| interface_name.as_str() == name)
-                    {
-                        self.list_store.set(
-                            &iter,
-                            &[1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13],
-                            &[
-                                &format_number(data.received()),
-                                &format_number(data.transmitted()),
-                                &format_number_full(data.packets_received(), false),
-                                &format_number_full(data.packets_transmitted(), false),
-                                &format_number_full(data.errors_on_received(), false),
-                                &format_number_full(data.errors_on_transmitted(), false),
-                                &data.received(),
-                                &data.transmitted(),
-                                &data.packets_received(),
-                                &data.packets_transmitted(),
-                                &data.errors_on_received(),
-                                &data.errors_on_transmitted(),
-                            ],
-                        );
-                        valid = self.list_store.iter_next(&iter);
-                        seen.insert(name.to_string());
-                    } else {
-                        valid = self.list_store.remove(&iter);
-                    }
+                };
+                if let Some((_, data)) = networks
+                    .iter()
+                    .find(|(interface_name, _)| interface_name.as_str() == name)
+                {
+                    self.list_store.set(
+                        &iter,
+                        &[
+                            (1, &format_number(data.received())),
+                            (2, &format_number(data.transmitted())),
+                            (3, &format_number_full(data.packets_received(), false)),
+                            (4, &format_number_full(data.packets_transmitted(), false)),
+                            (5, &format_number_full(data.errors_on_received(), false)),
+                            (6, &format_number_full(data.errors_on_transmitted(), false)),
+                            (8, &data.received()),
+                            (9, &data.transmitted()),
+                            (10, &data.packets_received()),
+                            (11, &data.packets_transmitted()),
+                            (12, &data.errors_on_received()),
+                            (13, &data.errors_on_transmitted()),
+                        ],
+                    );
+                    valid = self.list_store.iter_next(&iter);
+                    seen.insert(name.to_string());
+                } else {
+                    valid = self.list_store.remove(&iter);
                 }
             }
         }
@@ -326,23 +322,22 @@ fn create_and_fill_model(
 ) {
     list_store.insert_with_values(
         None,
-        &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
         &[
-            &interface_name,
-            &format_number(in_usage),
-            &format_number(out_usage),
-            &format_number_full(incoming_packets, false),
-            &format_number_full(outgoing_packets, false),
-            &format_number_full(incoming_errors, false),
-            &format_number_full(outgoing_errors, false),
+            (0, &interface_name),
+            (1, &format_number(in_usage)),
+            (2, &format_number(out_usage)),
+            (3, &format_number_full(incoming_packets, false)),
+            (4, &format_number_full(outgoing_packets, false)),
+            (5, &format_number_full(incoming_errors, false)),
+            (6, &format_number_full(outgoing_errors, false)),
             // sort part
-            &interface_name.to_lowercase(),
-            &in_usage,
-            &out_usage,
-            &incoming_packets,
-            &outgoing_packets,
-            &incoming_errors,
-            &outgoing_errors,
+            (7, &interface_name.to_lowercase()),
+            (8, &in_usage),
+            (9, &out_usage),
+            (10, &incoming_packets),
+            (11, &outgoing_packets),
+            (12, &incoming_errors),
+            (13, &outgoing_errors),
         ],
     );
 }

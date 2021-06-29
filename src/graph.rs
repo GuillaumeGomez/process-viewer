@@ -1,12 +1,12 @@
-use cairo;
-use gdk::{self, WindowExt};
-use gtk::{self, BoxExt, ContainerExt, DrawingArea, ScrolledWindowExt, StateFlags, WidgetExt};
+use gtk::gdk;
+use gtk::prelude::{BoxExt, ContainerExt, LabelExt, ScrolledWindowExt, WidgetExt};
+use gtk::{self, cairo, DrawingArea};
 use std::cell::RefCell;
 
 use std::rc::Rc;
 
-use color::Color;
-use utils::RotateVec;
+use crate::color::Color;
+use crate::utils::RotateVec;
 
 const LEFT_WIDTH: f64 = 31.;
 
@@ -115,16 +115,16 @@ impl Graph {
     }
 
     pub fn push(&mut self, d: RotateVec<f64>, s: &str, override_color: Option<usize>) {
-        let c = if let Some(over) = override_color {
+        let (c, r, g, b) = if let Some(over) = override_color {
             Color::generate(over)
         } else {
             Color::generate(self.data.len() + 11)
         };
-        let l = gtk::Label::new(Some(s));
-        l.override_color(
-            StateFlags::from_bits(0).expect("from_bits failed"),
-            Some(&c.to_gdk()),
-        );
+        let l = gtk::Label::new(None);
+        l.set_markup(&format!(
+            "<span foreground='#{:02X}{:02X}{:02X}'>{}</span>",
+            r, g, b, s
+        ));
         self.vertical_layout.add(&l);
         self.colors.push(c);
         self.data.push(d);
@@ -139,20 +139,20 @@ impl Graph {
             c.set_font_size(font_size);
 
             c.move_to(LEFT_WIDTH - 4. - entries[0].len() as f64 * 4., font_size);
-            c.show_text(entries[0].as_str());
+            let _ = c.show_text(entries[0].as_str());
 
             c.move_to(LEFT_WIDTH - 4. - entries[1].len() as f64 * 4., height / 2.);
-            c.show_text(entries[1].as_str());
+            let _ = c.show_text(entries[1].as_str());
 
             c.move_to(LEFT_WIDTH - 4. - entries[2].len() as f64 * 4., height - 2.);
-            c.show_text(entries[2].as_str());
+            let _ = c.show_text(entries[2].as_str());
 
             c.move_to(
                 font_size - 1.,
                 height / 2. + 4. * (entries[3].len() >> 1) as f64,
             );
             c.rotate(-::std::f64::consts::FRAC_PI_2);
-            c.show_text(entries[3].as_str());
+            let _ = c.show_text(entries[3].as_str());
         }
     }
 
@@ -176,7 +176,7 @@ impl Graph {
 
         c.set_source_rgb(0., 0., 0.);
         c.rectangle(x_start, 0., width, height);
-        c.fill();
+        let _ = c.fill();
         c.set_source_rgb(0.5, 0.5, 0.5);
         c.set_line_width(0.5);
 
@@ -184,7 +184,7 @@ impl Graph {
         let x_step = (width - x_start) / 12.;
         let mut current = width - width / 12.;
         if x_step < 0.1 {
-            c.stroke();
+            let _ = c.stroke();
             return;
         }
 
@@ -200,7 +200,7 @@ impl Graph {
             c.line_to(width, rounder(current));
             current += step;
         }
-        c.stroke();
+        let _ = c.stroke();
 
         c.set_line_width(1.);
 
@@ -238,7 +238,7 @@ impl Graph {
                             height - entry[index - 1] / max * (height - 1.0),
                         );
                         c.line_to(current, height - entry[index] / max * (height - 1.0));
-                        c.stroke();
+                        let _ = c.stroke();
                     }
                     current += step;
                     index -= 1;
@@ -258,7 +258,7 @@ impl Graph {
                     c.set_source_rgb(color.r, color.g, color.b);
                     c.move_to(current + step, height - entry[index - 1] * (height - 1.0));
                     c.line_to(current, height - entry[index] * (height - 1.0));
-                    c.stroke();
+                    let _ = c.stroke();
                 }
                 current += step;
                 index -= 1;
@@ -269,7 +269,7 @@ impl Graph {
     }
 
     pub fn invalidate(&self) {
-        if let Some(t_win) = self.area.get_window() {
+        if let Some(t_win) = self.area.window() {
             let (x, y) = self
                 .area
                 .translate_coordinates(&self.area, 0, 0)
@@ -277,8 +277,8 @@ impl Graph {
             let rect = gdk::Rectangle {
                 x,
                 y,
-                width: self.area.get_allocated_width(),
-                height: self.area.get_allocated_height(),
+                width: self.area.allocated_width(),
+                height: self.area.allocated_height(),
             };
             t_win.invalidate_rect(Some(&rect), true);
         }
@@ -288,10 +288,8 @@ impl Graph {
         let mut width = match width {
             Some(w) => w,
             None => {
-                if let Some(parent) = self.area.get_parent() {
-                    parent.get_allocation().width
-                        - parent.get_margin_start()
-                        - parent.get_margin_end()
+                if let Some(parent) = self.area.parent() {
+                    parent.allocation().width - parent.margin_start() - parent.margin_end()
                 } else {
                     eprintln!(
                         "<Graph::send_size_request> A parent is required if no width is \
@@ -302,8 +300,8 @@ impl Graph {
             }
         };
         // This condition is to avoid having a graph with a bigger width than the window.
-        if let Some(top) = self.area.get_toplevel() {
-            let max_width = top.get_allocation().width;
+        if let Some(top) = self.area.toplevel() {
+            let max_width = top.allocation().width;
             if width > max_width {
                 width = max_width;
             }
@@ -331,18 +329,18 @@ pub trait Connecter {
 impl Connecter for Rc<RefCell<Graph>> {
     fn connect_to_window_events(&self) {
         let s = self.clone();
-        if let Some(parent) = self.borrow().horizontal_layout.get_toplevel() {
+        if let Some(parent) = self.borrow().horizontal_layout.toplevel() {
             // TODO: ugly way to resize drawing area, I should find a better way
             parent.connect_configure_event(move |w, _| {
                 let need_diff = s.borrow().initial_diff.is_none();
                 if need_diff {
                     let mut s = s.borrow_mut();
-                    let parent_width = if let Some(p) = s.area.get_parent() {
-                        p.get_allocation().width
+                    let parent_width = if let Some(p) = s.area.parent() {
+                        p.allocation().width
                     } else {
                         0
                     };
-                    s.initial_diff = Some(w.get_allocation().width - parent_width);
+                    s.initial_diff = Some(w.allocation().width - parent_width);
                 }
                 s.borrow().send_size_request(None);
                 false

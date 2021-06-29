@@ -4,14 +4,15 @@
 // Copyright (c) 2019 Guillaume Gomez
 //
 
-use glib;
-use gtk;
+use gtk::{self, glib};
 
-use gio::ApplicationExt;
-use gtk::{
+use gtk::gio::prelude::ApplicationExt;
+use gtk::prelude::{
     BoxExt, ContainerExt, DialogExt, GridExt, GtkWindowExt, SpinButtonExt, SpinButtonSignals,
     WidgetExt,
 };
+
+use serde_derive::{Deserialize, Serialize};
 
 use std::cell::RefCell;
 use std::fs::{create_dir_all, File};
@@ -19,9 +20,10 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use utils::{get_app, get_main_window};
-use RequiredForSettings;
-use APPLICATION_NAME;
+use crate::utils::{get_app, get_main_window};
+
+use crate::RequiredForSettings;
+use crate::APPLICATION_NAME;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Settings {
@@ -73,7 +75,7 @@ impl Settings {
     }
 
     pub fn get_settings_file_path() -> PathBuf {
-        let mut path = glib::get_user_config_dir().unwrap_or_else(|| PathBuf::from("."));
+        let mut path = glib::user_config_dir();
         path.push(APPLICATION_NAME);
         path.push("settings.toml");
         path
@@ -194,27 +196,27 @@ pub fn show_settings_dialog(
     );
 
     // Put the grid into the dialog's content area.
-    let content_area = dialog.get_content_area();
+    let content_area = dialog.content_area();
     content_area.pack_start(&grid, true, true, 0);
     content_area.set_border_width(10);
 
     // Finally connect to all kinds of change notification signals for the different UI widgets.
     // Whenever something is changing we directly save the configuration file with the new values.
-    refresh_procs.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
+    refresh_procs.connect_value_changed(glib::clone!(@weak settings, @weak rfs => move |entry| {
         let mut settings = settings.borrow_mut();
-        settings.refresh_processes_rate = (entry.get_value() * 1000.) as u32;
+        settings.refresh_processes_rate = (entry.value() * 1000.) as u32;
         *rfs.borrow().process_refresh_timeout.lock().expect("failed to lock process_refresh_timeout") = settings.refresh_processes_rate;
         settings.save();
     }));
-    refresh_network.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
+    refresh_network.connect_value_changed(glib::clone!(@weak settings, @weak rfs => move |entry| {
         let mut settings = settings.borrow_mut();
-        settings.refresh_network_rate = (entry.get_value() * 1000.) as u32;
+        settings.refresh_network_rate = (entry.value() * 1000.) as u32;
         *rfs.borrow().network_refresh_timeout.lock().expect("failed to lock network_refresh_timeout") = settings.refresh_network_rate;
         settings.save();
     }));
-    refresh_sys.connect_value_changed(clone!(@weak settings, @weak rfs => move |entry| {
+    refresh_sys.connect_value_changed(glib::clone!(@weak settings, @weak rfs => move |entry| {
         let mut settings = settings.borrow_mut();
-        settings.refresh_system_rate = (entry.get_value() * 1000.) as u32;
+        settings.refresh_system_rate = (entry.value() * 1000.) as u32;
         *rfs.borrow().system_refresh_timeout.lock().expect("failed to lock system_refresh_timeout") = settings.refresh_system_rate;
         settings.save();
     }));

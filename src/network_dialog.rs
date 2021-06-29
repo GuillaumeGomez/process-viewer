@@ -1,16 +1,15 @@
 use gtk::prelude::{
-    CellLayoutExt, CellRendererExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt,
-    GtkWindowExtManual, TreeModelExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
+    AdjustmentExt, BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, CellRendererTextExt,
+    ContainerExt, GtkListStoreExtManual, GtkWindowExt, Inhibit, LabelExt, ScrolledWindowExt,
+    TreeModelExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
-use gtk::{
-    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, Inhibit, LabelExt, ScrolledWindowExt,
-};
+use gtk::{self, glib};
 
 use sysinfo::{self, NetworkExt};
 
-use graph::{Connecter, Graph};
-use notebook::NoteBook;
-use utils::{
+use crate::graph::{Connecter, Graph};
+use crate::notebook::NoteBook;
+use crate::utils::{
     connect_graph, format_number, format_number_full, get_main_window, graph_label,
     graph_label_units, RotateVec,
 };
@@ -42,16 +41,16 @@ macro_rules! update_graph {
         if *x < $value {
             *x = $value;
             if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos - 1) {
-                $this.list_store.set(&iter, &[1], &[&$formatter($value)]);
+                $this.list_store.set(&iter, &[(1, &$formatter($value))]);
             }
         }
         if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos - 2) {
-            $this.list_store.set(&iter, &[1], &[&$formatter($value)]);
+            $this.list_store.set(&iter, &[(1, &$formatter($value))]);
         }
         if let Some(iter) = $this.list_store.iter_nth_child(None, $list_pos) {
             $this
                 .list_store
-                .set(&iter, &[1], &[&$formatter($total_value)]);
+                .set(&iter, &[(1, &$formatter($total_value))]);
         }
     }};
 }
@@ -147,12 +146,12 @@ fn append_text_column(tree: &gtk::TreeView, title: &str, pos: i32, right_align: 
     let cell = gtk::CellRendererText::new();
 
     if right_align {
-        cell.set_property_xalign(1.0);
+        cell.set_xalign(1.0);
     }
     column.pack_start(&cell, true);
     column.add_attribute(&cell, "text", pos);
     if pos == 1 {
-        cell.set_property_wrap_mode(pango::WrapMode::Char);
+        cell.set_wrap_mode(gtk::pango::WrapMode::Char);
         column.set_expand(true);
     }
     column.set_title(title);
@@ -243,7 +242,7 @@ pub fn create_network_dialog(
 
     scroll.add(&vertical_layout);
     scroll.connect_show(
-        clone!(@weak packets_errors_history, @weak in_out_history => move |_| {
+        glib::clone!(@weak packets_errors_history, @weak in_out_history => move |_| {
             packets_errors_history.borrow().show_all();
             in_out_history.borrow().show_all();
         }),
@@ -254,7 +253,7 @@ pub fn create_network_dialog(
     // NETWORK INFO TAB
     //
     let tree = gtk::TreeView::new();
-    let list_store = gtk::ListStore::new(&[glib::Type::String, glib::Type::String]);
+    let list_store = gtk::ListStore::new(&[glib::Type::STRING, glib::Type::STRING]);
 
     tree.set_headers_visible(true);
     tree.set_model(Some(&list_store));
@@ -264,131 +263,140 @@ pub fn create_network_dialog(
 
     list_store.insert_with_values(
         None,
-        &[0, 1],
-        &[&"received", &format_number(network.received())],
+        &[(0, &"received"), (1, &format_number(network.received()))],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
-        &[&"received peak", &format_number(network.received())],
-    );
-    list_store.insert_with_values(
-        None,
-        &[0, 1],
-        &[&"total received", &format_number(network.total_received())],
-    );
-    list_store.insert_with_values(
-        None,
-        &[0, 1],
-        &[&"transmitted", &format_number(network.transmitted())],
-    );
-    list_store.insert_with_values(
-        None,
-        &[0, 1],
-        &[&"transmitted peak", &format_number(network.transmitted())],
-    );
-    list_store.insert_with_values(
-        None,
-        &[0, 1],
         &[
-            &"total transmitted",
-            &format_number(network.total_transmitted()),
+            (0, &"received peak"),
+            (1, &format_number(network.received())),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"packets received",
-            &format_number_full(network.packets_received(), false),
+            (0, &"total received"),
+            (1, &format_number(network.total_received())),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"packets received peak",
-            &format_number(network.packets_received()),
+            (0, &"transmitted"),
+            (1, &format_number(network.transmitted())),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"total packets received",
-            &format_number_full(network.total_packets_received(), false),
+            (0, &"transmitted peak"),
+            (1, &format_number(network.transmitted())),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"packets transmitted",
-            &format_number_full(network.packets_transmitted(), false),
+            (0, &"total transmitted"),
+            (1, &format_number(network.total_transmitted())),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"packets transmitted peak",
-            &format_number(network.packets_transmitted()),
+            (0, &"packets received"),
+            (1, &format_number_full(network.packets_received(), false)),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"total packets transmitted",
-            &format_number_full(network.total_packets_transmitted(), false),
+            (0, &"packets received peak"),
+            (1, &format_number(network.packets_received())),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"errors on received",
-            &format_number_full(network.errors_on_received(), false),
+            (0, &"total packets received"),
+            (
+                1,
+                &format_number_full(network.total_packets_received(), false),
+            ),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"errors on received peak",
-            &format_number(network.errors_on_received()),
+            (0, &"packets transmitted"),
+            (1, &format_number_full(network.packets_transmitted(), false)),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"total errors on received",
-            &format_number_full(network.total_errors_on_received(), false),
+            (0, &"packets transmitted peak"),
+            (1, &format_number(network.packets_transmitted())),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"errors on transmitted",
-            &format_number_full(network.errors_on_transmitted(), false),
+            (0, &"total packets transmitted"),
+            (
+                1,
+                &format_number_full(network.total_packets_transmitted(), false),
+            ),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"errors on transmitted peak",
-            &format_number(network.errors_on_transmitted()),
+            (0, &"errors on received"),
+            (1, &format_number_full(network.errors_on_received(), false)),
         ],
     );
     list_store.insert_with_values(
         None,
-        &[0, 1],
         &[
-            &"total errors on transmitted",
-            &format_number_full(network.total_errors_on_transmitted(), false),
+            (0, &"errors on received peak"),
+            (1, &format_number(network.errors_on_received()).as_str()),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[
+            (0, &"total errors on received"),
+            (
+                1,
+                &format_number_full(network.total_errors_on_received(), false),
+            ),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[
+            (0, &"errors on transmitted"),
+            (
+                1,
+                &format_number_full(network.errors_on_transmitted(), false),
+            ),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[
+            (0, &"errors on transmitted peak"),
+            (1, &format_number(network.errors_on_transmitted())),
+        ],
+    );
+    list_store.insert_with_values(
+        None,
+        &[
+            (0, &"total errors on transmitted"),
+            (
+                1,
+                &format_number_full(network.total_errors_on_transmitted(), false),
+            ),
         ],
     );
 
@@ -398,18 +406,18 @@ pub fn create_network_dialog(
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
-    popup.get_preferred_width();
+    popup.preferred_width();
     popup.set_size_request(700, 540);
 
-    close_button.connect_clicked(clone!(@weak popup => move |_| {
+    close_button.connect_clicked(glib::clone!(@weak popup => move |_| {
         popup.close();
     }));
     let to_be_removed = Rc::new(RefCell::new(false));
-    popup.connect_destroy(clone!(@weak to_be_removed => move |_| {
+    popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
         *to_be_removed.borrow_mut() = true;
     }));
     popup.connect_key_press_event(|win, key| {
-        if key.get_keyval() == gdk::keys::constants::Escape {
+        if key.keyval() == gtk::gdk::keys::constants::Escape {
             win.close();
         }
         Inhibit(false)
@@ -417,10 +425,10 @@ pub fn create_network_dialog(
     popup.set_resizable(true);
     popup.show_all();
 
-    if let Some(adjust) = scroll.get_vadjustment() {
-        adjust.set_value(0.);
-        scroll.set_vadjustment(Some(&adjust));
-    }
+    let adjust = scroll.vadjustment();
+    adjust.set_value(0.);
+    scroll.set_vadjustment(Some(&adjust));
+
     packets_errors_history.connect_to_window_events();
     in_out_history.connect_to_window_events();
 

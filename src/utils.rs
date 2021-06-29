@@ -1,9 +1,10 @@
-use graph::Graph;
+use crate::graph::Graph;
 
-use gdk_pixbuf::Pixbuf;
-use gio::{self, MemoryInputStream};
-use glib::{Bytes, Cast};
-use gtk::{ButtonExt, GtkApplicationExt, Inhibit, WidgetExt};
+use gtk::gdk_pixbuf::Pixbuf;
+use gtk::gio::{self, MemoryInputStream};
+use gtk::glib;
+use gtk::glib::{Bytes, Cast};
+use gtk::prelude::{ButtonExt, GtkApplicationExt, Inhibit, WidgetExt};
 
 use std::cell::RefCell;
 use std::ops::Index;
@@ -145,11 +146,11 @@ pub fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
     let area = graph.area.clone();
     let graph = Rc::new(RefCell::new(graph));
     area.connect_draw(
-        clone!(@weak graph => @default-return Inhibit(false), move |w, c| {
+        glib::clone!(@weak graph => @default-return Inhibit(false), move |w, c| {
             graph.borrow()
                  .draw(c,
-                       f64::from(w.get_allocated_width()),
-                       f64::from(w.get_allocated_height()));
+                       f64::from(w.allocated_width()),
+                       f64::from(w.allocated_height()));
             Inhibit(false)
         }),
     );
@@ -165,15 +166,15 @@ impl<T> Index<usize> for RotateVec<T> {
 }
 
 pub fn get_app() -> gtk::Application {
-    gio::Application::get_default()
+    gio::Application::default()
         .expect("No default application")
         .downcast::<gtk::Application>()
         .expect("Default application has wrong type")
 }
 
 pub fn get_main_window() -> Option<gtk::Window> {
-    for window in get_app().get_windows() {
-        if window.get_widget_name() == MAIN_WINDOW_NAME {
+    for window in get_app().windows() {
+        if window.widget_name() == MAIN_WINDOW_NAME {
             return Some(window);
         }
     }
