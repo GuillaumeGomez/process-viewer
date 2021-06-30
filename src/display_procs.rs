@@ -1,21 +1,20 @@
-use glib::object::Cast;
-use glib::Type;
-use gtk;
+use gtk::glib::object::Cast;
+use gtk::glib::Type;
 use gtk::prelude::{
     BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
     GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
     TreeModelFilterExt, TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
+use gtk::{self, glib};
 
 use sysinfo::{AsU32, Pid, Process, ProcessExt};
 
-use notebook::NoteBook;
+use crate::notebook::NoteBook;
+use crate::utils::{create_button_with_image, format_number};
 
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
-
-use utils::{create_button_with_image, format_number};
 
 #[allow(dead_code)]
 pub struct Procs {
@@ -66,12 +65,12 @@ impl Procs {
         let list_store = gtk::ListStore::new(&[
             // The first four columns of the model are going to be visible in the view.
             Type::U32,    // pid
-            Type::String, // name
-            Type::String, // CPU
-            Type::String, // mem
-            Type::String, // disk I/O
+            Type::STRING, // name
+            Type::STRING, // CPU
+            Type::STRING, // mem
+            Type::STRING, // disk I/O
             // These two will serve as keys when sorting by process name and CPU usage.
-            Type::String, // name_lowercase
+            Type::STRING, // name_lowercase
             Type::F32,    // CPU_f32
             Type::U64,    // mem
             Type::U64,    // disk I/O
@@ -102,10 +101,10 @@ impl Procs {
         let horizontal_layout = gtk::Grid::new();
 
         left_tree.connect_cursor_changed(
-            clone!(@weak current_pid, @weak kill_button, @weak info_button => move |tree_view| {
-                let selection = tree_view.get_selection();
-                let (pid, ret) = if let Some((model, iter)) = selection.get_selected() {
-                    if let Ok(Some(x)) = model.get_value(&iter, 0).get::<u32>() {
+            glib::clone!(@weak current_pid, @weak kill_button, @weak info_button => move |tree_view| {
+                let selection = tree_view.selection();
+                let (pid, ret) = if let Some((model, iter)) = selection.selected() {
+                    if let Ok(x) = model.value(&iter, 0).get::<u32>() {
                         (Some(x as Pid), true)
                     } else {
                         (None, false)
@@ -143,25 +142,25 @@ impl Procs {
         // The filter part.
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
         filter_model.set_visible_func(
-            clone!(@weak filter_entry => @default-return false, move |model, iter| {
-                if !filter_entry.get_visible() || filter_entry.get_text_length() < 1 {
+            glib::clone!(@weak filter_entry => @default-return false, move |model, iter| {
+                if !WidgetExt::is_visible(&filter_entry) || filter_entry.text_length() < 1 {
                     return true;
                 }
-                let text = filter_entry.get_text();
+                let text = filter_entry.text();
                     if text.is_empty() {
                         return true;
                     }
                     let text: &str = text.as_ref();
                     // TODO: Maybe add an option to make searches case sensitive?
-                    let pid = model.get_value(iter, 0)
+                    let pid = model.value(iter, 0)
                                    .get::<u32>()
-                                   .unwrap_or(None)
                                    .map(|p| p.to_string())
+                                   .ok()
                                    .unwrap_or_else(String::new);
-                    let name = model.get_value(iter, 1)
+                    let name = model.value(iter, 1)
                                     .get::<String>()
-                                    .unwrap_or(None)
                                     .map(|s| s.to_lowercase())
+                                    .ok()
                                     .unwrap_or_else(String::new);
                     pid.contains(text) ||
                     text.contains(&pid) ||
@@ -200,14 +199,14 @@ impl Procs {
         // we have to separate the display and the actual number.
         columns[4].set_sort_column_id(8);
 
-        filter_entry.connect_property_text_length_notify(move |_| {
+        filter_entry.connect_text_length_notify(move |_| {
             filter_model.refilter();
         });
 
         note.create_tab("Process list", &vertical_layout);
 
-        filter_button.connect_clicked(clone!(@weak filter_entry, @weak window => move |_| {
-            if filter_entry.get_visible() {
+        filter_button.connect_clicked(glib::clone!(@weak filter_entry, @weak window => move |_| {
+            if WidgetExt::is_visible(&filter_entry) {
                 filter_entry.hide();
             } else {
                 filter_entry.show_all();
@@ -249,7 +248,7 @@ fn append_column(
     let renderer = gtk::CellRendererText::new();
 
     if title != "process name" {
-        renderer.set_property_xalign(1.0);
+        renderer.set_xalign(1.0);
     }
 
     let column = gtk::TreeViewColumn::new();
@@ -281,17 +280,16 @@ pub fn create_and_fill_model(
     }
     list_store.insert_with_values(
         None,
-        &[0, 1, 2, 3, 4, 5, 6, 7, 8],
         &[
-            &pid,
-            &name,
-            &format!("{:.1}", cpu),
-            &format_number(memory),
-            &String::new(),
-            &name.to_lowercase(),
-            &cpu,
-            &memory,
-            &0,
+            (0, &pid),
+            (1, &name),
+            (2, &format!("{:.1}", cpu)),
+            (3, &format_number(memory)),
+            (4, &String::new()),
+            (5, &name.to_lowercase()),
+            (6, &cpu),
+            (7, &memory),
+            (8, &0),
         ],
     );
 }

@@ -1,5 +1,3 @@
-use gdk;
-
 pub struct Color {
     pub r: f64,
     pub g: f64,
@@ -32,13 +30,16 @@ impl Color {
         }
     }
 
-    pub fn generate(index: usize) -> Color {
+    pub fn generate(index: usize) -> (Color, u8, u8, u8) {
         let n = (index as f64).cbrt() as isize;
         let mut index = index as isize - (n * n * n);
         let p = &mut [n, n, n];
 
         if index == 0 {
-            return Color::new(apply(p[0]), apply(p[1]), apply(p[2]));
+            let r = apply(p[0]);
+            let g = apply(p[1]);
+            let b = apply(p[2]);
+            return (Color::new(r, g, b), r, g, b);
         }
         index -= 1;
         let v = (index % 3) as usize;
@@ -46,24 +47,17 @@ impl Color {
 
         if index < n {
             p[v] = index % n;
-            return Color::new(apply(p[0]), apply(p[1]), apply(p[2]));
+            let r = apply(p[0]);
+            let g = apply(p[1]);
+            let b = apply(p[2]);
+            return (Color::new(r, g, b), r, g, b);
         }
         index -= n;
         p[v] = index / n;
         p[(v + 1) % 3] = index % n;
-        Color::new(apply(p[0]), apply(p[1]), apply(p[2]))
-    }
-
-    /*pub fn to_int(&self) -> usize {
-        0xFF << 24 | (self.r as usize) << 16 | (self.g as usize) << 8 | (self.b as usize)
-    }*/
-
-    pub fn to_gdk(&self) -> gdk::RGBA {
-        gdk::RGBA {
-            red: self.r,
-            green: self.g,
-            blue: self.b,
-            alpha: 1.0,
-        }
+        let r = apply(p[0]);
+        let g = apply(p[1]);
+        let b = apply(p[2]);
+        (Color::new(r, g, b), r, g, b)
     }
 }

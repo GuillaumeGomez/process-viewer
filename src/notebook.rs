@@ -1,4 +1,4 @@
-use glib::IsA;
+use gtk::glib::IsA;
 use gtk::prelude::{BoxExt, NotebookExtManual, WidgetExt};
 use gtk::{Box, Label, Notebook, Orientation, Widget};
 

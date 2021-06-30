@@ -6,38 +6,22 @@
 
 #![crate_type = "bin"]
 
-extern crate cairo;
-extern crate gdk;
-extern crate gdk_pixbuf;
-extern crate gio;
-#[macro_use]
-extern crate glib;
-extern crate gtk;
-extern crate libc;
-extern crate pango;
-extern crate sysinfo;
-extern crate toml;
-
-#[macro_use]
-extern crate serde_derive;
-
 use sysinfo::*;
 
-use gdk_pixbuf::Pixbuf;
-use gio::prelude::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual};
-use gio::MemoryInputStream;
-use glib::{Bytes, Cast, IsA, ToVariant};
+use gtk::gdk_pixbuf::Pixbuf;
+use gtk::gio::prelude::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual};
+use gtk::gio::MemoryInputStream;
+use gtk::glib::{Bytes, Cast, IsA, ToVariant};
 use gtk::prelude::{
     AboutDialogExt, BoxExt, ButtonBoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt,
-    GtkApplicationExt, GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, GtkWindowExtManual,
-    NotebookExtManual, SearchBarExt, TreeModelExt, TreeSortableExtManual, TreeViewExt, WidgetExt,
-    WidgetExtManual,
+    GtkApplicationExt, GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, NotebookExtManual,
+    SearchBarExt, TreeModelExt, TreeSortableExtManual, TreeViewExt, WidgetExt, WidgetExtManual,
 };
+use gtk::{gdk, gio, glib};
 use gtk::{AboutDialog, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::env::args;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
@@ -71,42 +55,42 @@ pub const APPLICATION_NAME: &str = "fr.guillaume_gomez.ProcessViewer";
 fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>) {
     let mut seen: HashSet<Pid> = HashSet::new();
 
-    if let Some(iter) = list.get_iter_first() {
+    if let Some(iter) = list.iter_first() {
         let mut valid = true;
         while valid {
-            let pid = match list.get_value(&iter, 0).get::<u32>() {
-                Ok(pid) => pid,
+            let pid = match list.value(&iter, 0).get::<u32>() {
+                Ok(pid) => pid as Pid,
                 _ => {
                     valid = list.iter_next(&iter);
                     continue;
                 }
             };
-            if let Some(pid) = pid.map(|x| x as Pid) {
-                if let Some(p) = entries.get(&(pid)) {
-                    let disk_usage = p.disk_usage();
-                    let disk_usage = disk_usage.written_bytes + disk_usage.read_bytes;
-                    let memory = p.memory() * 1_000;
-                    list.set(
-                        &iter,
-                        &[2, 3, 4, 6, 7, 8],
-                        &[
-                            &format!("{:.1}", p.cpu_usage()),
-                            &format_number(memory),
+            if let Some(p) = entries.get(&(pid)) {
+                let disk_usage = p.disk_usage();
+                let disk_usage = disk_usage.written_bytes + disk_usage.read_bytes;
+                let memory = p.memory() * 1_000;
+                list.set(
+                    &iter,
+                    &[
+                        (2, &format!("{:.1}", p.cpu_usage())),
+                        (3, &format_number(memory)),
+                        (
+                            4,
                             &if disk_usage > 0 {
                                 format_number(disk_usage)
                             } else {
                                 String::new()
                             },
-                            &p.cpu_usage(),
-                            &memory,
-                            &disk_usage,
-                        ],
-                    );
-                    valid = list.iter_next(&iter);
-                    seen.insert(pid);
-                } else {
-                    valid = list.remove(&iter);
-                }
+                        ),
+                        (6, &p.cpu_usage()),
+                        (7, &memory),
+                        (8, &disk_usage),
+                    ],
+                );
+                valid = list.iter_next(&iter);
+                seen.insert(pid);
+            } else {
+                valid = list.remove(&iter);
             }
         }
     }
@@ -190,7 +174,7 @@ fn start_detached_process(line: &str) -> Option<String> {
 }
 
 fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
-    let text = input.get_text();
+    let text = input.text();
     let x = if let Some(x) = start_detached_process(&text) {
         x
     } else {
@@ -231,8 +215,8 @@ fn create_new_proc_diag(
         proc_diag.popup.present();
         return;
     }
-    let total_memory = sys.get_total_memory();
-    if let Some(process) = sys.get_process(pid) {
+    let total_memory = sys.total_memory();
+    if let Some(process) = sys.process(pid) {
         process_dialogs
             .borrow_mut()
             .push(process_dialog::create_process_dialog(
@@ -264,7 +248,7 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
     let process_refresh_timeout = &rfs.process_refresh_timeout;
 
     thread::spawn(
-        clone!(@weak sys, @strong ready_tx, @weak process_refresh_timeout => move || {
+        glib::clone!(@weak sys, @strong ready_tx, @weak process_refresh_timeout => move || {
             loop {
                 let sleep_dur = Duration::from_millis(
                     *process_refresh_timeout.lock().expect("failed to lock process refresh mutex") as _);
@@ -276,9 +260,9 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
     );
 
     ready_rx.attach(None,
-        clone!(@weak sys, @weak list_store, @weak process_dialogs => @default-panic, move |_: bool| {
+        glib::clone!(@weak sys, @weak list_store, @weak process_dialogs => @default-return glib::Continue(true), move |_: bool| {
         // first part, deactivate sorting
-        let sorted = TreeSortableExtManual::get_sort_column_id(&list_store);
+        let sorted = TreeSortableExtManual::sort_column_id(&list_store);
         list_store.set_unsorted();
 
         let mut to_remove = 0;
@@ -287,7 +271,7 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
 
         if let Ok(sys) = sys.lock() {
             // we update the tree view
-            update_window(&list_store, sys.get_processes());
+            update_window(&list_store, sys.processes());
 
             // we re-enable the sorting
             if let Some((col, order)) = sorted {
@@ -295,7 +279,7 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
             }
             for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
                 // TODO: check if the process name matches the PID too!
-                if let Some(process) = sys.get_processes().get(&dialog.pid) {
+                if let Some(process) = sys.processes().get(&dialog.pid) {
                     dialog.update(process, start_time);
                 } else {
                     dialog.set_dead();
@@ -323,7 +307,7 @@ fn setup_network_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
     let sys = &rfs.sys;
 
     thread::spawn(
-        clone!(@weak sys, @strong ready_tx, @weak network_refresh_timeout => move || {
+        glib::clone!(@weak sys, @strong ready_tx, @weak network_refresh_timeout => move || {
             loop {
                 let sleep_dur = Duration::from_millis(
                     *network_refresh_timeout.lock().expect("failed to lock networks refresh mutex") as _);
@@ -335,7 +319,7 @@ fn setup_network_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
     );
 
     ready_rx.attach(None,
-        clone!(@weak sys, @weak network_tab => @default-panic, move |_: bool| {
+        glib::clone!(@weak sys, @weak network_tab => @default-panic, move |_: bool| {
             network_tab.borrow_mut().update_networks(&*sys.lock().expect("failed to lock to update networks"));
             glib::Continue(true)
         })
@@ -351,7 +335,7 @@ fn setup_system_timeout(rfs: &Rc<RefCell<RequiredForSettings>>, settings: &Rc<Re
     let display_tab = &rfs.display_tab;
 
     thread::spawn(
-        clone!(@weak sys, @strong ready_tx, @weak system_refresh_timeout => move || {
+        glib::clone!(@weak sys, @strong ready_tx, @weak system_refresh_timeout => move || {
             loop {
                 let sleep_dur = Duration::from_millis(
                     *system_refresh_timeout.lock().expect("failed to lock system refresh mutex") as _);
@@ -364,7 +348,7 @@ fn setup_system_timeout(rfs: &Rc<RefCell<RequiredForSettings>>, settings: &Rc<Re
 
     ready_rx.attach(
         None,
-        clone!(@weak sys, @weak display_tab, @weak settings => @default-panic, move |_: bool| {
+        glib::clone!(@weak sys, @weak display_tab, @weak settings => @default-panic, move |_: bool| {
             let mut info = display_tab.borrow_mut();
             let sys = sys.lock().expect("failed to lock to update system");
             let display_fahrenheit = settings.borrow().display_fahrenheit;
@@ -394,7 +378,7 @@ fn build_ui(application: &gtk::Application) {
     menu.append(Some("Launch new executable"), Some("app.new-task"));
     menu.append(Some("Quit"), Some("app.quit"));
     let quit = gio::SimpleAction::new("quit", None);
-    quit.connect_activate(clone!(@weak application => move |_,_| {
+    quit.connect_activate(glib::clone!(@weak application => move |_,_| {
         application.quit();
     }));
     application.set_accels_for_action("app.quit", &["<Primary>Q"]);
@@ -416,7 +400,7 @@ fn build_ui(application: &gtk::Application) {
         sysinfo::System::new_with_specifics(RefreshKind::everything().without_users_list());
     let start_time = get_now();
     let mut note = NoteBook::new();
-    let procs = Procs::new(sys.get_processes(), &mut note, &window);
+    let procs = Procs::new(sys.processes(), &mut note, &window);
     let current_pid = Rc::clone(&procs.current_pid);
     let info_button = procs.info_button.clone();
 
@@ -426,16 +410,16 @@ fn build_ui(application: &gtk::Application) {
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
-    window.get_preferred_width();
+    window.preferred_width();
     window.set_default_size(630, 700);
 
     sys.refresh_all();
     let sys = Arc::new(Mutex::new(sys));
     procs
         .kill_button
-        .connect_clicked(clone!(@weak current_pid, @weak sys => move |_| {
+        .connect_clicked(glib::clone!(@weak current_pid, @weak sys => move |_| {
             let sys = sys.lock().expect("failed to lock to kill a process");
-            if let Some(process) = current_pid.get().and_then(|pid| sys.get_process(pid)) {
+            if let Some(process) = current_pid.get().and_then(|pid| sys.process(pid)) {
                 process.kill(Signal::Kill);
             }
         }));
@@ -475,12 +459,12 @@ fn build_ui(application: &gtk::Application) {
     setup_system_timeout(&rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(clone!(@weak settings, @weak rfs => move |_, _| {
+    settings_action.connect_activate(glib::clone!(@weak settings, @weak rfs => move |_, _| {
         settings::show_settings_dialog(&settings, &rfs);
     }));
 
     info_button.connect_clicked(
-        clone!(@weak current_pid, @weak process_dialogs, @weak sys => move |_| {
+        glib::clone!(@weak current_pid, @weak process_dialogs, @weak sys => move |_| {
                 if let Some(pid) = current_pid.get() {
                     create_new_proc_diag(&process_dialogs, pid, &*sys.lock().expect("failed to lock to create new proc dialog"), start_time);
                 }
@@ -490,20 +474,18 @@ fn build_ui(application: &gtk::Application) {
 
     procs
         .left_tree
-        .connect_row_activated(clone!(@weak sys => move |tree_view, path, _| {
-                let model = tree_view.get_model().expect("couldn't get model");
-                let iter = model.get_iter(path).expect("couldn't get iter");
-                let pid = model.get_value(&iter, 0)
+        .connect_row_activated(glib::clone!(@weak sys => move |tree_view, path, _| {
+                let model = tree_view.model().expect("couldn't get model");
+                let iter = model.iter(path).expect("couldn't get iter");
+                let pid = model.value(&iter, 0)
                                .get::<u32>()
-                               .expect("Model::get failed")
-                               .map(|x| x as Pid)
-                               .expect("failed to get value from model");
-                create_new_proc_diag(&process_dialogs, pid, &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"), start_time);
+                               .expect("Model::get failed");
+                create_new_proc_diag(&process_dialogs, pid as Pid, &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"), start_time);
             }
         ));
 
     let about = gio::SimpleAction::new("about", None);
-    about.connect_activate(clone!(@weak window => move |_, _| {
+    about.connect_activate(glib::clone!(@weak window => move |_, _| {
         let p = AboutDialog::new();
         p.set_authors(&["Guillaume Gomez"]);
         p.set_website_label(Some("my website"));
@@ -530,7 +512,7 @@ fn build_ui(application: &gtk::Application) {
     }));
 
     let new_task = gio::SimpleAction::new("new-task", None);
-    new_task.connect_activate(clone!(@weak window => move |_, _| {
+    new_task.connect_activate(glib::clone!(@weak window => move |_, _| {
         let dialog = gtk::Dialog::with_buttons(
             Some("Launch new executable"),
             Some(&window),
@@ -542,10 +524,10 @@ fn build_ui(application: &gtk::Application) {
         // To set "run" button disabled by default.
         dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
         // To make "run" and "cancel" button take all spaces.
-        if let Some(run) = dialog.get_widget_for_response(gtk::ResponseType::Other(0)) {
-            if let Some(parent) = run.get_parent() {
+        if let Some(run) = dialog.widget_for_response(gtk::ResponseType::Other(0)) {
+            if let Some(parent) = run.parent() {
                 match parent.downcast::<gtk::ButtonBox>() {
-                    Ok(parent) => parent.set_property_layout_style(gtk::ButtonBoxStyle::Expand),
+                    Ok(parent) => parent.set_layout_style(gtk::ButtonBoxStyle::Expand),
                     Err(e) => {
                         eprintln!(
                             "<Process_Viewer::build_ui> Failed to set layout style for new task \
@@ -554,17 +536,17 @@ fn build_ui(application: &gtk::Application) {
                 }
             }
         }
-        input.connect_changed(clone!(@weak dialog => move |input| {
-            if !input.get_text().is_empty() {
+        input.connect_changed(glib::clone!(@weak dialog => move |input| {
+            if !input.text().is_empty() {
                     dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
                }
                else { dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
             }
         }));
-        input.connect_activate(clone!(@weak window, @weak dialog => move |input| {
+        input.connect_activate(glib::clone!(@weak window, @weak dialog => move |input| {
             run_command(input, &window, &dialog);
         }));
-        dialog.connect_response(clone!(@weak input, @weak window => move |dialog, response| {
+        dialog.connect_response(glib::clone!(@weak input, @weak window => move |dialog, response| {
             match response {
                 gtk::ResponseType::Close => {
                     dialog.close();
@@ -576,12 +558,12 @@ fn build_ui(application: &gtk::Application) {
             }
         }));
 
-        dialog.get_content_area().add(&input);
+        dialog.content_area().add(&input);
         // To silence the annying warning:
         // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
         // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
         // allocate?"
-        dialog.get_preferred_width();
+        dialog.preferred_width();
         dialog.set_size_request(400, 70);
         dialog.show_all();
     }));
@@ -591,9 +573,9 @@ fn build_ui(application: &gtk::Application) {
         None,
         &settings.borrow().display_graph.to_variant(),
     );
-    graphs.connect_activate(clone!(@weak settings, @weak rfs => move |g, _| {
+    graphs.connect_activate(glib::clone!(@weak settings, @weak rfs => move |g, _| {
         let mut is_active = false;
-        if let Some(g) = g.get_state() {
+        if let Some(g) = g.state() {
             let rfs = rfs.borrow();
             is_active = g.get().expect("couldn't get bool");
             rfs.display_tab.borrow().set_checkboxes_state(!is_active);
@@ -613,7 +595,7 @@ fn build_ui(application: &gtk::Application) {
     );
     temperature.connect_activate(move |g, _| {
         let mut is_active = false;
-        if let Some(g) = g.get_state() {
+        if let Some(g) = g.state() {
             is_active = g.get().expect("couldn't get graph state");
         }
         // We need to change the toggle state ourselves. `gio` dark magic.
@@ -640,14 +622,14 @@ fn build_ui(application: &gtk::Application) {
         // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
         // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
         // allocate?"
-        w.get_preferred_width();
-        let w = w.get_size().0 - 130;
+        w.preferred_width();
+        let w = w.size().0 - 130;
         let rfs = rfs.borrow();
         rfs.display_tab.borrow().set_size_request(w, 200);
         false
     });
 
-    application.connect_activate(clone!(@weak procs.filter_entry as filter_entry, @weak network_tab, @weak window => move |_| {
+    application.connect_activate(glib::clone!(@weak procs.filter_entry as filter_entry, @weak network_tab, @weak window => move |_| {
         window.show_all();
         filter_entry.hide();
         network_tab.borrow().filter_entry.hide();
@@ -655,11 +637,11 @@ fn build_ui(application: &gtk::Application) {
     }));
 
     window.connect_key_press_event(
-        clone!(@weak note.notebook as notebook => @default-return Inhibit(false), move |win, key| {
-            let current_page = notebook.get_current_page();
+        glib::clone!(@weak note.notebook as notebook => @default-return Inhibit(false), move |win, key| {
+            let current_page = notebook.current_page();
             if current_page == Some(0) || current_page == Some(2) {
                 // the process list
-                if key.get_keyval() == gdk::keys::constants::Escape {
+                if key.keyval() == gdk::keys::constants::Escape {
                     if current_page == Some(0) {
                         procs.hide_filter();
                     } else {
@@ -667,9 +649,9 @@ fn build_ui(application: &gtk::Application) {
                     }
                 } else if current_page == Some(0) {
                     let ret = procs.search_bar.handle_event(key);
-                    if !procs.filter_entry.get_text().is_empty() {
+                    if !procs.filter_entry.text().is_empty() {
                             procs.filter_entry.show_all();
-                            if win.get_focus()
+                            if win.focus()
                                 != Some(procs.filter_entry.clone().upcast::<gtk::Widget>())
                             {
                                 win.set_focus(Some(&procs.filter_entry));
@@ -679,9 +661,9 @@ fn build_ui(application: &gtk::Application) {
                 } else {
                     let network = network_tab.borrow();
                     let ret = network.search_bar.handle_event(key);
-                    if !network.filter_entry.get_text().is_empty() {
+                    if !network.filter_entry.text().is_empty() {
                             network.filter_entry.show_all();
-                            if win.get_focus()
+                            if win.focus()
                                 != Some(network.filter_entry.clone().upcast::<gtk::Widget>())
                             {
                                 win.set_focus(Some(&network.filter_entry));
@@ -696,13 +678,12 @@ fn build_ui(application: &gtk::Application) {
 }
 
 fn main() {
-    let application = gtk::Application::new(Some(APPLICATION_NAME), gio::ApplicationFlags::empty())
-        .expect("Initialization failed...");
+    let application = gtk::Application::new(Some(APPLICATION_NAME), gio::ApplicationFlags::empty());
 
     application.connect_startup(move |app| {
         build_ui(app);
     });
 
     glib::set_application_name("process-viewer");
-    application.run(&args().collect::<Vec<_>>());
+    application.run();
 }

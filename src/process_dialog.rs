@@ -1,11 +1,11 @@
 use gtk::prelude::{
+    AdjustmentExt, BoxExt, ButtonExt, ContainerExt, Inhibit, LabelExt, ScrolledWindowExt,
+};
+use gtk::prelude::{
     CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewColumnExt,
     TreeViewExt, WidgetExt,
 };
-use gtk::{
-    self, AdjustmentExt, BoxExt, ButtonExt, ContainerExt, Inhibit, LabelExt, ScrolledWindowExt,
-};
-use pango;
+use gtk::{glib, pango};
 use sysinfo::{self, Pid, ProcessExt};
 
 use std::cell::RefCell;
@@ -13,9 +13,9 @@ use std::fmt;
 use std::iter;
 use std::rc::Rc;
 
-use graph::{Connecter, Graph};
-use notebook::NoteBook;
-use utils::{connect_graph, format_number, get_main_window, graph_label_units, RotateVec};
+use crate::graph::{Connecter, Graph};
+use crate::notebook::NoteBook;
+use crate::utils::{connect_graph, format_number, get_main_window, graph_label_units, RotateVec};
 
 #[allow(dead_code)]
 pub struct ProcDialog {
@@ -97,7 +97,7 @@ impl ProcDialog {
         self.memory_usage.set_text("0");
         self.disk_usage.set_text("0");
         self.cpu_usage.set_text("0%");
-        let time = self.run_time.get_text();
+        let time = self.run_time.text();
         let s = format!("Ran for {}", if time.is_empty() { "0s" } else { &time },);
         self.run_time.set_text(&s);
     }
@@ -173,8 +173,8 @@ fn append_text_column(tree: &gtk::TreeView, pos: i32) -> gtk::CellRendererText {
     column.pack_start(&cell, true);
     column.add_attribute(&cell, "text", pos);
     if pos == 1 {
-        cell.set_property_wrap_width(247);
-        cell.set_property_wrap_mode(pango::WrapMode::Char);
+        cell.set_wrap_width(247);
+        cell.set_wrap_mode(pango::WrapMode::Char);
         column.set_expand(true);
     }
     tree.append_column(&column);
@@ -263,7 +263,7 @@ pub fn create_process_dialog(
     );
 
     let env_tree = gtk::TreeView::new();
-    let list_store = gtk::ListStore::new(&[glib::Type::String, glib::Type::String]);
+    let list_store = gtk::ListStore::new(&[glib::Type::STRING, glib::Type::STRING]);
 
     env_tree.set_headers_visible(false);
     env_tree.set_model(Some(&list_store));
@@ -272,8 +272,8 @@ pub fn create_process_dialog(
     let cell = append_text_column(&env_tree, 1);
 
     env_tree.connect_size_allocate(move |tree, _| {
-        if let Some(col) = tree.get_column(1) {
-            cell.set_property_wrap_width(col.get_width() - 1);
+        if let Some(col) = tree.column(1) {
+            cell.set_wrap_width(col.width() - 1);
         }
     });
 
@@ -284,7 +284,7 @@ pub fn create_process_dialog(
             None => continue,
         };
         let value = parts.next().unwrap_or("");
-        list_store.insert_with_values(None, &[0, 1], &[&name, &value]);
+        list_store.insert_with_values(None, &[(0, &name), (1, &value)]);
     }
 
     let components = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -389,7 +389,7 @@ pub fn create_process_dialog(
 
     scroll.add(&vertical_layout);
     scroll.connect_show(
-        clone!(@weak ram_usage_history, @weak cpu_usage_history, @weak disk_usage_history => move |_| {
+        glib::clone!(@weak ram_usage_history, @weak cpu_usage_history, @weak disk_usage_history => move |_| {
             ram_usage_history.borrow().show_all();
             cpu_usage_history.borrow().show_all();
             disk_usage_history.borrow().show_all();
@@ -402,18 +402,18 @@ pub fn create_process_dialog(
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
-    popup.get_preferred_width();
+    popup.preferred_width();
     popup.set_size_request(500, 600);
 
-    close_button.connect_clicked(clone!(@weak popup => move |_| {
+    close_button.connect_clicked(glib::clone!(@weak popup => move |_| {
         popup.close();
     }));
     let to_be_removed = Rc::new(RefCell::new(false));
-    popup.connect_destroy(clone!(@weak to_be_removed => move |_| {
+    popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
         *to_be_removed.borrow_mut() = true;
     }));
     popup.connect_key_press_event(|win, key| {
-        if key.get_keyval() == gdk::keys::constants::Escape {
+        if key.keyval() == gtk::gdk::keys::constants::Escape {
             win.close();
         }
         Inhibit(false)
@@ -421,10 +421,10 @@ pub fn create_process_dialog(
     popup.set_resizable(true);
     popup.show_all();
 
-    if let Some(adjust) = scroll.get_vadjustment() {
-        adjust.set_value(0.);
-        scroll.set_vadjustment(Some(&adjust));
-    }
+    let adjust = scroll.vadjustment();
+    adjust.set_value(0.);
+    scroll.set_vadjustment(Some(&adjust));
+
     ram_usage_history.connect_to_window_events();
     cpu_usage_history.connect_to_window_events();
     disk_usage_history.connect_to_window_events();

@@ -1,3 +1,4 @@
+use gtk::glib;
 use gtk::prelude::{
     AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, ScrolledWindowExt,
     ToggleButtonExt, WidgetExt,
@@ -9,10 +10,10 @@ use std::iter;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use graph::Graph;
-use notebook::NoteBook;
-use settings::Settings;
-use utils::{connect_graph, format_number, RotateVec};
+use crate::graph::Graph;
+use crate::notebook::NoteBook;
+use crate::settings::Settings;
+use crate::utils::{connect_graph, format_number, RotateVec};
 
 pub fn create_header(
     label_text: &str,
@@ -99,7 +100,7 @@ impl DisplaySysInfo {
 
         let sys = sys.lock().expect("failed to lock in DisplaySysInfo::new");
         // RAM
-        let mut ram_usage_history = Graph::new(Some(sys.get_total_memory() as f64), true);
+        let mut ram_usage_history = Graph::new(Some(sys.total_memory() as f64), true);
         ram_usage_history.set_label_callbacks(Some(Box::new(|v| {
             if v < 100_000. {
                 [
@@ -172,20 +173,20 @@ impl DisplaySysInfo {
             p.set_margin_end(5);
             p.set_margin_start(5);
             p.set_show_text(true);
-            let processor = sys.get_global_processor_info();
-            p.set_text(Some(&format!("{:.1} %", processor.get_cpu_usage())));
-            p.set_fraction(f64::from(processor.get_cpu_usage() / 100.));
+            let processor = sys.global_processor_info();
+            p.set_text(Some(&format!("{:.1} %", processor.cpu_usage())));
+            p.set_fraction(f64::from(processor.cpu_usage() / 100.));
             vertical_layout.add(p);
         }
         let check_box = create_header("Processors usage", &vertical_layout, settings.display_graph);
-        for (i, pro) in sys.get_processors().iter().enumerate() {
+        for (i, pro) in sys.processors().iter().enumerate() {
             procs.push(gtk::ProgressBar::new());
             let p: &gtk::ProgressBar = &procs[i + 1];
             let l = gtk::Label::new(Some(&format!("{}", i)));
 
-            p.set_text(Some(&format!("{:.1} %", pro.get_cpu_usage())));
+            p.set_text(Some(&format!("{:.1} %", pro.cpu_usage())));
             p.set_show_text(true);
-            p.set_fraction(f64::from(pro.get_cpu_usage()));
+            p.set_fraction(f64::from(pro.cpu_usage()));
             non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
             non_graph_layout.attach(p, 1, i as i32 - 1, 11, 1);
             cpu_usage_history.push(
@@ -220,18 +221,18 @@ impl DisplaySysInfo {
         //
         // TEMPERATURES PART
         //
-        if !sys.get_components().is_empty() {
+        if !sys.components().is_empty() {
             check_box3 = Some(create_header(
                 "Components' temperature",
                 &vertical_layout,
                 settings.display_graph,
             ));
-            for component in sys.get_components() {
+            for component in sys.components() {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
-                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.get_temperature())));
+                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature())));
                 horizontal_layout.pack_start(
-                    &gtk::Label::new(Some(component.get_label())),
+                    &gtk::Label::new(Some(component.label())),
                     true,
                     false,
                     0,
@@ -242,7 +243,7 @@ impl DisplaySysInfo {
                 components.push(temp);
                 temperature_usage_history.push(
                     RotateVec::new(iter::repeat(0f64).take(61).collect()),
-                    component.get_label(),
+                    component.label(),
                     None,
                 );
             }
@@ -261,14 +262,13 @@ impl DisplaySysInfo {
         note.create_tab("System usage", &scroll);
 
         // It greatly improves the scrolling on the system information tab. No more clipping.
-        if let Some(adjustment) = scroll.get_vadjustment() {
-            adjustment.connect_value_changed(
-                clone!(@weak cpu_usage_history, @weak ram_usage_history, @weak temperature_usage_history => move |_| {
-                cpu_usage_history.borrow().invalidate();
-                ram_usage_history.borrow().invalidate();
-                temperature_usage_history.borrow().invalidate();
-            }));
-        }
+        let adjustment = scroll.vadjustment();
+        adjustment.connect_value_changed(
+            glib::clone!(@weak cpu_usage_history, @weak ram_usage_history, @weak temperature_usage_history => move |_| {
+            cpu_usage_history.borrow().invalidate();
+            ram_usage_history.borrow().invalidate();
+            temperature_usage_history.borrow().invalidate();
+        }));
 
         let mut tmp = DisplaySysInfo {
             procs: Rc::new(RefCell::new(procs)),
@@ -286,25 +286,25 @@ impl DisplaySysInfo {
         tmp.update_system_info(&sys, settings.display_fahrenheit);
 
         check_box.connect_toggled(
-            clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
+            glib::clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
                 show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
             }),
         );
         check_box2.connect_toggled(
-            clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
+            glib::clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
                 show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
             }),
         );
         if let Some(ref check_box3) = check_box3 {
             check_box3.connect_toggled(
-                clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
+                glib::clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
                     show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
                 }),
             );
         }
 
         scroll.connect_show(
-            clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
+            glib::clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
                 show_if_necessary(&check_box,
                                   &cpu_usage_history.borrow(), &non_graph_layout);
                 show_if_necessary(&check_box2,
@@ -350,8 +350,8 @@ impl DisplaySysInfo {
             )
         };
 
-        let total_ram = sys.get_total_memory();
-        let used = sys.get_used_memory();
+        let total_ram = sys.total_memory();
+        let used = sys.used_memory();
         self.ram.set_text(Some(&disp(total_ram, used)));
         if total_ram != 0 {
             self.ram.set_fraction(used as f64 / total_ram as f64);
@@ -366,9 +366,9 @@ impl DisplaySysInfo {
             }
         }
 
-        let total = ::std::cmp::max(sys.get_total_swap(), total_ram);
-        let used = sys.get_used_swap();
-        self.swap.set_text(Some(&disp(sys.get_total_swap(), used)));
+        let total = ::std::cmp::max(sys.total_swap(), total_ram);
+        let used = sys.used_swap();
+        self.swap.set_text(Some(&disp(sys.total_swap(), used)));
 
         let mut fraction = if total != 0 {
             used as f64 / total as f64
@@ -390,25 +390,22 @@ impl DisplaySysInfo {
         // temperature part
         let mut t = self.temperature_usage_history.borrow_mut();
         for (pos, (component, label)) in sys
-            .get_components()
+            .components()
             .iter()
             .zip(self.components.iter())
             .enumerate()
         {
             t.data[pos].move_start();
             if let Some(t) = t.data[pos].get_mut(0) {
-                *t = f64::from(component.get_temperature());
+                *t = f64::from(component.temperature());
             }
             if let Some(t) = t.data[pos].get_mut(0) {
-                *t = f64::from(component.get_temperature());
+                *t = f64::from(component.temperature());
             }
             if display_fahrenheit {
-                label.set_text(&format!(
-                    "{:.1} °F",
-                    component.get_temperature() * 1.8 + 32.
-                ));
+                label.set_text(&format!("{:.1} °F", component.temperature() * 1.8 + 32.));
             } else {
-                label.set_text(&format!("{:.1} °C", component.get_temperature()));
+                label.set_text(&format!("{:.1} °C", component.temperature()));
             }
         }
     }
@@ -419,20 +416,18 @@ impl DisplaySysInfo {
 
         v[0].set_text(Some(&format!(
             "{:.1} %",
-            sys.get_global_processor_info().get_cpu_usage()
+            sys.global_processor_info().cpu_usage()
         )));
         v[0].set_show_text(true);
-        v[0].set_fraction(f64::from(
-            sys.get_global_processor_info().get_cpu_usage() / 100.,
-        ));
-        for (i, pro) in sys.get_processors().iter().enumerate() {
+        v[0].set_fraction(f64::from(sys.global_processor_info().cpu_usage() / 100.));
+        for (i, pro) in sys.processors().iter().enumerate() {
             let i = i + 1;
-            v[i].set_text(Some(&format!("{:.1} %", pro.get_cpu_usage())));
+            v[i].set_text(Some(&format!("{:.1} %", pro.cpu_usage())));
             v[i].set_show_text(true);
-            v[i].set_fraction(f64::from(pro.get_cpu_usage() / 100.));
+            v[i].set_fraction(f64::from(pro.cpu_usage() / 100.));
             h.data[i - 1].move_start();
             if let Some(h) = h.data[i - 1].get_mut(0) {
-                *h = f64::from(pro.get_cpu_usage() / 100.);
+                *h = f64::from(pro.cpu_usage() / 100.);
             }
         }
         h.invalidate();
@@ -441,12 +436,12 @@ impl DisplaySysInfo {
     }
 }
 
-pub fn show_if_necessary<U: glib::IsA<gtk::ToggleButton>, T: WidgetExt>(
+pub fn show_if_necessary<U: gtk::glib::IsA<gtk::ToggleButton>, T: WidgetExt>(
     check_box: &U,
     proc_horizontal_layout: &Graph,
     non_graph_layout: &T,
 ) {
-    if check_box.get_active() {
+    if check_box.is_active() {
         proc_horizontal_layout.show_all();
         non_graph_layout.hide();
     } else {
