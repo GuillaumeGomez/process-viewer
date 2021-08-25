@@ -86,7 +86,7 @@ impl Procs {
                 create_and_fill_model(
                     &list_store,
                     pro.pid().as_u32(),
-                    &pro.cmd(),
+                    pro.cmd(),
                     exe,
                     pro.cpu_usage(),
                     pro.memory() * 1_000,

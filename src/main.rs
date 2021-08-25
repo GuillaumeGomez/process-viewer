@@ -100,8 +100,8 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
             create_and_fill_model(
                 list,
                 pid.as_u32(),
-                &pro.cmd(),
-                &pro.name(),
+                pro.cmd(),
+                pro.name(),
                 pro.cpu_usage(),
                 pro.memory() * 1_000,
             );
@@ -206,7 +206,7 @@ fn create_new_proc_diag(
     sys: &sysinfo::System,
     starting_time: u64,
 ) {
-    if let Some(ref proc_diag) = process_dialogs
+    if let Some(proc_diag) = process_dialogs
         .borrow()
         .iter()
         .filter(|x| !x.is_dead)
@@ -552,7 +552,7 @@ fn build_ui(application: &gtk::Application) {
                     dialog.close();
                 }
                 gtk::ResponseType::Other(0) => {
-                    run_command(&input, &window, &dialog);
+                    run_command(&input, &window, dialog);
                 }
                 _ => {}
             }
