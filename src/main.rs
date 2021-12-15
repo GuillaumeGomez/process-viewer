@@ -28,7 +28,7 @@ use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 mod color;
 mod display_disk;
@@ -204,7 +204,6 @@ fn create_new_proc_diag(
     process_dialogs: &Rc<RefCell<Vec<process_dialog::ProcDialog>>>,
     pid: Pid,
     sys: &sysinfo::System,
-    starting_time: u64,
 ) {
     if let Some(proc_diag) = process_dialogs
         .borrow()
@@ -219,11 +218,7 @@ fn create_new_proc_diag(
     if let Some(process) = sys.process(pid) {
         process_dialogs
             .borrow_mut()
-            .push(process_dialog::create_process_dialog(
-                process,
-                starting_time,
-                total_memory,
-            ));
+            .push(process_dialog::create_process_dialog(process, total_memory));
     }
 }
 
@@ -266,7 +261,6 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
         list_store.set_unsorted();
 
         let mut to_remove = 0;
-        let start_time = get_now();
         let mut dialogs = process_dialogs.borrow_mut();
 
         if let Ok(sys) = sys.lock() {
@@ -280,7 +274,7 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
             for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
                 // TODO: check if the process name matches the PID too!
                 if let Some(process) = sys.processes().get(&dialog.pid) {
-                    dialog.update(process, start_time);
+                    dialog.update(process);
                 } else {
                     dialog.set_dead();
                 }
@@ -360,13 +354,6 @@ fn setup_system_timeout(rfs: &Rc<RefCell<RequiredForSettings>>, settings: &Rc<Re
     );
 }
 
-fn get_now() -> u64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("couldn't get start time")
-        .as_secs()
-}
-
 fn build_ui(application: &gtk::Application) {
     let settings = Settings::load();
 
@@ -398,7 +385,6 @@ fn build_ui(application: &gtk::Application) {
 
     let mut sys =
         sysinfo::System::new_with_specifics(RefreshKind::everything().without_users_list());
-    let start_time = get_now();
     let mut note = NoteBook::new();
     let procs = Procs::new(sys.processes(), &mut note, &window);
     let current_pid = Rc::clone(&procs.current_pid);
@@ -420,7 +406,7 @@ fn build_ui(application: &gtk::Application) {
         .connect_clicked(glib::clone!(@weak current_pid, @weak sys => move |_| {
             let sys = sys.lock().expect("failed to lock to kill a process");
             if let Some(process) = current_pid.get().and_then(|pid| sys.process(pid)) {
-                process.kill(Signal::Kill);
+                process.kill();
             }
         }));
 
@@ -466,7 +452,7 @@ fn build_ui(application: &gtk::Application) {
     info_button.connect_clicked(
         glib::clone!(@weak current_pid, @weak process_dialogs, @weak sys => move |_| {
                 if let Some(pid) = current_pid.get() {
-                    create_new_proc_diag(&process_dialogs, pid, &*sys.lock().expect("failed to lock to create new proc dialog"), start_time);
+                    create_new_proc_diag(&process_dialogs, pid, &*sys.lock().expect("failed to lock to create new proc dialog"));
                 }
             }
         ),
@@ -480,7 +466,7 @@ fn build_ui(application: &gtk::Application) {
                 let pid = model.value(&iter, 0)
                                .get::<u32>()
                                .expect("Model::get failed");
-                create_new_proc_diag(&process_dialogs, pid as Pid, &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"), start_time);
+                create_new_proc_diag(&process_dialogs, pid as Pid, &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"));
             }
         ));
 
