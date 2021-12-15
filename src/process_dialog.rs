@@ -45,7 +45,7 @@ impl fmt::Debug for ProcDialog {
 }
 
 impl ProcDialog {
-    pub fn update(&self, process: &sysinfo::Process, start_time: u64) {
+    pub fn update(&self, process: &sysinfo::Process) {
         if self.is_dead {
             return;
         }
@@ -68,8 +68,7 @@ impl ProcDialog {
         }
         self.cpu_usage
             .set_text(&format!("{:.1}%", process.cpu_usage()));
-        let running_since = compute_running_since(process, start_time);
-        self.run_time.set_text(&format_time(running_since));
+        self.run_time.set_text(&format_time(process.run_time()));
 
         let mut t = self.ram_usage_history.borrow_mut();
         t.data[0].move_start();
@@ -158,14 +157,6 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
     text
 }
 
-fn compute_running_since(process: &sysinfo::Process, running_since: u64) -> u64 {
-    if running_since > process.start_time() {
-        running_since - process.start_time()
-    } else {
-        process.start_time() - running_since
-    }
-}
-
 fn append_text_column(tree: &gtk::TreeView, pos: i32) -> gtk::CellRendererText {
     let column = gtk::TreeViewColumn::new();
     let cell = gtk::CellRendererText::new();
@@ -181,11 +172,7 @@ fn append_text_column(tree: &gtk::TreeView, pos: i32) -> gtk::CellRendererText {
     cell
 }
 
-pub fn create_process_dialog(
-    process: &sysinfo::Process,
-    start_time: u64,
-    total_memory: u64,
-) -> ProcDialog {
+pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> ProcDialog {
     let mut notebook = NoteBook::new();
 
     let popup = gtk::Window::new(gtk::WindowType::Toplevel);
@@ -202,7 +189,7 @@ pub fn create_process_dialog(
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 
-    let running_since = compute_running_since(process, start_time);
+    let running_since = process.run_time();
 
     let labels = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
@@ -216,11 +203,11 @@ pub fn create_process_dialog(
     let disk_peak = process.disk_usage();
     let disk_peak = disk_peak.written_bytes + disk_peak.read_bytes;
     let s;
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "freebsd")))]
     {
         s = "disk I/O usage";
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "freebsd"))]
     {
         s = "I/O usage";
     }
