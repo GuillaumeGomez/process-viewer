@@ -1,6 +1,6 @@
 [package]
 name = "process_viewer"
-version = "0.4.11"
+version = "0.4.12"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
 edition = "2018"
 description = "A process viewer GUI"
@@ -14,7 +14,7 @@ keywords = ["GUI", "process", "viewer", "gtk"]
 
 [dependencies]
 gtk = "0.14"
-sysinfo = "0.22.1"
+sysinfo = "0.22.3"
 libc = "0.2"
 serde = "1.0"
 serde_derive = "1.0"
