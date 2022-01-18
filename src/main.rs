@@ -59,7 +59,7 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
         let mut valid = true;
         while valid {
             let pid = match list.value(&iter, 0).get::<u32>() {
-                Ok(pid) => pid as Pid,
+                Ok(pid) => Pid::from_u32(pid),
                 _ => {
                     valid = list.iter_next(&iter);
                     continue;
@@ -466,7 +466,7 @@ fn build_ui(application: &gtk::Application) {
                 let pid = model.value(&iter, 0)
                                .get::<u32>()
                                .expect("Model::get failed");
-                create_new_proc_diag(&process_dialogs, pid as Pid, &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"));
+                create_new_proc_diag(&process_dialogs, Pid::from_u32(pid), &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"));
             }
         ));
 
