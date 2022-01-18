@@ -1,9 +1,9 @@
 use gtk::glib::object::Cast;
 use gtk::glib::Type;
 use gtk::prelude::{
-    BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
-    GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
-    TreeModelFilterExt, TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
+    BoxExt, ButtonExt, CellRendererExt, ContainerExt, EntryExt, GridExt, GtkListStoreExtManual,
+    GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt, TreeModelFilterExt, TreeSelectionExt,
+    TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
 use gtk::{self, glib};
 

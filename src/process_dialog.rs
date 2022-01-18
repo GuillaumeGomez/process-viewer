@@ -2,8 +2,8 @@ use gtk::prelude::{
     AdjustmentExt, BoxExt, ButtonExt, ContainerExt, Inhibit, LabelExt, ScrolledWindowExt,
 };
 use gtk::prelude::{
-    CellLayoutExt, CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewColumnExt,
-    TreeViewExt, WidgetExt,
+    CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewColumnExt, TreeViewExt,
+    WidgetExt,
 };
 use gtk::{glib, pango};
 use sysinfo::{self, Pid, ProcessExt};

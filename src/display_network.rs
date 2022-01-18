@@ -3,8 +3,8 @@ use crate::network_dialog::{self, NetworkDialog};
 use crate::notebook::NoteBook;
 use crate::utils::{create_button_with_image, format_number, format_number_full};
 use gtk::prelude::{
-    BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
-    GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
+    BoxExt, ButtonExt, CellRendererExt, ContainerExt, EntryExt, GridExt, GtkListStoreExt,
+    GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
     TreeModelFilterExt, TreeSelectionExt, TreeSortableExtManual, TreeViewColumnExt, TreeViewExt,
     WidgetExt,
 };

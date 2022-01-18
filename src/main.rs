@@ -636,24 +636,24 @@ fn build_ui(application: &gtk::Application) {
                 } else if current_page == Some(0) {
                     let ret = procs.search_bar.handle_event(key);
                     if !procs.filter_entry.text().is_empty() {
-                            procs.filter_entry.show_all();
-                            if win.focus()
-                                != Some(procs.filter_entry.clone().upcast::<gtk::Widget>())
-                            {
-                                win.set_focus(Some(&procs.filter_entry));
-                            }
+                        procs.filter_entry.show_all();
+                        if win.focused_widget()
+                            != Some(procs.filter_entry.clone().upcast::<gtk::Widget>())
+                        {
+                            win.set_focus(Some(&procs.filter_entry));
+                        }
                     }
                     return Inhibit(ret);
                 } else {
                     let network = network_tab.borrow();
                     let ret = network.search_bar.handle_event(key);
                     if !network.filter_entry.text().is_empty() {
-                            network.filter_entry.show_all();
-                            if win.focus()
-                                != Some(network.filter_entry.clone().upcast::<gtk::Widget>())
-                            {
-                                win.set_focus(Some(&network.filter_entry));
-                            }
+                        network.filter_entry.show_all();
+                        if win.focused_widget()
+                            != Some(network.filter_entry.clone().upcast::<gtk::Widget>())
+                        {
+                            win.set_focus(Some(&network.filter_entry));
+                        }
                     }
                     return Inhibit(ret);
                 }
