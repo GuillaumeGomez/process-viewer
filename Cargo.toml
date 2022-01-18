@@ -2,7 +2,7 @@
 name = "process_viewer"
 version = "0.4.12"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "A process viewer GUI"
 repository = "https://github.com/GuillaumeGomez/process-viewer"
 license = "MIT"
@@ -13,8 +13,8 @@ readme = "README.md"
 keywords = ["GUI", "process", "viewer", "gtk"]
 
 [dependencies]
-gtk = "0.14"
-sysinfo = "0.22.3"
+gtk = "0.15"
+sysinfo = "0.23.0"
 libc = "0.2"
 serde = "1.0"
 serde_derive = "1.0"

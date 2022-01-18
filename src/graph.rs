@@ -274,12 +274,12 @@ impl Graph {
                 .area
                 .translate_coordinates(&self.area, 0, 0)
                 .expect("translate_coordinates failed");
-            let rect = gdk::Rectangle {
+            let rect = gdk::Rectangle::new(
                 x,
                 y,
-                width: self.area.allocated_width(),
-                height: self.area.allocated_height(),
-            };
+                self.area.allocated_width(),
+                self.area.allocated_height(),
+            );
             t_win.invalidate_rect(Some(&rect), true);
         }
     }
@@ -289,7 +289,7 @@ impl Graph {
             Some(w) => w,
             None => {
                 if let Some(parent) = self.area.parent() {
-                    parent.allocation().width - parent.margin_start() - parent.margin_end()
+                    parent.allocation().width() - parent.margin_start() - parent.margin_end()
                 } else {
                     eprintln!(
                         "<Graph::send_size_request> A parent is required if no width is \
@@ -301,7 +301,7 @@ impl Graph {
         };
         // This condition is to avoid having a graph with a bigger width than the window.
         if let Some(top) = self.area.toplevel() {
-            let max_width = top.allocation().width;
+            let max_width = top.allocation().width();
             if width > max_width {
                 width = max_width;
             }
@@ -336,11 +336,11 @@ impl Connecter for Rc<RefCell<Graph>> {
                 if need_diff {
                     let mut s = s.borrow_mut();
                     let parent_width = if let Some(p) = s.area.parent() {
-                        p.allocation().width
+                        p.allocation().width()
                     } else {
                         0
                     };
-                    s.initial_diff = Some(w.allocation().width - parent_width);
+                    s.initial_diff = Some(w.allocation().width() - parent_width);
                 }
                 s.borrow().send_size_request(None);
                 false

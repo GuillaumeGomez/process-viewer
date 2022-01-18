@@ -1,13 +1,13 @@
 use gtk::glib::object::Cast;
 use gtk::glib::Type;
 use gtk::prelude::{
-    BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, ContainerExt, EntryExt, GridExt,
-    GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
-    TreeModelFilterExt, TreeSelectionExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
+    BoxExt, ButtonExt, CellRendererExt, ContainerExt, EntryExt, GridExt, GtkListStoreExtManual,
+    GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt, TreeModelFilterExt, TreeSelectionExt,
+    TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
 use gtk::{self, glib};
 
-use sysinfo::{AsU32, Pid, Process, ProcessExt};
+use sysinfo::{Pid, PidExt, Process, ProcessExt};
 
 use crate::notebook::NoteBook;
 use crate::utils::{create_button_with_image, format_number};
@@ -105,7 +105,7 @@ impl Procs {
                 let selection = tree_view.selection();
                 let (pid, ret) = if let Some((model, iter)) = selection.selected() {
                     if let Ok(x) = model.value(&iter, 0).get::<u32>() {
-                        (Some(x as Pid), true)
+                        (Some(Pid::from_u32(x)), true)
                     } else {
                         (None, false)
                     }

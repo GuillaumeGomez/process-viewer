@@ -1,7 +1,7 @@
 use gtk::prelude::{
-    AdjustmentExt, BoxExt, ButtonExt, CellLayoutExt, CellRendererExt, CellRendererTextExt,
-    ContainerExt, GtkListStoreExtManual, GtkWindowExt, Inhibit, LabelExt, ScrolledWindowExt,
-    TreeModelExt, TreeViewColumnExt, TreeViewExt, WidgetExt,
+    AdjustmentExt, BoxExt, ButtonExt, CellRendererExt, CellRendererTextExt, ContainerExt,
+    GtkListStoreExtManual, GtkWindowExt, Inhibit, LabelExt, ScrolledWindowExt, TreeModelExt,
+    TreeViewColumnExt, TreeViewExt, WidgetExt,
 };
 use gtk::{self, glib};
 
