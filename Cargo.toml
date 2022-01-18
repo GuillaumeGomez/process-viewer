@@ -2,7 +2,7 @@
 name = "process_viewer"
 version = "0.4.12"
 authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "A process viewer GUI"
 repository = "https://github.com/GuillaumeGomez/process-viewer"
 license = "MIT"
