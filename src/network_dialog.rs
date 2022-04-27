@@ -1,11 +1,7 @@
-use gtk::prelude::{
-    AdjustmentExt, BoxExt, ButtonExt, CellRendererExt, CellRendererTextExt, ContainerExt,
-    GtkListStoreExtManual, GtkWindowExt, Inhibit, LabelExt, ScrolledWindowExt, TreeModelExt,
-    TreeViewColumnExt, TreeViewExt, WidgetExt,
-};
-use gtk::{self, glib};
+use gtk::prelude::*;
+use gtk::{glib, EventControllerKey, Inhibit};
 
-use sysinfo::{self, NetworkExt};
+use sysinfo::NetworkExt;
 
 use crate::graph::{Connecter, Graph};
 use crate::notebook::NoteBook;
@@ -165,18 +161,20 @@ pub fn create_network_dialog(
 ) -> NetworkDialog {
     let mut notebook = NoteBook::new();
 
-    let popup = gtk::Window::new(gtk::WindowType::Toplevel);
+    let popup = gtk::Window::new();
 
-    popup.set_title(&format!("Information about network {}", interface_name));
+    popup.set_title(Some(&format!("Information about network {}", interface_name)));
     popup.set_transient_for(get_main_window().as_ref());
     popup.set_destroy_with_parent(true);
 
     let close_button = gtk::Button::with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
-    vertical_layout.pack_start(&notebook.notebook, true, true, 0);
-    vertical_layout.pack_start(&close_button, false, true, 0);
-    popup.add(&vertical_layout);
+    notebook.notebook.set_hexpand(true);
+    notebook.notebook.set_vexpand(true);
+    vertical_layout.append(&notebook.notebook);
+    vertical_layout.append(&close_button);
+    popup.set_child(Some(&vertical_layout));
 
     //
     // GRAPH TAB
@@ -187,7 +185,7 @@ pub fn create_network_dialog(
     vertical_layout.set_margin_bottom(10);
     vertical_layout.set_margin_start(5);
     vertical_layout.set_margin_end(5);
-    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+    let scroll = gtk::ScrolledWindow::new();
     let mut in_out_history = Graph::new(Some(1.), false);
 
     in_out_history.push(
@@ -203,7 +201,7 @@ pub fn create_network_dialog(
     in_out_history.set_label_callbacks(Some(Box::new(graph_label_units)));
     let label = gtk::Label::new(None);
     label.set_markup("<b>Network usage</b>");
-    vertical_layout.add(&label);
+    vertical_layout.append(&label);
     in_out_history.attach_to(&vertical_layout);
     in_out_history.invalidate();
     in_out_history.set_labels_width(120);
@@ -235,16 +233,16 @@ pub fn create_network_dialog(
     packets_errors_history.set_labels_width(120);
     let label = gtk::Label::new(None);
     label.set_markup("<b>Extra data</b>");
-    vertical_layout.add(&label);
+    vertical_layout.append(&label);
     packets_errors_history.attach_to(&vertical_layout);
     packets_errors_history.invalidate();
     let packets_errors_history = connect_graph(packets_errors_history);
 
-    scroll.add(&vertical_layout);
+    scroll.set_child(Some(&vertical_layout));
     scroll.connect_show(
         glib::clone!(@weak packets_errors_history, @weak in_out_history => move |_| {
-            packets_errors_history.borrow().show_all();
-            in_out_history.borrow().show_all();
+            packets_errors_history.borrow().show();
+            in_out_history.borrow().show();
         }),
     );
     notebook.create_tab("Graphics", &scroll);
@@ -406,7 +404,7 @@ pub fn create_network_dialog(
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
-    popup.preferred_width();
+    // popup.preferred_width();
     popup.set_size_request(700, 540);
 
     close_button.connect_clicked(glib::clone!(@weak popup => move |_| {
@@ -416,14 +414,16 @@ pub fn create_network_dialog(
     popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
         *to_be_removed.borrow_mut() = true;
     }));
-    popup.connect_key_press_event(|win, key| {
-        if key.keyval() == gtk::gdk::keys::constants::Escape {
-            win.close();
+    let mut event_controller = EventControllerKey::new();
+    event_controller.connect_key_pressed(glib::clone!(@weak popup => @default-return Inhibit(false), move |_, key, _, modifier_| {
+        if key == gtk::gdk::Key::Escape {
+            popup.close();
         }
         Inhibit(false)
-    });
+    }));
+    popup.add_controller(&event_controller);
     popup.set_resizable(true);
-    popup.show_all();
+    popup.show();
 
     let adjust = scroll.vadjustment();
     adjust.set_value(0.);

@@ -1,5 +1,5 @@
 use gtk::glib::IsA;
-use gtk::prelude::{BoxExt, NotebookExtManual, WidgetExt};
+use gtk::prelude::*;
 use gtk::{Box, Label, Notebook, Orientation, Widget};
 
 pub struct NoteBook {
@@ -19,8 +19,9 @@ impl NoteBook {
         let label = Label::new(Some(title));
         let tab = Box::new(Orientation::Horizontal, 0);
 
-        tab.pack_start(&label, true, true, 0);
-        tab.show_all();
+        tab.set_hexpand(true);
+        tab.set_vexpand(true);
+        tab.append(&label);
 
         let index = self.notebook.append_page(widget, Some(&tab));
         self.tabs.push(tab);

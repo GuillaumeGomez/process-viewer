@@ -7,10 +7,7 @@
 use gtk::{self, glib};
 
 use gtk::gio::prelude::ApplicationExt;
-use gtk::prelude::{
-    BoxExt, ContainerExt, DialogExt, GridExt, GtkWindowExt, SpinButtonExt, SpinButtonSignals,
-    WidgetExt,
-};
+use gtk::prelude::*;
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -138,7 +135,7 @@ fn show_error_dialog(fatal: bool, text: &str) {
     });
 
     dialog.set_resizable(false);
-    dialog.show_all();
+    dialog.show();
 }
 
 pub fn build_spin(label: &str, grid: &gtk::Grid, top: i32, refresh: u32) -> gtk::SpinButton {
@@ -197,8 +194,8 @@ pub fn show_settings_dialog(
 
     // Put the grid into the dialog's content area.
     let content_area = dialog.content_area();
-    content_area.pack_start(&grid, true, true, 0);
-    content_area.set_border_width(10);
+    content_area.append(&grid);
+    // content_area.set_border_width(10);
 
     // Finally connect to all kinds of change notification signals for the different UI widgets.
     // Whenever something is changing we directly save the configuration file with the new values.
@@ -226,5 +223,5 @@ pub fn show_settings_dialog(
     });
 
     dialog.set_resizable(false);
-    dialog.show_all();
+    dialog.show();
 }

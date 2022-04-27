@@ -1,8 +1,5 @@
 use gtk::glib;
-use gtk::prelude::{
-    AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, ScrolledWindowExt,
-    ToggleButtonExt, WidgetExt,
-};
+use gtk::prelude::*;
 use sysinfo::{self, ComponentExt, ProcessorExt, SystemExt};
 
 use std::cell::RefCell;
@@ -27,8 +24,11 @@ pub fn create_header(
     let empty = gtk::Label::new(None);
     let grid = gtk::Grid::new();
     let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    horizontal_layout.pack_start(&gtk::Label::new(None), true, true, 0);
-    horizontal_layout.pack_start(&check_box, false, false, 0);
+    let label = gtk::Label::new(None);
+    label.set_hexpand(true);
+    label.set_vexpand(true);
+    horizontal_layout.append(&label);
+    horizontal_layout.append(&check_box);
     grid.attach(&empty, 0, 0, 3, 1);
     grid.attach_next_to(&label, Some(&empty), gtk::PositionType::Right, 3, 1);
     grid.attach_next_to(
@@ -39,7 +39,8 @@ pub fn create_header(
         1,
     );
     grid.set_column_homogeneous(true);
-    parent_layout.pack_start(&grid, false, false, 15);
+    grid.set_margin_start(15);
+    parent_layout.append(&grid);
     check_box
 }
 
@@ -84,7 +85,7 @@ impl DisplaySysInfo {
     ) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
-        let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+        let scroll = gtk::ScrolledWindow::new();
         let mut components = vec![];
 
         // CPU
@@ -164,7 +165,9 @@ impl DisplaySysInfo {
         //
         // PROCESSOR PART
         //
-        vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 7);
+        let label = gtk::Label::new(Some("Total CPU usage"));
+        label.set_margin_start(7);
+        vertical_layout.append(&label);
         procs.push(gtk::ProgressBar::new());
         {
             procs.push(gtk::ProgressBar::new());
@@ -176,7 +179,7 @@ impl DisplaySysInfo {
             let processor = sys.global_processor_info();
             p.set_text(Some(&format!("{:.1} %", processor.cpu_usage())));
             p.set_fraction(f64::from(processor.cpu_usage() / 100.));
-            vertical_layout.add(p);
+            vertical_layout.append(p);
         }
         let check_box = create_header("Processors usage", &vertical_layout, settings.display_graph);
         for (i, pro) in sys.processors().iter().enumerate() {
@@ -195,7 +198,7 @@ impl DisplaySysInfo {
                 None,
             );
         }
-        vertical_layout.add(&non_graph_layout);
+        vertical_layout.append(&non_graph_layout);
         cpu_usage_history.attach_to(&vertical_layout);
 
         //
@@ -204,8 +207,9 @@ impl DisplaySysInfo {
         let check_box2 = create_header("Memory usage", &vertical_layout, settings.display_graph);
         let ram = create_progress_bar(&non_graph_layout2, 0, "RAM", "");
         let swap = create_progress_bar(&non_graph_layout2, 1, "Swap", "");
-        vertical_layout.pack_start(&non_graph_layout2, false, false, 15);
-        //vertical_layout.add(&non_graph_layout2);
+        non_graph_layout2.set_margin_start(15);
+        vertical_layout.append(&non_graph_layout2);
+        //vertical_layout.append(&non_graph_layout2);
         ram_usage_history.push(
             RotateVec::new(iter::repeat(0f64).take(61).collect()),
             "RAM",
@@ -231,15 +235,10 @@ impl DisplaySysInfo {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
                 let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature())));
-                horizontal_layout.pack_start(
-                    &gtk::Label::new(Some(component.label())),
-                    true,
-                    false,
-                    0,
-                );
-                horizontal_layout.pack_start(&temp, true, false, 0);
+                horizontal_layout.append(&gtk::Label::new(Some(component.label())));
+                horizontal_layout.append(&temp);
                 horizontal_layout.set_homogeneous(true);
-                non_graph_layout3.add(&horizontal_layout);
+                non_graph_layout3.append(&horizontal_layout);
                 components.push(temp);
                 temperature_usage_history.push(
                     RotateVec::new(iter::repeat(0f64).take(61).collect()),
@@ -247,7 +246,7 @@ impl DisplaySysInfo {
                     None,
                 );
             }
-            vertical_layout.add(&non_graph_layout3);
+            vertical_layout.append(&non_graph_layout3);
             temperature_usage_history.attach_to(&vertical_layout);
         }
 
@@ -258,7 +257,7 @@ impl DisplaySysInfo {
         let ram_usage_history = connect_graph(ram_usage_history);
         let temperature_usage_history = connect_graph(temperature_usage_history);
 
-        scroll.add(&vertical_layout);
+        scroll.set_child(Some(&vertical_layout));
         note.create_tab("System usage", &scroll);
 
         // It greatly improves the scrolling on the system information tab. No more clipping.
@@ -436,16 +435,16 @@ impl DisplaySysInfo {
     }
 }
 
-pub fn show_if_necessary<U: gtk::glib::IsA<gtk::ToggleButton>, T: WidgetExt>(
+pub fn show_if_necessary<U: gtk::glib::IsA<gtk::CheckButton>, T: WidgetExt>(
     check_box: &U,
     proc_horizontal_layout: &Graph,
     non_graph_layout: &T,
 ) {
     if check_box.is_active() {
-        proc_horizontal_layout.show_all();
+        proc_horizontal_layout.show();
         non_graph_layout.hide();
     } else {
-        non_graph_layout.show_all();
+        non_graph_layout.show();
         proc_horizontal_layout.hide();
     }
 }

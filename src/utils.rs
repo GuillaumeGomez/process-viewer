@@ -4,7 +4,8 @@ use gtk::gdk_pixbuf::Pixbuf;
 use gtk::gio::{self, MemoryInputStream};
 use gtk::glib;
 use gtk::glib::{Bytes, Cast};
-use gtk::prelude::{ButtonExt, GtkApplicationExt, Inhibit, WidgetExt};
+use gtk::prelude::*;
+use gtk::Inhibit;
 
 use std::cell::RefCell;
 use std::ops::Index;
@@ -145,13 +146,12 @@ pub fn graph_label_units_full(v: f64, use_unit: bool) -> [String; 4] {
 pub fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
     let area = graph.area.clone();
     let graph = Rc::new(RefCell::new(graph));
-    area.connect_draw(
-        glib::clone!(@weak graph => @default-return Inhibit(false), move |w, c| {
+    area.set_draw_func(
+        glib::clone!(@weak graph => move |area, c, width, height| {
             graph.borrow()
                  .draw(c,
-                       f64::from(w.allocated_width()),
-                       f64::from(w.allocated_height()));
-            Inhibit(false)
+                       f64::from(width),
+                       f64::from(height));
         }),
     );
     graph
@@ -179,19 +179,4 @@ pub fn get_main_window() -> Option<gtk::Window> {
         }
     }
     None
-}
-
-pub fn create_button_with_image(image_bytes: &'static [u8], fallback_text: &str) -> gtk::Button {
-    let button = gtk::Button::new();
-    let memory_stream = MemoryInputStream::from_bytes(&Bytes::from_static(image_bytes));
-    let image =
-        Pixbuf::from_stream_at_scale(&memory_stream, 32, 32, true, None::<&gio::Cancellable>);
-    if let Ok(image) = image {
-        let image = gtk::Image::from_pixbuf(Some(&image));
-        button.set_image(Some(&image));
-        button.set_always_show_image(true);
-    } else {
-        button.set_label(fallback_text);
-    }
-    button
 }

@@ -1,11 +1,5 @@
-use gtk::prelude::{
-    AdjustmentExt, BoxExt, ButtonExt, ContainerExt, Inhibit, LabelExt, ScrolledWindowExt,
-};
-use gtk::prelude::{
-    CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewColumnExt, TreeViewExt,
-    WidgetExt,
-};
-use gtk::{glib, pango};
+use gtk::prelude::*;
+use gtk::{glib, pango, EventControllerKey, Inhibit};
 use sysinfo::{self, Pid, ProcessExt};
 
 use std::cell::RefCell;
@@ -148,12 +142,12 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
     let text = gtk::Label::new(Some(text));
     text.set_selectable(true);
     text.set_justify(gtk::Justification::Left);
-    text.set_line_wrap(true);
-    text.set_line_wrap_mode(pango::WrapMode::Char);
+    text.set_wrap(true);
+    text.set_wrap_mode(pango::WrapMode::Char);
 
-    horizontal_layout.add(&label);
-    horizontal_layout.add(&text);
-    scroll.add(&horizontal_layout);
+    horizontal_layout.append(&label);
+    horizontal_layout.append(&text);
+    scroll.append(&horizontal_layout);
     text
 }
 
@@ -175,16 +169,16 @@ fn append_text_column(tree: &gtk::TreeView, pos: i32) -> gtk::CellRendererText {
 pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> ProcDialog {
     let mut notebook = NoteBook::new();
 
-    let popup = gtk::Window::new(gtk::WindowType::Toplevel);
+    let popup = gtk::Window::new();
 
-    popup.set_title(&format!("Information about {}", process.name()));
+    popup.set_title(Some(&format!("Information about {}", process.name())));
     popup.set_transient_for(get_main_window().as_ref());
     popup.set_destroy_with_parent(true);
 
     //
     // PROCESS INFO TAB
     //
-    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+    let scroll = gtk::ScrolledWindow::new();
     let close_button = gtk::Button::with_label("Close");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
@@ -258,11 +252,11 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     append_text_column(&env_tree, 0);
     let cell = append_text_column(&env_tree, 1);
 
-    env_tree.connect_size_allocate(move |tree, _| {
-        if let Some(col) = tree.column(1) {
-            cell.set_wrap_width(col.width() - 1);
-        }
-    });
+    // env_tree.connect_size_allocate(move |tree, _| {
+    //     if let Some(col) = tree.column(1) {
+    //         cell.set_wrap_width(col.width() - 1);
+    //     }
+    // });
 
     for env in process.environ() {
         let mut parts = env.splitn(2, '=');
@@ -275,20 +269,22 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     }
 
     let components = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    components.add(&labels);
+    components.append(&labels);
 
     if !process.environ().is_empty() {
         let label = gtk::Label::new(None);
         label.set_markup("<b>Environment variables</b>");
 
-        components.add(&label);
-        components.pack_start(&env_tree, false, false, 0);
+        components.append(&label);
+        components.append(&env_tree);
     }
 
-    scroll.add(&components);
+    scroll.set_child(Some(&components));
+    scroll.set_hexpand(true);
+    scroll.set_vexpand(true);
 
-    vertical_layout.pack_start(&scroll, true, true, 0);
-    vertical_layout.pack_start(&close_button, false, true, 0);
+    vertical_layout.append(&scroll);
+    vertical_layout.append(&close_button);
 
     notebook.create_tab("Information", &vertical_layout);
 
@@ -301,7 +297,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     vertical_layout.set_margin_bottom(10);
     vertical_layout.set_margin_start(5);
     vertical_layout.set_margin_end(5);
-    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+    let scroll = gtk::ScrolledWindow::new();
     let mut cpu_usage_history = Graph::new(Some(100.), false); // In case a process uses more than 100%
     cpu_usage_history.set_display_labels(false);
     cpu_usage_history.set_minimum(Some(100.));
@@ -337,7 +333,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
             ]
         }
     })));
-    vertical_layout.add(&gtk::Label::new(Some("Process usage")));
+    vertical_layout.append(&gtk::Label::new(Some("Process usage")));
     cpu_usage_history.attach_to(&vertical_layout);
     cpu_usage_history.invalidate();
     let cpu_usage_history = connect_graph(cpu_usage_history);
@@ -357,39 +353,39 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     ram_usage_history.set_label_callbacks(Some(Box::new(graph_label_units)));
     disk_usage_history.set_label_callbacks(Some(Box::new(graph_label_units)));
 
-    vertical_layout.add(&gtk::Label::new(Some("Memory usage")));
+    vertical_layout.append(&gtk::Label::new(Some("Memory usage")));
     ram_usage_history.attach_to(&vertical_layout);
     ram_usage_history.invalidate();
     let ram_usage_history = connect_graph(ram_usage_history);
 
     #[cfg(not(windows))]
     {
-        vertical_layout.add(&gtk::Label::new(Some("Disk I/O usage")));
+        vertical_layout.append(&gtk::Label::new(Some("Disk I/O usage")));
     }
     #[cfg(windows)]
     {
-        vertical_layout.add(&gtk::Label::new(Some("I/O usage")));
+        vertical_layout.append(&gtk::Label::new(Some("I/O usage")));
     }
     disk_usage_history.attach_to(&vertical_layout);
     disk_usage_history.invalidate();
     let disk_usage_history = connect_graph(disk_usage_history);
 
-    scroll.add(&vertical_layout);
+    scroll.set_child(Some(&vertical_layout));
     scroll.connect_show(
         glib::clone!(@weak ram_usage_history, @weak cpu_usage_history, @weak disk_usage_history => move |_| {
-            ram_usage_history.borrow().show_all();
-            cpu_usage_history.borrow().show_all();
-            disk_usage_history.borrow().show_all();
+            ram_usage_history.borrow().show();
+            cpu_usage_history.borrow().show();
+            disk_usage_history.borrow().show();
         }),
     );
     notebook.create_tab("Resources usage", &scroll);
 
-    popup.add(&notebook.notebook);
+    popup.set_child(Some(&notebook.notebook));
     // To silence the annoying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
-    popup.preferred_width();
+    // popup.preferred_width();
     popup.set_size_request(500, 600);
 
     close_button.connect_clicked(glib::clone!(@weak popup => move |_| {
@@ -399,14 +395,16 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
         *to_be_removed.borrow_mut() = true;
     }));
-    popup.connect_key_press_event(|win, key| {
-        if key.keyval() == gtk::gdk::keys::constants::Escape {
-            win.close();
+    let mut event_controller = EventControllerKey::new();
+    event_controller.connect_key_pressed(glib::clone!(@weak popup => @default-return Inhibit(false), move |_, key, _, modifier_| {
+        if key == gtk::gdk::Key::Escape {
+            popup.close();
         }
         Inhibit(false)
-    });
+    }));
+    popup.add_controller(&event_controller);
     popup.set_resizable(true);
-    popup.show_all();
+    popup.show();
 
     let adjust = scroll.vadjustment();
     adjust.set_value(0.);

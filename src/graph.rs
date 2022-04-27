@@ -1,6 +1,6 @@
 use gtk::gdk;
-use gtk::prelude::{BoxExt, ContainerExt, LabelExt, ScrolledWindowExt, WidgetExt};
-use gtk::{self, cairo, DrawingArea};
+use gtk::prelude::*;
+use gtk::{cairo, DrawingArea};
 use std::cell::RefCell;
 
 use std::rc::Rc;
@@ -40,10 +40,7 @@ impl Graph {
             colors: vec![],
             data: vec![],
             vertical_layout: gtk::Box::new(gtk::Orientation::Vertical, 0),
-            scroll_layout: gtk::ScrolledWindow::new(
-                None::<&gtk::Adjustment>,
-                None::<&gtk::Adjustment>,
-            ),
+            scroll_layout: gtk::ScrolledWindow::new(),
             horizontal_layout: gtk::Box::new(gtk::Orientation::Horizontal, 0),
             area: DrawingArea::new(),
             max: max.map(RefCell::new),
@@ -56,10 +53,12 @@ impl Graph {
             overhead: None,
         };
         g.scroll_layout.set_min_content_width(g.labels_layout_width);
-        g.scroll_layout.add(&g.vertical_layout);
-        g.horizontal_layout.pack_start(&g.area, true, true, 0);
-        g.horizontal_layout
-            .pack_start(&g.scroll_layout, false, true, 10);
+        g.scroll_layout.set_child(Some(&g.vertical_layout));
+        g.area.set_hexpand(true);
+        g.area.set_vexpand(true);
+        g.area.set_margin_end(10);
+        g.horizontal_layout.append(&g.area);
+        g.horizontal_layout.append(&g.scroll_layout);
         g.horizontal_layout.set_margin_start(5);
         g
     }
@@ -92,7 +91,7 @@ impl Graph {
     pub fn set_display_labels(&self, display_labels: bool) {
         *self.display_labels.borrow_mut() = display_labels;
         if display_labels {
-            self.scroll_layout.show_all();
+            self.scroll_layout.show();
         } else {
             self.scroll_layout.hide();
         }
@@ -103,15 +102,15 @@ impl Graph {
         self.horizontal_layout.hide();
     }
 
-    pub fn show_all(&self) {
-        self.horizontal_layout.show_all();
+    pub fn show(&self) {
+        self.horizontal_layout.show();
         if !*self.display_labels.borrow() {
             self.scroll_layout.hide();
         }
     }
 
     pub fn attach_to(&self, to: &gtk::Box) {
-        to.add(&self.horizontal_layout);
+        to.append(&self.horizontal_layout);
     }
 
     pub fn push(&mut self, d: RotateVec<f64>, s: &str, override_color: Option<usize>) {
@@ -125,7 +124,7 @@ impl Graph {
             "<span foreground='#{:02X}{:02X}{:02X}'>{}</span>",
             r, g, b, s
         ));
-        self.vertical_layout.add(&l);
+        self.vertical_layout.append(&l);
         self.colors.push(c);
         self.data.push(d);
     }
@@ -269,19 +268,20 @@ impl Graph {
     }
 
     pub fn invalidate(&self) {
-        if let Some(t_win) = self.area.window() {
-            let (x, y) = self
-                .area
-                .translate_coordinates(&self.area, 0, 0)
-                .expect("translate_coordinates failed");
-            let rect = gdk::Rectangle::new(
-                x,
-                y,
-                self.area.allocated_width(),
-                self.area.allocated_height(),
-            );
-            t_win.invalidate_rect(Some(&rect), true);
-        }
+        // if let Some(t_win) = self.area.window() {
+            // let (x, y) = self
+            //     .area
+            //     .translate_coordinates(&self.area, 0, 0)
+            //     .expect("translate_coordinates failed");
+            // let rect = gdk::Rectangle::new(
+            //     x,
+            //     y,
+            //     self.area.allocated_width(),
+            //     self.area.allocated_height(),
+            // );
+            // t_win.invalidate_rect(Some(&rect), true);
+            // self.area.invalidate_contents();
+        // }
     }
 
     pub fn send_size_request(&self, width: Option<i32>) {
@@ -300,12 +300,12 @@ impl Graph {
             }
         };
         // This condition is to avoid having a graph with a bigger width than the window.
-        if let Some(top) = self.area.toplevel() {
-            let max_width = top.allocation().width();
-            if width > max_width {
-                width = max_width;
-            }
-        }
+        // if let Some(top) = self.area.toplevel() {
+        //     let max_width = top.allocation().width();
+        //     if width > max_width {
+        //         width = max_width;
+        //     }
+        // }
         self.area.set_size_request(
             if *self.display_labels.borrow() {
                 width
@@ -328,25 +328,25 @@ pub trait Connecter {
 
 impl Connecter for Rc<RefCell<Graph>> {
     fn connect_to_window_events(&self) {
-        let s = self.clone();
-        if let Some(parent) = self.borrow().horizontal_layout.toplevel() {
-            // TODO: ugly way to resize drawing area, I should find a better way
-            parent.connect_configure_event(move |w, _| {
-                let need_diff = s.borrow().initial_diff.is_none();
-                if need_diff {
-                    let mut s = s.borrow_mut();
-                    let parent_width = if let Some(p) = s.area.parent() {
-                        p.allocation().width()
-                    } else {
-                        0
-                    };
-                    s.initial_diff = Some(w.allocation().width() - parent_width);
-                }
-                s.borrow().send_size_request(None);
-                false
-            });
-        } else {
-            eprintln!("This method needs to be called *after* it has been put inside a window");
-        }
+        // let s = self.clone();
+        // if let Some(parent) = self.borrow().horizontal_layout.toplevel() {
+        //     // TODO: ugly way to resize drawing area, I should find a better way
+        //     parent.connect_configure_event(move |w, _| {
+        //         let need_diff = s.borrow().initial_diff.is_none();
+        //         if need_diff {
+        //             let mut s = s.borrow_mut();
+        //             let parent_width = if let Some(p) = s.area.parent() {
+        //                 p.allocation().width()
+        //             } else {
+        //                 0
+        //             };
+        //             s.initial_diff = Some(w.allocation().width() - parent_width);
+        //         }
+        //         s.borrow().send_size_request(None);
+        //         false
+        //     });
+        // } else {
+        //     eprintln!("This method needs to be called *after* it has been put inside a window");
+        // }
     }
 }
