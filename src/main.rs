@@ -8,17 +8,13 @@
 
 use sysinfo::*;
 
-use gtk::gdk_pixbuf::Pixbuf;
-use gtk::gio::prelude::{ActionExt, ActionMapExt, ApplicationExt, ApplicationExtManual};
+use gtk::gio::prelude::*;
 use gtk::gio::MemoryInputStream;
 use gtk::glib::{Bytes, Cast, IsA, ToVariant};
-use gtk::prelude::{
-    AboutDialogExt, BoxExt, ButtonBoxExt, ButtonExt, ContainerExt, DialogExt, EntryExt,
-    GtkApplicationExt, GtkListStoreExt, GtkListStoreExtManual, GtkWindowExt, NotebookExtManual,
-    SearchBarExt, TreeModelExt, TreeSortableExtManual, TreeViewExt, WidgetExt, WidgetExtManual,
-};
+use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
-use gtk::{AboutDialog, Dialog, EditableSignals, Entry, Inhibit, MessageDialog};
+use gtk::gdk::Texture;
+use gtk::{AboutDialog, Dialog, Entry, EventControllerKey, Inhibit, MessageDialog};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -58,7 +54,7 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
     if let Some(iter) = list.iter_first() {
         let mut valid = true;
         while valid {
-            let pid = match list.value(&iter, 0).get::<u32>() {
+            let pid = match list.get_value(&iter, 0).get::<u32>() {
                 Ok(pid) => Pid::from_u32(pid),
                 _ => {
                     valid = list.iter_next(&iter);
@@ -197,7 +193,7 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
             dialog.close();
         }
     });
-    m.show_all();
+    m.show();
 }
 
 fn create_new_proc_diag(
@@ -342,7 +338,7 @@ fn setup_system_timeout(rfs: &Rc<RefCell<RequiredForSettings>>, settings: &Rc<Re
 
     ready_rx.attach(
         None,
-        glib::clone!(@weak sys, @weak display_tab, @weak settings => @default-panic, move |_: bool| {
+        glib::clone!(@weak sys, @weak display_tab, @weak settings => @default-return glib::Continue(true), move |_: bool| {
             let mut info = display_tab.borrow_mut();
             let sys = sys.lock().expect("failed to lock to update system");
             let display_fahrenheit = settings.borrow().display_fahrenheit;
@@ -378,7 +374,7 @@ fn build_ui(application: &gtk::Application) {
     more_menu.append(Some("About"), Some("app.about"));
     menu_bar.append_submenu(Some("?"), &more_menu);
 
-    application.set_app_menu(Some(&menu));
+    // application.set_menu_bar(Some(&menu));
     application.set_menubar(Some(&menu_bar));
 
     let window = gtk::ApplicationWindow::new(application);
@@ -390,13 +386,13 @@ fn build_ui(application: &gtk::Application) {
     let current_pid = Rc::clone(&procs.current_pid);
     let info_button = procs.info_button.clone();
 
-    window.set_title("Process viewer");
-    window.set_position(gtk::WindowPosition::Center);
+    window.set_title(Some("Process viewer"));
+    // window.set_position(gtk::WindowPosition::Center);
     // To silence the annying warning:
     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
     // allocate?"
-    window.preferred_width();
+    // window.preferred_width();
     window.set_default_size(630, 700);
 
     sys.refresh_all();
@@ -421,9 +417,9 @@ fn build_ui(application: &gtk::Application) {
     let display_tab = Rc::new(RefCell::new(display_tab));
 
     // I think it's now useless to have this one...
-    v_box.pack_start(&note.notebook, true, true, 0);
+    v_box.append(&note.notebook);
 
-    window.add(&v_box);
+    window.set_child(Some(&v_box));
 
     let process_dialogs: Rc<RefCell<Vec<process_dialog::ProcDialog>>> =
         Rc::new(RefCell::new(Vec::new()));
@@ -463,7 +459,7 @@ fn build_ui(application: &gtk::Application) {
         .connect_row_activated(glib::clone!(@weak sys => move |tree_view, path, _| {
                 let model = tree_view.model().expect("couldn't get model");
                 let iter = model.iter(path).expect("couldn't get iter");
-                let pid = model.value(&iter, 0)
+                let pid = model.get_value(&iter, 0)
                                .get::<u32>()
                                .expect("Model::get failed");
                 create_new_proc_diag(&process_dialogs, Pid::from_u32(pid), &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"));
@@ -474,27 +470,20 @@ fn build_ui(application: &gtk::Application) {
     about.connect_activate(glib::clone!(@weak window => move |_, _| {
         let p = AboutDialog::new();
         p.set_authors(&["Guillaume Gomez"]);
-        p.set_website_label(Some("my website"));
+        p.set_website_label("my website");
         p.set_website(Some("https://guillaume-gomez.fr/"));
         p.set_comments(Some("A process viewer GUI written with gtk-rs"));
         p.set_copyright(Some("Licensed under MIT"));
+        p.set_program_name(Some("process-viewer"));
+        // let pixbuf = Pixbuf::from_stream(Bytes::from_static(include_bytes!(
+        //             concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png"))), None::<&gio::Cancellable>);
+        // if let Ok(pixbuf) = pixbuf {
+        //     let logo = Texture::for_pixbuf(&pixbuf);
+        //     p.set_logo(Some(&logo));
+        // }
         p.set_transient_for(Some(&window));
-        p.set_program_name("process-viewer");
-        let memory_stream = MemoryInputStream::from_bytes(
-            &Bytes::from_static(include_bytes!(
-                    concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png"))));
-        let logo = Pixbuf::from_stream(&memory_stream, None::<&gio::Cancellable>);
-        if let Ok(logo) = logo {
-            p.set_logo(Some(&logo));
-        }
         p.set_modal(true);
-        p.connect_response(|dialog, response| {
-            if response == gtk::ResponseType::DeleteEvent ||
-               response == gtk::ResponseType::Close {
-                dialog.close();
-            }
-        });
-        p.show_all();
+        p.show();
     }));
 
     let new_task = gio::SimpleAction::new("new-task", None);
@@ -510,18 +499,18 @@ fn build_ui(application: &gtk::Application) {
         // To set "run" button disabled by default.
         dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
         // To make "run" and "cancel" button take all spaces.
-        if let Some(run) = dialog.widget_for_response(gtk::ResponseType::Other(0)) {
-            if let Some(parent) = run.parent() {
-                match parent.downcast::<gtk::ButtonBox>() {
-                    Ok(parent) => parent.set_layout_style(gtk::ButtonBoxStyle::Expand),
-                    Err(e) => {
-                        eprintln!(
-                            "<Process_Viewer::build_ui> Failed to set layout style for new task \
-                             button box: {}", e)
-                    }
-                }
-            }
-        }
+        // if let Some(run) = dialog.widget_for_response(gtk::ResponseType::Other(0)) {
+        //     if let Some(parent) = run.parent() {
+        //         match parent.downcast::<gtk::ButtonBox>() {
+        //             Ok(parent) => parent.set_layout_style(gtk::ButtonBoxStyle::Expand),
+        //             Err(e) => {
+        //                 eprintln!(
+        //                     "<Process_Viewer::build_ui> Failed to set layout style for new task \
+        //                      button box: {}", e)
+        //             }
+        //         }
+        //     }
+        // }
         input.connect_changed(glib::clone!(@weak dialog => move |input| {
             if !input.text().is_empty() {
                     dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
@@ -544,14 +533,14 @@ fn build_ui(application: &gtk::Application) {
             }
         }));
 
-        dialog.content_area().add(&input);
+        dialog.content_area().append(&input);
         // To silence the annying warning:
         // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
         // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
         // allocate?"
-        dialog.preferred_width();
+        // dialog.preferred_width();
         dialog.set_size_request(400, 70);
-        dialog.show_all();
+        dialog.show();
     }));
 
     let graphs = gio::SimpleAction::new_stateful(
@@ -601,43 +590,45 @@ fn build_ui(application: &gtk::Application) {
 
     window.set_widget_name(utils::MAIN_WINDOW_NAME);
 
-    window.add_events(gdk::EventMask::STRUCTURE_MASK);
+    // window.add_events(gdk::EventMask::STRUCTURE_MASK);
     // TODO: ugly way to resize drawing area, I should find a better way
-    window.connect_configure_event(move |w, _| {
-        // To silence the annoying warning:
-        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-        // allocate?"
-        w.preferred_width();
-        let w = w.size().0 - 130;
-        let rfs = rfs.borrow();
-        rfs.display_tab.borrow().set_size_request(w, 200);
-        false
-    });
+    // window.connect_configure_event(move |w, _| {
+    //     // To silence the annoying warning:
+    //     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
+    //     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
+    //     // allocate?"
+    //     w.preferred_width();
+    //     let w = w.size().0 - 130;
+    //     let rfs = rfs.borrow();
+    //     rfs.display_tab.borrow().set_size_request(w, 200);
+    //     false
+    // });
 
     application.connect_activate(glib::clone!(@weak procs.filter_entry as filter_entry, @weak network_tab, @weak window => move |_| {
-        window.show_all();
         filter_entry.hide();
         network_tab.borrow().filter_entry.hide();
         window.present();
     }));
 
-    window.connect_key_press_event(
-        glib::clone!(@weak note.notebook as notebook => @default-return Inhibit(false), move |win, key| {
+    let mut event_controller = EventControllerKey::new();
+    event_controller.connect_key_pressed(glib::clone!(
+        @weak note.notebook as notebook,
+        @weak window as win
+        => @default-return Inhibit(false),
+        move |event_controller, key, _, modifier_| {
             let current_page = notebook.current_page();
             if current_page == Some(0) || current_page == Some(2) {
                 // the process list
-                if key.keyval() == gdk::keys::constants::Escape {
+                if key == gdk::Key::Escape {
                     if current_page == Some(0) {
                         procs.hide_filter();
                     } else {
                         network_tab.borrow().hide_filter();
                     }
                 } else if current_page == Some(0) {
-                    let ret = procs.search_bar.handle_event(key);
-                    if !procs.filter_entry.text().is_empty() {
-                        procs.filter_entry.show_all();
-                        if win.focused_widget()
+                    let ret = event_controller.forward(&procs.search_bar);
+                    if !procs.filter_entry.text_length() == 0 {
+                        if win.focus()
                             != Some(procs.filter_entry.clone().upcast::<gtk::Widget>())
                         {
                             win.set_focus(Some(&procs.filter_entry));
@@ -646,10 +637,9 @@ fn build_ui(application: &gtk::Application) {
                     return Inhibit(ret);
                 } else {
                     let network = network_tab.borrow();
-                    let ret = network.search_bar.handle_event(key);
-                    if !network.filter_entry.text().is_empty() {
-                        network.filter_entry.show_all();
-                        if win.focused_widget()
+                    let ret = event_controller.forward(&network.search_bar);
+                    if !network.filter_entry.text_length() == 0 {
+                        if win.focus()
                             != Some(network.filter_entry.clone().upcast::<gtk::Widget>())
                         {
                             win.set_focus(Some(&network.filter_entry));
@@ -661,6 +651,7 @@ fn build_ui(application: &gtk::Application) {
             Inhibit(false)
         }),
     );
+    window.add_controller(&event_controller);
 }
 
 fn main() {
