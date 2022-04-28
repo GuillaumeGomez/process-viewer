@@ -24,11 +24,11 @@ pub fn create_header(
     let empty = gtk::Label::new(None);
     let grid = gtk::Grid::new();
     let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    horizontal_layout.append(&label);
+    horizontal_layout.append(&check_box);
     let label = gtk::Label::new(None);
     label.set_hexpand(true);
     label.set_vexpand(true);
-    horizontal_layout.append(&label);
-    horizontal_layout.append(&check_box);
     grid.attach(&empty, 0, 0, 3, 1);
     grid.attach_next_to(&label, Some(&empty), gtk::PositionType::Right, 3, 1);
     grid.attach_next_to(
