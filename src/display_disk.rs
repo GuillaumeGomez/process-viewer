@@ -2,11 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use crate::notebook::NoteBook;
 use crate::utils::format_number;
 
-use gtk::prelude::*;
 use gtk::glib;
+use gtk::prelude::*;
 
 use sysinfo::{DiskExt, SystemExt};
 
@@ -77,7 +76,7 @@ fn refresh_disks(container: &gtk::Box, disks: &[sysinfo::Disk], elems: &mut Vec<
     }
 }
 
-pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, note: &mut NoteBook) {
+pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
     let elems: Rc<RefCell<Vec<DiskInfo>>> = Rc::new(RefCell::new(Vec::new()));
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let scroll = gtk::ScrolledWindow::new();
@@ -100,7 +99,8 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, note: &mut NoteBook) 
     vertical_layout.append(&scroll);
     vertical_layout.append(&refresh_but);
 
-    note.create_tab("Disk information", &vertical_layout);
+    stack.add_titled(&vertical_layout, Some("Disks"), "Disks");
+
     refresh_disks(
         &container,
         sys.lock().expect("failed to lock to get disks").disks(),

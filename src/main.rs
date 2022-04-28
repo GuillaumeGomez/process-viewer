@@ -8,13 +8,14 @@
 
 use sysinfo::*;
 
+use gtk::gdk::Texture;
+use gtk::gdk_pixbuf::Pixbuf;
 use gtk::gio::prelude::*;
 use gtk::gio::MemoryInputStream;
-use gtk::glib::{Bytes, Cast, IsA, ToVariant};
+use gtk::glib::{Bytes, IsA, ToVariant};
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
-use gtk::gdk::Texture;
-use gtk::{AboutDialog, Dialog, Entry, EventControllerKey, Inhibit, MessageDialog};
+use gtk::{AboutDialog, Dialog, Entry, MessageDialog};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -42,7 +43,6 @@ mod utils;
 use display_network::Network;
 use display_procs::{create_and_fill_model, Procs};
 use display_sysinfo::DisplaySysInfo;
-use notebook::NoteBook;
 use settings::Settings;
 use utils::format_number;
 
@@ -256,7 +256,6 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
         let sorted = TreeSortableExtManual::sort_column_id(&list_store);
         list_store.set_unsorted();
 
-        let mut to_remove = 0;
         let mut dialogs = process_dialogs.borrow_mut();
 
         if let Ok(sys) = sys.lock() {
@@ -274,16 +273,11 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
                 } else {
                     dialog.set_dead();
                 }
-                if dialog.need_remove() {
-                    to_remove += 1;
-                }
             }
         } else {
             panic!("failed to lock sys to refresh UI");
         }
-        if to_remove > 0 {
-            dialogs.retain(|x| !x.need_remove());
-        }
+        dialogs.retain(|x| !x.need_remove());
         glib::Continue(true)
     }));
 }
@@ -338,7 +332,7 @@ fn setup_system_timeout(rfs: &Rc<RefCell<RequiredForSettings>>, settings: &Rc<Re
 
     ready_rx.attach(
         None,
-        glib::clone!(@weak sys, @weak display_tab, @weak settings => @default-return glib::Continue(true), move |_: bool| {
+        glib::clone!(@weak sys, @weak display_tab, @weak settings => @default-panic, move |_: bool| {
             let mut info = display_tab.borrow_mut();
             let sys = sys.lock().expect("failed to lock to update system");
             let display_fahrenheit = settings.borrow().display_fahrenheit;
@@ -353,46 +347,59 @@ fn setup_system_timeout(rfs: &Rc<RefCell<RequiredForSettings>>, settings: &Rc<Re
 fn build_ui(application: &gtk::Application) {
     let settings = Settings::load();
 
-    let menu = gio::Menu::new();
-    let menu_bar = gio::Menu::new();
-    let more_menu = gio::Menu::new();
-    let settings_menu = gio::Menu::new();
+    let header_buttons = gtk::StackSwitcher::new();
+    let stack = gtk::Stack::new();
+    header_buttons.set_stack(Some(&stack));
 
-    menu.append(Some("Launch new executable"), Some("app.new-task"));
-    menu.append(Some("Quit"), Some("app.quit"));
+    let menu_bar = gio::Menu::new();
+
+    menu_bar.append(Some("Launch new executable"), Some("app.new-task"));
+
     let quit = gio::SimpleAction::new("quit", None);
     quit.connect_activate(glib::clone!(@weak application => move |_,_| {
         application.quit();
     }));
     application.set_accels_for_action("app.quit", &["<Primary>Q"]);
 
+    let settings_menu = gio::Menu::new();
     settings_menu.append(Some("Display temperature in °F"), Some("app.temperature"));
     settings_menu.append(Some("Display graphs"), Some("app.graphs"));
     settings_menu.append(Some("More settings..."), Some("app.settings"));
-    menu_bar.append_submenu(Some("_Settings"), &settings_menu);
+    menu_bar.append_section(None, &settings_menu);
 
+    let more_menu = gio::Menu::new();
     more_menu.append(Some("About"), Some("app.about"));
-    menu_bar.append_submenu(Some("?"), &more_menu);
+    menu_bar.append_section(None, &more_menu);
 
-    // application.set_menu_bar(Some(&menu));
-    application.set_menubar(Some(&menu_bar));
+    let menu = gio::Menu::new();
+    menu.append(Some("Quit"), Some("app.quit"));
+    menu_bar.append_section(None, &menu);
+
+    let menu_button = gtk::MenuButton::builder()
+        .icon_name("open-menu-symbolic")
+        .menu_model(&menu_bar)
+        .build();
+    menu_button.add_css_class("titlebar-button");
+
+    let search_filter_button = gtk::Button::from_icon_name("edit-find-symbolic");
+    search_filter_button.add_css_class("titlebar-button");
+
+    let header_bar = gtk::HeaderBar::new();
+
+    header_bar.pack_end(&menu_button);
+    header_bar.pack_end(&search_filter_button);
+    header_bar.set_title_widget(Some(&header_buttons));
 
     let window = gtk::ApplicationWindow::new(application);
 
+    window.set_titlebar(Some(&header_bar));
+
     let mut sys =
         sysinfo::System::new_with_specifics(RefreshKind::everything().without_users_list());
-    let mut note = NoteBook::new();
-    let procs = Procs::new(sys.processes(), &mut note, &window);
+    let procs = Procs::new(sys.processes(), &stack);
     let current_pid = Rc::clone(&procs.current_pid);
     let info_button = procs.info_button.clone();
 
-    window.set_title(Some("Process viewer"));
-    // window.set_position(gtk::WindowPosition::Center);
-    // To silence the annying warning:
-    // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-    // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-    // allocate?"
-    // window.preferred_width();
     window.set_default_size(630, 700);
 
     sys.refresh_all();
@@ -406,20 +413,21 @@ fn build_ui(application: &gtk::Application) {
             }
         }));
 
-    let display_tab = DisplaySysInfo::new(&sys, &mut note, &settings);
+    let display_tab = DisplaySysInfo::new(&sys, &stack, &settings);
 
     let settings = Rc::new(RefCell::new(settings));
-    let network_tab = Rc::new(RefCell::new(Network::new(&mut note, &window, &sys)));
-    display_disk::create_disk_info(&sys, &mut note);
+    let network_tab = Rc::new(RefCell::new(Network::new(&stack, &sys)));
+    display_disk::create_disk_info(&sys, &stack);
 
-    let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    // let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
     let display_tab = Rc::new(RefCell::new(display_tab));
 
     // I think it's now useless to have this one...
-    v_box.append(&note.notebook);
+    // v_box.append(&note.notebook);
 
-    window.set_child(Some(&v_box));
+    // window.set_child(Some(&v_box));
+    window.set_child(Some(&stack));
 
     let process_dialogs: Rc<RefCell<Vec<process_dialog::ProcDialog>>> =
         Rc::new(RefCell::new(Vec::new()));
@@ -475,12 +483,14 @@ fn build_ui(application: &gtk::Application) {
         p.set_comments(Some("A process viewer GUI written with gtk-rs"));
         p.set_copyright(Some("Licensed under MIT"));
         p.set_program_name(Some("process-viewer"));
-        // let pixbuf = Pixbuf::from_stream(Bytes::from_static(include_bytes!(
-        //             concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png"))), None::<&gio::Cancellable>);
-        // if let Ok(pixbuf) = pixbuf {
-        //     let logo = Texture::for_pixbuf(&pixbuf);
-        //     p.set_logo(Some(&logo));
-        // }
+        let bytes = Bytes::from_static(include_bytes!(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png")));
+        let memory_stream = MemoryInputStream::from_bytes(&bytes);
+        let pixbuf = Pixbuf::from_stream(&memory_stream, None::<&gio::Cancellable>);
+        if let Ok(pixbuf) = pixbuf {
+            let logo = Texture::for_pixbuf(&pixbuf);
+            p.set_logo(Some(&logo));
+        }
         p.set_transient_for(Some(&window));
         p.set_modal(true);
         p.show();
@@ -548,7 +558,7 @@ fn build_ui(application: &gtk::Application) {
         None,
         &settings.borrow().display_graph.to_variant(),
     );
-    graphs.connect_activate(glib::clone!(@weak settings, @weak rfs => move |g, _| {
+    graphs.connect_activate(glib::clone!(@weak settings => move |g, _| {
         let mut is_active = false;
         if let Some(g) = g.state() {
             let rfs = rfs.borrow();
@@ -590,74 +600,102 @@ fn build_ui(application: &gtk::Application) {
 
     window.set_widget_name(utils::MAIN_WINDOW_NAME);
 
-    // window.add_events(gdk::EventMask::STRUCTURE_MASK);
-    // TODO: ugly way to resize drawing area, I should find a better way
-    // window.connect_configure_event(move |w, _| {
-    //     // To silence the annoying warning:
-    //     // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-    //     // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-    //     // allocate?"
-    //     w.preferred_width();
-    //     let w = w.size().0 - 130;
-    //     let rfs = rfs.borrow();
-    //     rfs.display_tab.borrow().set_size_request(w, 200);
-    //     false
-    // });
-
-    application.connect_activate(glib::clone!(@weak procs.filter_entry as filter_entry, @weak network_tab, @weak window => move |_| {
-        filter_entry.hide();
-        network_tab.borrow().filter_entry.hide();
+    application.connect_activate(glib::clone!(@weak window => move |_| {
         window.present();
     }));
 
-    let mut event_controller = EventControllerKey::new();
-    event_controller.connect_key_pressed(glib::clone!(
-        @weak note.notebook as notebook,
-        @weak window as win
-        => @default-return Inhibit(false),
-        move |event_controller, key, _, modifier_| {
-            let current_page = notebook.current_page();
-            if current_page == Some(0) || current_page == Some(2) {
-                // the process list
-                if key == gdk::Key::Escape {
-                    if current_page == Some(0) {
-                        procs.hide_filter();
-                    } else {
-                        network_tab.borrow().hide_filter();
-                    }
-                } else if current_page == Some(0) {
-                    let ret = event_controller.forward(&procs.search_bar);
-                    if !procs.filter_entry.text_length() == 0 {
-                        if win.focus()
-                            != Some(procs.filter_entry.clone().upcast::<gtk::Widget>())
-                        {
-                            win.set_focus(Some(&procs.filter_entry));
-                        }
-                    }
-                    return Inhibit(ret);
-                } else {
-                    let network = network_tab.borrow();
-                    let ret = event_controller.forward(&network.search_bar);
-                    if !network.filter_entry.text_length() == 0 {
-                        if win.focus()
-                            != Some(network.filter_entry.clone().upcast::<gtk::Widget>())
-                        {
-                            win.set_focus(Some(&network.filter_entry));
-                        }
-                    }
-                    return Inhibit(ret);
+    procs.search_bar.set_key_capture_widget(Some(&window));
+
+    fn revert_display(search_bar: &gtk::SearchBar) {
+        if search_bar.is_search_mode() {
+            search_bar.set_search_mode(false);
+        } else {
+            search_bar.set_search_mode(true);
+        }
+    }
+
+    search_filter_button.connect_clicked(glib::clone!(
+        @strong stack,
+        @weak procs.search_bar as procs_search_bar,
+        @weak network_tab,
+        => move |_| {
+        if let Some(name) = stack.visible_child_name() {
+            match name.as_str() {
+                "Processes" => revert_display(&procs_search_bar),
+                "Networks" => revert_display(&network_tab.borrow().search_bar),
+                _ => return,
+            };
+        }
+    }));
+
+    stack.connect_visible_child_notify(move |s| {
+        if let Some(name) = s.visible_child_name() {
+            match name.as_str() {
+                "Processes" => {
+                    procs.search_bar.set_key_capture_widget(Some(&window));
+                    network_tab
+                        .borrow()
+                        .search_bar
+                        .set_key_capture_widget(None::<&gtk::Widget>);
+                    search_filter_button.set_sensitive(true);
+                    return;
                 }
+                "Networks" => {
+                    network_tab
+                        .borrow()
+                        .search_bar
+                        .set_key_capture_widget(Some(&window));
+                    procs
+                        .search_bar
+                        .set_key_capture_widget(None::<&gtk::Widget>);
+                    search_filter_button.set_sensitive(true);
+                    return;
+                }
+                _ => {}
             }
-            Inhibit(false)
-        }),
-    );
-    window.add_controller(&event_controller);
+        }
+        search_filter_button.set_sensitive(false);
+        procs
+            .search_bar
+            .set_key_capture_widget(None::<&gtk::Widget>);
+        network_tab
+            .borrow()
+            .search_bar
+            .set_key_capture_widget(None::<&gtk::Widget>);
+    });
 }
 
 fn main() {
     let application = gtk::Application::new(Some(APPLICATION_NAME), gio::ApplicationFlags::empty());
 
     application.connect_startup(move |app| {
+        let provider = gtk::CssProvider::new();
+        // Style needed for graph.
+        provider.load_from_data(
+            br#"
+graph_widget {
+    color: @theme_fg_color;
+}
+
+.titlebar-button {
+    background-color: @theme_bg_color;
+    border-radius: 4px;
+}
+.titlebar-button:hover {
+    background-color: shade(@theme_bg_color, 1.50);
+}
+
+.button-with-margin {
+    margin: 6px;
+}
+"#,
+        );
+        gtk::StyleContext::add_provider_for_display(
+            &gdk::Display::default().expect("Could not connect to a display."),
+            &provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+
         build_ui(app);
     });
 

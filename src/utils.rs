@@ -1,15 +1,8 @@
-use crate::graph::Graph;
-
-use gtk::gdk_pixbuf::Pixbuf;
-use gtk::gio::{self, MemoryInputStream};
-use gtk::glib;
-use gtk::glib::{Bytes, Cast};
+use gtk::gio;
+use gtk::glib::Cast;
 use gtk::prelude::*;
-use gtk::Inhibit;
 
-use std::cell::RefCell;
 use std::ops::Index;
-use std::rc::Rc;
 
 pub const MAIN_WINDOW_NAME: &str = "main-window";
 
@@ -39,10 +32,6 @@ impl<T> RotateVec<T> {
             self.start = self.data.len() - 1;
         }
     }
-
-    /*pub fn get(&self, index: usize) -> Option<&T> {
-        self.data.get(self.get_real_pos(index))
-    }*/
 
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         let pos = self.get_real_pos(index);
@@ -96,15 +85,15 @@ pub fn format_number_full(nb: u64, use_unit: bool) -> String {
     }
 }
 
-pub fn graph_label_units(v: f64) -> [String; 4] {
+pub fn graph_label_units(v: f32) -> [String; 4] {
     graph_label_units_full(v, true)
 }
 
-pub fn graph_label(v: f64) -> [String; 4] {
+pub fn graph_label(v: f32) -> [String; 4] {
     graph_label_units_full(v, false)
 }
 
-pub fn graph_label_units_full(v: f64, use_unit: bool) -> [String; 4] {
+pub fn graph_label_units_full(v: f32, use_unit: bool) -> [String; 4] {
     if v < 1_000. {
         [
             v.to_string(),
@@ -114,47 +103,33 @@ pub fn graph_label_units_full(v: f64, use_unit: bool) -> [String; 4] {
         ]
     } else if v < 1_000_000. {
         [
-            format!("{:.1}", v / 1_000f64),
-            format!("{:.1}", v / 2_000f64),
+            format!("{:.1}", v / 1_000f32),
+            format!("{:.1}", v / 2_000f32),
             "0".to_owned(),
             if use_unit { "KB" } else { "K" }.to_owned(),
         ]
     } else if v < 1_000_000_000. {
         [
-            format!("{:.1}", v / 1_000_000f64),
-            format!("{:.1}", v / 2_000_000f64),
+            format!("{:.1}", v / 1_000_000f32),
+            format!("{:.1}", v / 2_000_000f32),
             "0".to_owned(),
             if use_unit { "MB" } else { "M" }.to_owned(),
         ]
     } else if v < 1_000_000_000_000. {
         [
-            format!("{:.1}", v / 1_000_000_000f64),
-            format!("{:.1}", v / 2_000_000_000f64),
+            format!("{:.1}", v / 1_000_000_000f32),
+            format!("{:.1}", v / 2_000_000_000f32),
             "0".to_owned(),
             if use_unit { "GB" } else { "G" }.to_owned(),
         ]
     } else {
         [
-            format!("{:.1}", v / 1_000_000_000_000f64),
-            format!("{:.1}", v / 2_000_000_000_000f64),
+            format!("{:.1}", v / 1_000_000_000_000f32),
+            format!("{:.1}", v / 2_000_000_000_000f32),
             "0".to_owned(),
             if use_unit { "TB" } else { "T" }.to_owned(),
         ]
     }
-}
-
-pub fn connect_graph(graph: Graph) -> Rc<RefCell<Graph>> {
-    let area = graph.area.clone();
-    let graph = Rc::new(RefCell::new(graph));
-    area.set_draw_func(
-        glib::clone!(@weak graph => move |area, c, width, height| {
-            graph.borrow()
-                 .draw(c,
-                       f64::from(width),
-                       f64::from(height));
-        }),
-    );
-    graph
 }
 
 impl<T> Index<usize> for RotateVec<T> {

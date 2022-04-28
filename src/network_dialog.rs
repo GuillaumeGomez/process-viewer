@@ -3,11 +3,10 @@ use gtk::{glib, EventControllerKey, Inhibit};
 
 use sysinfo::NetworkExt;
 
-use crate::graph::{Connecter, Graph};
+use crate::graph::GraphWidget;
 use crate::notebook::NoteBook;
 use crate::utils::{
-    connect_graph, format_number, format_number_full, get_main_window, graph_label,
-    graph_label_units, RotateVec,
+    format_number, format_number_full, get_main_window, graph_label, graph_label_units, RotateVec,
 };
 
 use std::cell::RefCell;
@@ -17,8 +16,8 @@ use std::rc::Rc;
 pub struct NetworkDialog {
     pub name: String,
     popup: gtk::Window,
-    packets_errors_history: Rc<RefCell<Graph>>,
-    in_out_history: Rc<RefCell<Graph>>,
+    packets_errors_history: Rc<RefCell<GraphWidget>>,
+    in_out_history: Rc<RefCell<GraphWidget>>,
     received_peak: Rc<RefCell<u64>>,
     transmitted_peak: Rc<RefCell<u64>>,
     packets_received_peak: Rc<RefCell<u64>>,
@@ -31,8 +30,10 @@ pub struct NetworkDialog {
 
 macro_rules! update_graph {
     ($this:expr, $t:expr, $pos:expr, $value:expr, $total_value:expr, $peak:ident, $list_pos:expr, $formatter:ident) => {{
-        $t.data[$pos].move_start();
-        *$t.data[$pos].get_mut(0).expect("cannot get data 0") = $value as f64;
+        $t.data($pos, |d| {
+            d.move_start();
+            *d.get_mut(0).expect("cannot get data 0") = $value as f32;
+        });
         let mut x = $this.$peak.borrow_mut();
         if *x < $value {
             *x = $value;
@@ -61,7 +62,7 @@ impl NetworkDialog {
             format_number_full(value, false)
         }
 
-        let mut t = self.packets_errors_history.borrow_mut();
+        let t = self.packets_errors_history.borrow_mut();
         update_graph!(
             self,
             t,
@@ -102,9 +103,9 @@ impl NetworkDialog {
             17,
             formatter
         );
-        t.invalidate();
+        t.queue_draw();
 
-        let mut t = self.in_out_history.borrow_mut();
+        let t = self.in_out_history.borrow_mut();
         update_graph!(
             self,
             t,
@@ -125,7 +126,7 @@ impl NetworkDialog {
             5,
             format_number
         );
-        t.invalidate();
+        t.queue_draw();
     }
 
     pub fn show(&self) {
@@ -163,11 +164,15 @@ pub fn create_network_dialog(
 
     let popup = gtk::Window::new();
 
-    popup.set_title(Some(&format!("Information about network {}", interface_name)));
+    popup.set_title(Some(&format!(
+        "Information about network {}",
+        interface_name
+    )));
     popup.set_transient_for(get_main_window().as_ref());
     popup.set_destroy_with_parent(true);
 
     let close_button = gtk::Button::with_label("Close");
+    close_button.add_css_class("button-with-margin");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
     notebook.notebook.set_hexpand(true);
@@ -186,57 +191,57 @@ pub fn create_network_dialog(
     vertical_layout.set_margin_start(5);
     vertical_layout.set_margin_end(5);
     let scroll = gtk::ScrolledWindow::new();
-    let mut in_out_history = Graph::new(Some(1.), false);
+    let in_out_history = GraphWidget::new(Some(1.), false);
 
     in_out_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        RotateVec::new(iter::repeat(0f32).take(61).collect()),
         "received",
         None,
     );
     in_out_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        RotateVec::new(iter::repeat(0f32).take(61).collect()),
         "transmitted",
         None,
     );
-    in_out_history.set_label_callbacks(Some(Box::new(graph_label_units)));
+    in_out_history.set_labels_callback(Some(Box::new(graph_label_units)));
     let label = gtk::Label::new(None);
     label.set_markup("<b>Network usage</b>");
     vertical_layout.append(&label);
-    in_out_history.attach_to(&vertical_layout);
-    in_out_history.invalidate();
-    in_out_history.set_labels_width(120);
-    let in_out_history = connect_graph(in_out_history);
+    vertical_layout.append(&in_out_history);
+    in_out_history.queue_draw();
+    // let in_out_history = connect_graph(in_out_history);
+    let in_out_history = Rc::new(RefCell::new(in_out_history));
 
-    let mut packets_errors_history = Graph::new(Some(1.), false);
+    let packets_errors_history = GraphWidget::new(Some(1.), false);
 
     packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        RotateVec::new(iter::repeat(0f32).take(61).collect()),
         "received packets",
         None,
     );
     packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        RotateVec::new(iter::repeat(0f32).take(61).collect()),
         "transmitted packets",
         None,
     );
     packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        RotateVec::new(iter::repeat(0f32).take(61).collect()),
         "errors on received",
         None,
     );
     packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        RotateVec::new(iter::repeat(0f32).take(61).collect()),
         "errors on transmitted",
         None,
     );
-    packets_errors_history.set_label_callbacks(Some(Box::new(graph_label)));
-    packets_errors_history.set_labels_width(120);
+    packets_errors_history.set_labels_callback(Some(Box::new(graph_label)));
     let label = gtk::Label::new(None);
     label.set_markup("<b>Extra data</b>");
     vertical_layout.append(&label);
-    packets_errors_history.attach_to(&vertical_layout);
-    packets_errors_history.invalidate();
-    let packets_errors_history = connect_graph(packets_errors_history);
+    vertical_layout.append(&packets_errors_history);
+    packets_errors_history.queue_draw();
+    // let packets_errors_history = connect_graph(packets_errors_history);
+    let packets_errors_history = Rc::new(RefCell::new(packets_errors_history));
 
     scroll.set_child(Some(&vertical_layout));
     scroll.connect_show(
@@ -414,13 +419,15 @@ pub fn create_network_dialog(
     popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
         *to_be_removed.borrow_mut() = true;
     }));
-    let mut event_controller = EventControllerKey::new();
-    event_controller.connect_key_pressed(glib::clone!(@weak popup => @default-return Inhibit(false), move |_, key, _, modifier_| {
-        if key == gtk::gdk::Key::Escape {
-            popup.close();
-        }
-        Inhibit(false)
-    }));
+    let event_controller = EventControllerKey::new();
+    event_controller.connect_key_pressed(
+        glib::clone!(@weak popup => @default-return Inhibit(false), move |_, key, _, _modifier| {
+            if key == gtk::gdk::Key::Escape {
+                popup.close();
+            }
+            Inhibit(false)
+        }),
+    );
     popup.add_controller(&event_controller);
     popup.set_resizable(true);
     popup.show();
@@ -428,9 +435,6 @@ pub fn create_network_dialog(
     let adjust = scroll.vadjustment();
     adjust.set_value(0.);
     scroll.set_vadjustment(Some(&adjust));
-
-    packets_errors_history.connect_to_window_events();
-    in_out_history.connect_to_window_events();
 
     NetworkDialog {
         name: interface_name.to_owned(),
