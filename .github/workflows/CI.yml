@@ -28,16 +28,16 @@ jobs:
           - nightly
           - "1.56.0" # Minimum supported version (from gtk-rs)
         os:
-          - ubuntu-latest
+          - ubuntu-22.04
           - macos-latest
     steps:
       - run: sudo apt-get update -y
         if: matrix.os == 'ubuntu-latest'
-      - run: sudo apt-get install -y libgtk-3-dev libglib2.0-dev curl libcairo-gobject2 libcairo2-dev
+      - run: sudo apt-get install -y libgtk-4-dev curl libcairo-gobject2 libcairo2-dev
         if: matrix.os == 'ubuntu-latest'
       - run: brew update
         if: matrix.os == 'macos-latest'
-      - run: brew install gtk+3 cairo atk
+      - run: brew install gtk+4 cairo atk
         if: matrix.os == 'macos-latest'
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
