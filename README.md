@@ -52,5 +52,5 @@ If you appreciate my work and want to support me, you can do it here:
 
 ## Screenshots
 
-![screenshot](http://guillaume-gomez.fr/image/screen3.png)
-![screenshot](http://guillaume-gomez.fr/blog/images/new-graph-color.png)
+![screenshot](http://guillaume-gomez.fr/image/process-viewer-screen1.png)
+![screenshot](http://guillaume-gomez.fr/image/process-viewer-screen2.png)
