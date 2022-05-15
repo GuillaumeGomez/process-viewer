@@ -128,6 +128,7 @@ glib::wrapper! {
 }
 
 impl GraphInnerWidget {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         glib::Object::new(&[]).expect("Failed to create GraphInnerWidget")
     }
@@ -186,6 +187,7 @@ pub struct GraphPainter {
     minimum: Cell<Option<f32>>,
     // In %, from 0 to whatever
     overhead: Cell<Option<f32>>,
+    #[allow(clippy::type_complexity)]
     labels_callback: RefCell<Option<Box<dyn Fn(f32) -> [String; 4]>>>,
 }
 

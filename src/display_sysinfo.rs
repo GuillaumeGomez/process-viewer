@@ -296,11 +296,11 @@ impl DisplaySysInfo {
             swap,
             vertical_layout,
             components,
-            cpu_usage_history: cpu_usage_history,
-            ram_usage_history: ram_usage_history,
+            cpu_usage_history,
+            ram_usage_history,
             ram_check_box: check_box,
             swap_check_box: check_box2,
-            temperature_usage_history: temperature_usage_history,
+            temperature_usage_history,
             temperature_check_box: check_box3,
         };
         tmp.update_system_info(&sys, settings.display_fahrenheit);
@@ -376,10 +376,10 @@ impl DisplaySysInfo {
             t.data(pos, |d| {
                 d.move_start();
                 if let Some(t) = d.get_mut(0) {
-                    *t = f32::from(component.temperature());
+                    *t = component.temperature();
                 }
                 if let Some(t) = d.get_mut(0) {
-                    *t = f32::from(component.temperature());
+                    *t = component.temperature();
                 }
             });
             if display_fahrenheit {
@@ -408,7 +408,7 @@ impl DisplaySysInfo {
             h.data(i - 1, |d| {
                 d.move_start();
                 if let Some(h) = d.get_mut(0) {
-                    *h = f32::from(pro.cpu_usage() / 100.);
+                    *h = pro.cpu_usage() / 100.;
                 }
             });
         }

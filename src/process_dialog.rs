@@ -73,7 +73,7 @@ impl ProcDialog {
         let t = self.cpu_usage_history.borrow_mut();
         t.data(0, |d| {
             d.move_start();
-            *d.get_mut(0).expect("cannot get data 0") = process.cpu_usage().into();
+            *d.get_mut(0).expect("cannot get data 0") = process.cpu_usage();
         });
         t.queue_draw();
         let t = self.disk_usage_history.borrow_mut();

@@ -139,12 +139,12 @@ impl Procs {
                                .get::<u32>()
                                .map(|p| p.to_string())
                                .ok()
-                               .unwrap_or_else(String::new);
+                               .unwrap_or_default();
                 let name = model.get_value(iter, 1)
                                 .get::<String>()
                                 .map(|s| s.to_lowercase())
                                 .ok()
-                                .unwrap_or_else(String::new);
+                                .unwrap_or_default();
                 pid.contains(text) ||
                 text.contains(&pid) ||
                 name.contains(text) ||

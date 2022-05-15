@@ -107,7 +107,7 @@ impl Network {
                                 .get::<String>()
                                 .map(|s| s.to_lowercase())
                                 .ok()
-                                .unwrap_or_else(String::new);
+                                .unwrap_or_default();
                 name.contains(text)
             }),
         );

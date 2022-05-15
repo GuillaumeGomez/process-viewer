@@ -622,7 +622,7 @@ fn build_ui(application: &gtk::Application) {
             match name.as_str() {
                 "Processes" => revert_display(&procs_search_bar),
                 "Networks" => revert_display(&network_tab.borrow().search_bar),
-                _ => return,
+                _ => {}
             };
         }
     }));
