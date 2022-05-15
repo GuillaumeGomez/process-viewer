@@ -218,6 +218,7 @@ fn create_new_proc_diag(
     }
 }
 
+#[derive(Clone)]
 pub struct RequiredForSettings {
     process_refresh_timeout: Arc<Mutex<u32>>,
     network_refresh_timeout: Arc<Mutex<u32>>,
@@ -229,9 +230,8 @@ pub struct RequiredForSettings {
     network_tab: Rc<RefCell<Network>>,
 }
 
-fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
+fn setup_timeout(rfs: &RequiredForSettings) {
     let (ready_tx, ready_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    let rfs = rfs.borrow();
 
     let sys = &rfs.sys;
     let process_dialogs = &rfs.process_dialogs;
@@ -239,7 +239,7 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
     let process_refresh_timeout = &rfs.process_refresh_timeout;
 
     thread::spawn(
-        glib::clone!(@weak sys, @strong ready_tx, @weak process_refresh_timeout => move || {
+        glib::clone!(@weak sys, @weak process_refresh_timeout => move || {
             loop {
                 let sleep_dur = Duration::from_millis(
                     *process_refresh_timeout.lock().expect("failed to lock process refresh mutex") as _);
@@ -282,16 +282,15 @@ fn setup_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
     }));
 }
 
-fn setup_network_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
+fn setup_network_timeout(rfs: &RequiredForSettings) {
     let (ready_tx, ready_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    let rfs = rfs.borrow();
 
     let network_refresh_timeout = &rfs.network_refresh_timeout;
     let network_tab = &rfs.network_tab;
     let sys = &rfs.sys;
 
     thread::spawn(
-        glib::clone!(@weak sys, @strong ready_tx, @weak network_refresh_timeout => move || {
+        glib::clone!(@weak sys, @weak network_refresh_timeout => move || {
             loop {
                 let sleep_dur = Duration::from_millis(
                     *network_refresh_timeout.lock().expect("failed to lock networks refresh mutex") as _);
@@ -310,16 +309,15 @@ fn setup_network_timeout(rfs: &Rc<RefCell<RequiredForSettings>>) {
     );
 }
 
-fn setup_system_timeout(rfs: &Rc<RefCell<RequiredForSettings>>, settings: &Rc<RefCell<Settings>>) {
+fn setup_system_timeout(rfs: &RequiredForSettings, settings: &Rc<RefCell<Settings>>) {
     let (ready_tx, ready_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    let rfs = rfs.borrow();
 
     let system_refresh_timeout = &rfs.system_refresh_timeout;
     let sys = &rfs.sys;
     let display_tab = &rfs.display_tab;
 
     thread::spawn(
-        glib::clone!(@weak sys, @strong ready_tx, @weak system_refresh_timeout => move || {
+        glib::clone!(@weak sys, @weak system_refresh_timeout => move || {
             loop {
                 let sleep_dur = Duration::from_millis(
                     *system_refresh_timeout.lock().expect("failed to lock system refresh mutex") as _);
@@ -344,22 +342,13 @@ fn setup_system_timeout(rfs: &Rc<RefCell<RequiredForSettings>>, settings: &Rc<Re
     );
 }
 
-fn build_ui(application: &gtk::Application) {
-    let settings = Settings::load();
-
+fn create_header_bar(stack: &gtk::Stack) -> (gtk::HeaderBar, gtk::Button) {
     let header_buttons = gtk::StackSwitcher::new();
-    let stack = gtk::Stack::new();
-    header_buttons.set_stack(Some(&stack));
+    header_buttons.set_stack(Some(stack));
 
     let menu_bar = gio::Menu::new();
 
     menu_bar.append(Some("Launch new executable"), Some("app.new-task"));
-
-    let quit = gio::SimpleAction::new("quit", None);
-    quit.connect_activate(glib::clone!(@weak application => move |_,_| {
-        application.quit();
-    }));
-    application.set_accels_for_action("app.quit", &["<Primary>Q"]);
 
     let settings_menu = gio::Menu::new();
     settings_menu.append(Some("Display temperature in °F"), Some("app.temperature"));
@@ -390,8 +379,14 @@ fn build_ui(application: &gtk::Application) {
     header_bar.pack_end(&search_filter_button);
     header_bar.set_title_widget(Some(&header_buttons));
 
-    let window = gtk::ApplicationWindow::new(application);
+    (header_bar, search_filter_button)
+}
 
+fn build_ui(application: &gtk::Application) {
+    let window = gtk::ApplicationWindow::new(application);
+    let stack = gtk::Stack::new();
+
+    let (header_bar, search_filter_button) = create_header_bar(&stack);
     window.set_titlebar(Some(&header_bar));
 
     let mut sys =
@@ -413,27 +408,22 @@ fn build_ui(application: &gtk::Application) {
             }
         }));
 
+    let settings = Settings::load();
     let display_tab = DisplaySysInfo::new(&sys, &stack, &settings);
 
     let settings = Rc::new(RefCell::new(settings));
     let network_tab = Rc::new(RefCell::new(Network::new(&stack, &sys)));
     display_disk::create_disk_info(&sys, &stack);
 
-    // let v_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
     let display_tab = Rc::new(RefCell::new(display_tab));
 
-    // I think it's now useless to have this one...
-    // v_box.append(&note.notebook);
-
-    // window.set_child(Some(&v_box));
     window.set_child(Some(&stack));
 
     let process_dialogs: Rc<RefCell<Vec<process_dialog::ProcDialog>>> =
         Rc::new(RefCell::new(Vec::new()));
     let list_store = procs.list_store.clone();
 
-    let rfs = Rc::new(RefCell::new(RequiredForSettings {
+    let rfs = RequiredForSettings {
         process_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_processes_rate)),
         network_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_network_rate)),
         system_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_system_rate)),
@@ -442,24 +432,27 @@ fn build_ui(application: &gtk::Application) {
         list_store,
         display_tab,
         network_tab: network_tab.clone(),
-    }));
+    };
 
     setup_timeout(&rfs);
     setup_network_timeout(&rfs);
     setup_system_timeout(&rfs, &settings);
 
     let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(glib::clone!(@weak settings, @weak rfs => move |_, _| {
+    settings_action.connect_activate(glib::clone!(@weak settings, @strong rfs => move |_, _| {
         settings::show_settings_dialog(&settings, &rfs);
     }));
 
     info_button.connect_clicked(
         glib::clone!(@weak current_pid, @weak process_dialogs, @weak sys => move |_| {
-                if let Some(pid) = current_pid.get() {
-                    create_new_proc_diag(&process_dialogs, pid, &*sys.lock().expect("failed to lock to create new proc dialog"));
-                }
+            if let Some(pid) = current_pid.get() {
+                create_new_proc_diag(
+                    &process_dialogs,
+                    pid,
+                    &*sys.lock().expect("failed to lock to create new proc dialog"),
+                );
             }
-        ),
+        }),
     );
 
     procs
@@ -470,30 +463,38 @@ fn build_ui(application: &gtk::Application) {
                 let pid = model.get_value(&iter, 0)
                                .get::<u32>()
                                .expect("Model::get failed");
-                create_new_proc_diag(&process_dialogs, Pid::from_u32(pid), &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"));
+                create_new_proc_diag(
+                    &process_dialogs,
+                    Pid::from_u32(pid),
+                    &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"),
+                );
             }
         ));
 
     let about = gio::SimpleAction::new("about", None);
     about.connect_activate(glib::clone!(@weak window => move |_, _| {
-        let p = AboutDialog::new();
-        p.set_authors(&["Guillaume Gomez"]);
-        p.set_website_label("my website");
-        p.set_website(Some("https://guillaume-gomez.fr/"));
-        p.set_comments(Some("A process viewer GUI written with gtk-rs"));
-        p.set_copyright(Some("Licensed under MIT"));
-        p.set_program_name(Some("process-viewer"));
+        let p = AboutDialog::builder()
+            .authors(vec!["Guillaume Gomez".to_owned()])
+            .website_label("my website")
+            .website("https://guillaume-gomez.fr/")
+            .comments("A process viewer GUI written with gtk-rs")
+            .copyright("Licensed under MIT")
+            .program_name("process-viewer")
+            .transient_for(&window)
+            .modal(true);
+
         let bytes = Bytes::from_static(include_bytes!(
             concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png")));
         let memory_stream = MemoryInputStream::from_bytes(&bytes);
         let pixbuf = Pixbuf::from_stream(&memory_stream, None::<&gio::Cancellable>);
-        if let Ok(pixbuf) = pixbuf {
+        let p = if let Ok(pixbuf) = pixbuf {
             let logo = Texture::for_pixbuf(&pixbuf);
-            p.set_logo(Some(&logo));
-        }
-        p.set_transient_for(Some(&window));
-        p.set_modal(true);
-        p.show();
+            p.logo(&logo)
+        } else {
+            p
+        };
+
+        p.build().show();
     }));
 
     let new_task = gio::SimpleAction::new("new-task", None);
@@ -501,31 +502,23 @@ fn build_ui(application: &gtk::Application) {
         let dialog = gtk::Dialog::with_buttons(
             Some("Launch new executable"),
             Some(&window),
-            gtk::DialogFlags::USE_HEADER_BAR,
+            gtk::DialogFlags::MODAL,
             &[("Run", gtk::ResponseType::Other(0)), ("Cancel", gtk::ResponseType::Close)],
         );
-        let input = Entry::new();
+        let input = Entry::builder()
+            .css_classes(vec!["button-with-margin".to_owned()])
+            .vexpand(false)
+            .hexpand(true)
+            .build();
 
         // To set "run" button disabled by default.
         dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
-        // To make "run" and "cancel" button take all spaces.
-        // if let Some(run) = dialog.widget_for_response(gtk::ResponseType::Other(0)) {
-        //     if let Some(parent) = run.parent() {
-        //         match parent.downcast::<gtk::ButtonBox>() {
-        //             Ok(parent) => parent.set_layout_style(gtk::ButtonBoxStyle::Expand),
-        //             Err(e) => {
-        //                 eprintln!(
-        //                     "<Process_Viewer::build_ui> Failed to set layout style for new task \
-        //                      button box: {}", e)
-        //             }
-        //         }
-        //     }
-        // }
+
         input.connect_changed(glib::clone!(@weak dialog => move |input| {
             if !input.text().is_empty() {
-                    dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
-               }
-               else { dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
+                dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
+            } else {
+                dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
             }
         }));
         input.connect_activate(glib::clone!(@weak window, @weak dialog => move |input| {
@@ -544,11 +537,6 @@ fn build_ui(application: &gtk::Application) {
         }));
 
         dialog.content_area().append(&input);
-        // To silence the annying warning:
-        // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-        // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-        // allocate?"
-        // dialog.preferred_width();
         dialog.set_size_request(400, 70);
         dialog.show();
     }));
@@ -561,7 +549,6 @@ fn build_ui(application: &gtk::Application) {
     graphs.connect_activate(glib::clone!(@weak settings => move |g, _| {
         let mut is_active = false;
         if let Some(g) = g.state() {
-            let rfs = rfs.borrow();
             is_active = g.get().expect("couldn't get bool");
             rfs.display_tab.borrow().set_checkboxes_state(!is_active);
         }
@@ -590,6 +577,17 @@ fn build_ui(application: &gtk::Application) {
         settings.borrow_mut().display_fahrenheit = !is_active;
         settings.borrow().save();
     });
+    let quit = gio::SimpleAction::new("quit", None);
+    quit.connect_activate(glib::clone!(@weak application => move |_,_| {
+        application.quit();
+    }));
+    application.set_accels_for_action("app.quit", &["<Primary>Q"]);
+    let finder = gio::SimpleAction::new("finder", None);
+    // Little hack to correctly handle `ctrl+F` shortcut.
+    finder.connect_activate(glib::clone!(@weak search_filter_button => move |_,_| {
+        search_filter_button.emit_clicked();
+    }));
+    application.set_accels_for_action("app.finder", &["<Primary>F"]);
 
     application.add_action(&about);
     application.add_action(&graphs);
@@ -597,6 +595,7 @@ fn build_ui(application: &gtk::Application) {
     application.add_action(&settings_action);
     application.add_action(&new_task);
     application.add_action(&quit);
+    application.add_action(&finder);
 
     window.set_widget_name(utils::MAIN_WINDOW_NAME);
 

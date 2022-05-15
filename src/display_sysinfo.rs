@@ -16,14 +16,17 @@ pub fn create_header(
     parent_layout: &gtk::Box,
     display_graph: bool,
 ) -> gtk::CheckButton {
-    let check_box = gtk::CheckButton::with_label("Graph view");
-    check_box.set_active(display_graph);
-    check_box.set_halign(gtk::Align::End);
+    let check_box = gtk::CheckButton::builder()
+        .label("Graph view")
+        .active(display_graph)
+        .halign(gtk::Align::End)
+        .build();
 
     let label = gtk::Label::new(Some(label_text));
-    let grid = gtk::Grid::new();
-    grid.set_hexpand(true);
-    grid.set_column_homogeneous(true);
+    let grid = gtk::Grid::builder()
+        .hexpand(true)
+        .column_homogeneous(true)
+        .build();
     grid.attach(&gtk::Label::new(None), 0, 0, 2, 1); // needed otherwise it won't take space
     grid.attach(&label, 1, 0, 2, 1);
     grid.attach(&check_box, 3, 0, 1, 1);
@@ -37,11 +40,12 @@ pub fn create_progress_bar(
     label: &str,
     text: &str,
 ) -> gtk::ProgressBar {
-    let p = gtk::ProgressBar::new();
+    let p = gtk::ProgressBar::builder()
+        .text(text)
+        .show_text(true)
+        .build();
     let l = gtk::Label::new(Some(label));
 
-    p.set_text(Some(text));
-    p.set_show_text(true);
     non_graph_layout.attach(&l, 0, line, 1, 1);
     non_graph_layout.attach(&p, 1, line, 11, 1);
     p
@@ -145,12 +149,14 @@ impl DisplaySysInfo {
         vertical_layout.set_margin_top(10);
         vertical_layout.set_margin_bottom(10);
 
-        let non_graph_layout = gtk::Grid::new();
-        non_graph_layout.set_column_homogeneous(true);
-        non_graph_layout.set_margin_end(5);
-        let non_graph_layout2 = gtk::Grid::new();
-        non_graph_layout2.set_column_homogeneous(true);
-        non_graph_layout2.set_margin_start(5);
+        let non_graph_layout = gtk::Grid::builder()
+            .column_homogeneous(true)
+            .margin_end(5)
+            .build();
+        let non_graph_layout2 = gtk::Grid::builder()
+            .column_homogeneous(true)
+            .margin_start(5)
+            .build();
         let non_graph_layout3 = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         //
@@ -244,9 +250,6 @@ impl DisplaySysInfo {
         //
         // Putting everyting into places now.
         //
-        // let cpu_usage_history = connect_graph(cpu_usage_history);
-        // let ram_usage_history = connect_graph(ram_usage_history);
-        // let temperature_usage_history = connect_graph(temperature_usage_history);
         let cpu_usage_history = Rc::new(RefCell::new(cpu_usage_history));
         let ram_usage_history = Rc::new(RefCell::new(ram_usage_history));
         let temperature_usage_history = Rc::new(RefCell::new(temperature_usage_history));
@@ -255,63 +258,52 @@ impl DisplaySysInfo {
 
         stack.add_titled(&scroll, Some("System"), "System");
 
-        // It greatly improves the scrolling on the system information tab. No more clipping.
-        // let adjustment = scroll.vadjustment();
-        // adjustment.connect_value_changed(
-        //     glib::clone!(@weak cpu_usage_history, @weak ram_usage_history, @weak temperature_usage_history => move |_| {
-        //     cpu_usage_history.borrow().invalidate();
-        //     ram_usage_history.borrow().invalidate();
-        //     temperature_usage_history.borrow().invalidate();
-        // }));
-
         cpu_usage_history.borrow().hide();
         ram_usage_history.borrow().hide();
         temperature_usage_history.borrow().hide();
-        let mut tmp = DisplaySysInfo {
-            procs: Rc::new(RefCell::new(procs)),
-            ram,
-            swap,
-            vertical_layout,
-            components,
-            cpu_usage_history: Rc::clone(&cpu_usage_history),
-            ram_usage_history: Rc::clone(&ram_usage_history),
-            ram_check_box: check_box.clone(),
-            swap_check_box: check_box2.clone(),
-            temperature_usage_history: Rc::clone(&temperature_usage_history),
-            temperature_check_box: check_box3.clone(),
-        };
-        tmp.update_system_info(&sys, settings.display_fahrenheit);
 
         check_box.connect_toggled(
             glib::clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
                 show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
             }),
         );
+        // To show the correct view based on the saved settings.
+        show_if_necessary(&check_box, &cpu_usage_history.borrow(), &non_graph_layout);
         check_box2.connect_toggled(
             glib::clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
                 show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
             }),
         );
+        // To show the correct view based on the saved settings.
+        show_if_necessary(&check_box2, &ram_usage_history.borrow(), &non_graph_layout2);
         if let Some(ref check_box3) = check_box3 {
             check_box3.connect_toggled(
                 glib::clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
                     show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
                 }),
             );
+            // To show the correct view based on the saved settings.
+            show_if_necessary(
+                check_box3,
+                &temperature_usage_history.borrow(),
+                &non_graph_layout3,
+            );
         }
 
-        scroll.connect_show(
-            glib::clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
-                show_if_necessary(&check_box,
-                                  &cpu_usage_history.borrow(), &non_graph_layout);
-                show_if_necessary(&check_box2,
-                                  &ram_usage_history.borrow(), &non_graph_layout2);
-                if let Some(ref check_box3) = check_box3 {
-                    show_if_necessary(check_box3,
-                                      &temperature_usage_history.borrow(), &non_graph_layout3);
-                }
-            }),
-        );
+        let mut tmp = DisplaySysInfo {
+            procs: Rc::new(RefCell::new(procs)),
+            ram,
+            swap,
+            vertical_layout,
+            components,
+            cpu_usage_history: cpu_usage_history,
+            ram_usage_history: ram_usage_history,
+            ram_check_box: check_box,
+            swap_check_box: check_box2,
+            temperature_usage_history: temperature_usage_history,
+            temperature_check_box: check_box3,
+        };
+        tmp.update_system_info(&sys, settings.display_fahrenheit);
         tmp
     }
 

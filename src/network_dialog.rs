@@ -405,11 +405,6 @@ pub fn create_network_dialog(
 
     notebook.create_tab("Information", &tree);
 
-    // To silence the annoying warning:
-    // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-    // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-    // allocate?"
-    // popup.preferred_width();
     popup.set_size_request(700, 540);
 
     close_button.connect_clicked(glib::clone!(@weak popup => move |_| {

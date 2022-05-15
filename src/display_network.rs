@@ -34,7 +34,6 @@ fn append_column(
     column.pack_start(&renderer, true);
     column.add_attribute(&renderer, "text", id);
     column.set_clickable(true);
-    column.set_sort_column_id(id);
     tree.append_column(&column);
     v.push(column);
 }
@@ -48,29 +47,26 @@ pub struct Network {
 
 impl Network {
     pub fn new(stack: &gtk::Stack, sys: &Arc<Mutex<System>>) -> Network {
-        let tree = gtk::TreeView::new();
-        let scroll = gtk::ScrolledWindow::new();
-        let info_button = gtk::Button::with_label("More information");
-        info_button.set_hexpand(true);
-        info_button.add_css_class("button-with-margin");
+        let tree = gtk::TreeView::builder().headers_visible(true).build();
+        let scroll = gtk::ScrolledWindow::builder().child(&tree).build();
+        let info_button = gtk::Button::builder()
+            .label("More information")
+            .hexpand(true)
+            .css_classes(vec!["button-with-margin".to_owned()])
+            .build();
         let current_network = Rc::new(RefCell::new(None));
 
-        // TODO: maybe add an 'X' button to close search as well?
-        let overlay = gtk::Overlay::new();
-        let filter_entry = gtk::SearchEntry::new();
-        let search_bar = gtk::SearchBar::new();
-
         // We put the filter entry at the right bottom.
-        search_bar.set_halign(gtk::Align::End);
-        search_bar.set_valign(gtk::Align::End);
-        search_bar.set_child(Some(&filter_entry));
-        search_bar.set_show_close_button(true);
+        let filter_entry = gtk::SearchEntry::new();
+        let search_bar = gtk::SearchBar::builder()
+            .halign(gtk::Align::End)
+            .valign(gtk::Align::End)
+            .child(&filter_entry)
+            .show_close_button(true)
+            .build();
 
+        let overlay = gtk::Overlay::builder().child(&scroll).build();
         overlay.add_overlay(&search_bar);
-
-        tree.set_headers_visible(true);
-        scroll.set_child(Some(&tree));
-        overlay.set_child(Some(&scroll));
 
         let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
 
@@ -134,6 +130,12 @@ impl Network {
         for (pos, column) in columns.iter().enumerate() {
             column.set_sort_column_id(pos as i32 + columns_len as i32);
         }
+
+        // Sort by network name by default.
+        sort_model.set_sort_column_id(
+            gtk::SortColumn::Index(columns_len as _),
+            gtk::SortType::Ascending,
+        );
 
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 

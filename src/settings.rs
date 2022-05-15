@@ -154,10 +154,7 @@ pub fn build_spin(label: &str, grid: &gtk::Grid, top: i32, refresh: u32) -> gtk:
     refresh_entry
 }
 
-pub fn show_settings_dialog(
-    settings: &Rc<RefCell<Settings>>,
-    rfs: &Rc<RefCell<RequiredForSettings>>,
-) {
+pub fn show_settings_dialog(settings: &Rc<RefCell<Settings>>, rfs: &RequiredForSettings) {
     let bsettings = &*settings.borrow();
     // Create an empty dialog with close button.
     let dialog = gtk::Dialog::with_buttons(
@@ -199,22 +196,26 @@ pub fn show_settings_dialog(
 
     // Finally connect to all kinds of change notification signals for the different UI widgets.
     // Whenever something is changing we directly save the configuration file with the new values.
-    refresh_procs.connect_value_changed(glib::clone!(@weak settings, @weak rfs => move |entry| {
+    refresh_procs.connect_value_changed(glib::clone!(
+    @weak settings,
+    @weak rfs.process_refresh_timeout as process_refresh_timeout
+    => move |entry| {
         let mut settings = settings.borrow_mut();
         settings.refresh_processes_rate = (entry.value() * 1000.) as u32;
-        *rfs.borrow().process_refresh_timeout.lock().expect("failed to lock process_refresh_timeout") = settings.refresh_processes_rate;
+        *process_refresh_timeout.lock().expect("failed to lock process_refresh_timeout") =
+            settings.refresh_processes_rate;
         settings.save();
     }));
-    refresh_network.connect_value_changed(glib::clone!(@weak settings, @weak rfs => move |entry| {
+    refresh_network.connect_value_changed(glib::clone!(@weak settings, @weak rfs.network_refresh_timeout as network_refresh_timeout => move |entry| {
         let mut settings = settings.borrow_mut();
         settings.refresh_network_rate = (entry.value() * 1000.) as u32;
-        *rfs.borrow().network_refresh_timeout.lock().expect("failed to lock network_refresh_timeout") = settings.refresh_network_rate;
+        *network_refresh_timeout.lock().expect("failed to lock network_refresh_timeout") = settings.refresh_network_rate;
         settings.save();
     }));
-    refresh_sys.connect_value_changed(glib::clone!(@weak settings, @weak rfs => move |entry| {
+    refresh_sys.connect_value_changed(glib::clone!(@weak settings, @weak rfs.system_refresh_timeout as system_refresh_timeout => move |entry| {
         let mut settings = settings.borrow_mut();
         settings.refresh_system_rate = (entry.value() * 1000.) as u32;
-        *rfs.borrow().system_refresh_timeout.lock().expect("failed to lock system_refresh_timeout") = settings.refresh_system_rate;
+        *system_refresh_timeout.lock().expect("failed to lock system_refresh_timeout") = settings.refresh_system_rate;
         settings.save();
     }));
 

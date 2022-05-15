@@ -297,10 +297,6 @@ impl WidgetImpl for GraphPainter {
         }
     }
 
-    // fn request_mode(&self, _: &Self::Type) -> gtk::SizeRequestMode {
-    //     gtk::SizeRequestMode::HeightForWidth
-    // }
-
     fn snapshot(&self, widget: &Self::Type, snapshot: &gtk::Snapshot) {
         let x_start = if self.labels_callback.borrow().is_some() {
             LEFT_WIDTH

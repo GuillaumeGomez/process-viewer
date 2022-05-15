@@ -187,6 +187,9 @@ impl Procs {
             filter_model.refilter();
         });
 
+        // Sort by CPU usage by default.
+        sort_model.set_sort_column_id(gtk::SortColumn::Index(6), gtk::SortType::Descending);
+
         stack.add_titled(&vertical_layout, Some("Processes"), "Processes");
 
         Procs {
