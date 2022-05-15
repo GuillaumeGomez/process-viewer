@@ -1,11 +1,12 @@
+#[derive(Clone, Copy)]
 pub struct Color {
-    pub r: f64,
-    pub g: f64,
-    pub b: f64,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
-fn convert(v: u8) -> f64 {
-    f64::from(v) / 255.0
+fn convert(v: u8) -> f32 {
+    f32::from(v) / 255.0
 }
 
 fn apply(i: isize) -> u8 {
@@ -23,15 +24,23 @@ fn apply(i: isize) -> u8 {
 
 impl Color {
     pub fn new(r: u8, g: u8, b: u8) -> Color {
-        Color {
-            r: convert(r),
-            g: convert(g),
-            b: convert(b),
-        }
+        Color { r, g, b }
     }
 
-    pub fn generate(index: usize) -> (Color, u8, u8, u8) {
-        let n = (index as f64).cbrt() as isize;
+    pub fn red(self) -> f32 {
+        convert(self.r)
+    }
+
+    pub fn green(self) -> f32 {
+        convert(self.g)
+    }
+
+    pub fn blue(self) -> f32 {
+        convert(self.b)
+    }
+
+    pub fn generate(index: usize) -> Color {
+        let n = (index as f32).cbrt() as isize;
         let mut index = index as isize - (n * n * n);
         let p = &mut [n, n, n];
 
@@ -39,7 +48,7 @@ impl Color {
             let r = apply(p[0]);
             let g = apply(p[1]);
             let b = apply(p[2]);
-            return (Color::new(r, g, b), r, g, b);
+            return Color::new(r, g, b);
         }
         index -= 1;
         let v = (index % 3) as usize;
@@ -50,7 +59,7 @@ impl Color {
             let r = apply(p[0]);
             let g = apply(p[1]);
             let b = apply(p[2]);
-            return (Color::new(r, g, b), r, g, b);
+            return Color::new(r, g, b);
         }
         index -= n;
         p[v] = index / n;
@@ -58,6 +67,6 @@ impl Color {
         let r = apply(p[0]);
         let g = apply(p[1]);
         let b = apply(p[2]);
-        (Color::new(r, g, b), r, g, b)
+        Color::new(r, g, b)
     }
 }

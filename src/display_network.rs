@@ -1,14 +1,8 @@
 use crate::network_dialog::{self, NetworkDialog};
 
-use crate::notebook::NoteBook;
-use crate::utils::{create_button_with_image, format_number, format_number_full};
-use gtk::prelude::{
-    BoxExt, ButtonExt, CellRendererExt, ContainerExt, EntryExt, GridExt, GtkListStoreExt,
-    GtkListStoreExtManual, GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt,
-    TreeModelFilterExt, TreeSelectionExt, TreeSortableExtManual, TreeViewColumnExt, TreeViewExt,
-    WidgetExt,
-};
-use gtk::{self, glib};
+use crate::utils::{format_number, format_number_full};
+use gtk::glib;
+use gtk::prelude::*;
 use sysinfo::{NetworkExt, NetworksExt, System, SystemExt};
 
 use std::cell::RefCell;
@@ -40,49 +34,39 @@ fn append_column(
     column.pack_start(&renderer, true);
     column.add_attribute(&renderer, "text", id);
     column.set_clickable(true);
-    column.set_sort_column_id(id);
     tree.append_column(&column);
     v.push(column);
 }
 
 pub struct Network {
     list_store: gtk::ListStore,
-    pub filter_entry: gtk::Entry,
+    pub filter_entry: gtk::SearchEntry,
     pub search_bar: gtk::SearchBar,
     dialogs: Rc<RefCell<Vec<NetworkDialog>>>,
 }
 
 impl Network {
-    pub fn new(
-        note: &mut NoteBook,
-        window: &gtk::ApplicationWindow,
-        sys: &Arc<Mutex<System>>,
-    ) -> Network {
-        let tree = gtk::TreeView::new();
-        let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-        let info_button = gtk::Button::with_label("More information");
+    pub fn new(stack: &gtk::Stack, sys: &Arc<Mutex<System>>) -> Network {
+        let tree = gtk::TreeView::builder().headers_visible(true).build();
+        let scroll = gtk::ScrolledWindow::builder().child(&tree).build();
+        let info_button = gtk::Button::builder()
+            .label("More information")
+            .hexpand(true)
+            .css_classes(vec!["button-with-margin".to_owned()])
+            .build();
         let current_network = Rc::new(RefCell::new(None));
 
-        let filter_button =
-            create_button_with_image(include_bytes!("../assets/magnifier.png"), "Filter");
-
-        // TODO: maybe add an 'X' button to close search as well?
-        let overlay = gtk::Overlay::new();
-        let filter_entry = gtk::Entry::new();
-        let search_bar = gtk::SearchBar::new();
-
         // We put the filter entry at the right bottom.
-        filter_entry.set_halign(gtk::Align::End);
-        filter_entry.set_valign(gtk::Align::End);
-        filter_entry.hide(); // By default, we don't show it.
-        search_bar.connect_entry(&filter_entry);
-        search_bar.set_show_close_button(true);
+        let filter_entry = gtk::SearchEntry::new();
+        let search_bar = gtk::SearchBar::builder()
+            .halign(gtk::Align::End)
+            .valign(gtk::Align::End)
+            .child(&filter_entry)
+            .show_close_button(true)
+            .build();
 
-        overlay.add_overlay(&filter_entry);
-
-        tree.set_headers_visible(true);
-        scroll.add(&tree);
-        overlay.add(&scroll);
+        let overlay = gtk::Overlay::builder().child(&scroll).build();
+        overlay.add_overlay(&search_bar);
 
         let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
 
@@ -110,28 +94,29 @@ impl Network {
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
         filter_model.set_visible_func(
             glib::clone!(@weak filter_entry => @default-return false, move |model, iter| {
-                if !WidgetExt::is_visible(&filter_entry) || filter_entry.text_length() < 1 {
+                if !WidgetExt::is_visible(&filter_entry) {
                     return true;
                 }
                 let text = filter_entry.text();
-                    if text.is_empty() {
-                        return true;
-                    }
-                    let text: &str = text.as_ref();
-                    // TODO: Maybe add an option to make searches case sensitive?
-                    let name = model.value(iter, 0)
-                                    .get::<String>()
-                                    .map(|s| s.to_lowercase())
-                                    .ok()
-                                    .unwrap_or_else(String::new);
-                    name.contains(text)
+                if text.is_empty() {
+                    return true;
+                }
+                let text: &str = text.as_ref();
+                // TODO: Maybe add an option to make searches case sensitive?
+                let name = model.get_value(iter, 0)
+                                .get::<String>()
+                                .map(|s| s.to_lowercase())
+                                .ok()
+                                .unwrap_or_default();
+                name.contains(text)
             }),
         );
 
         // For the filtering to be taken into account, we need to add it directly into the
         // "global" model.
-        let sort_model = gtk::TreeModelSort::new(&filter_model);
+        let sort_model = gtk::TreeModelSort::with_model(&filter_model);
         tree.set_model(Some(&sort_model));
+        tree.set_search_entry(Some(&filter_entry));
 
         append_column("name", &mut columns, &tree, Some(200));
         append_column("received data", &mut columns, &tree, None);
@@ -146,33 +131,30 @@ impl Network {
             column.set_sort_column_id(pos as i32 + columns_len as i32);
         }
 
-        let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let horizontal_layout = gtk::Grid::new();
-
-        horizontal_layout.attach(&info_button, 0, 0, 4, 1);
-        horizontal_layout.attach_next_to(
-            &filter_button,
-            Some(&info_button),
-            gtk::PositionType::Right,
-            1,
-            1,
+        // Sort by network name by default.
+        sort_model.set_sort_column_id(
+            gtk::SortColumn::Index(columns_len as _),
+            gtk::SortType::Ascending,
         );
-        horizontal_layout.set_column_homogeneous(true);
 
-        vertical_layout.pack_start(&overlay, true, true, 0);
-        vertical_layout.pack_start(&horizontal_layout, false, true, 0);
+        let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
-        filter_entry.connect_text_length_notify(move |_| {
+        overlay.set_hexpand(true);
+        overlay.set_vexpand(true);
+        vertical_layout.append(&overlay);
+        vertical_layout.append(&info_button);
+
+        filter_entry.connect_search_changed(move |_| {
             filter_model.refilter();
         });
 
-        note.create_tab("Networks", &vertical_layout);
+        stack.add_titled(&vertical_layout, Some("Networks"), "Networks");
 
         tree.connect_cursor_changed(
             glib::clone!(@weak current_network, @weak info_button => move |tree_view| {
                 let selection = tree_view.selection();
                 let (name, ret) = if let Some((model, iter)) = selection.selected() {
-                    if let Ok(x) = model.value(&iter, 0).get::<String>() {
+                    if let Ok(x) = model.get_value(&iter, 0).get::<String>() {
                         (Some(x), true)
                     } else {
                         (None, false)
@@ -186,21 +168,11 @@ impl Network {
         );
         info_button.set_sensitive(false);
 
-        filter_button.connect_clicked(glib::clone!(@weak filter_entry, @weak window => move |_| {
-            if WidgetExt::is_visible(&filter_entry) {
-                filter_entry.hide();
-            } else {
-                filter_entry.show_all();
-                window.set_focus(Some(&filter_entry));
-            }
-        }));
-
         let dialogs = Rc::new(RefCell::new(Vec::new()));
 
         info_button.connect_clicked(glib::clone!(@weak dialogs, @weak sys => move |_| {
             let current_network = current_network.borrow();
             if let Some(ref interface_name) = *current_network {
-                println!("create network dialog for {}", interface_name);
                 create_network_dialog(&mut *dialogs.borrow_mut(), interface_name, &*sys.lock().expect("failed to lock for new network dialog"));
             }
         }));
@@ -209,7 +181,7 @@ impl Network {
             glib::clone!(@weak sys, @weak dialogs => move |tree_view, path, _| {
                 let model = tree_view.model().expect("couldn't get model");
                 let iter = model.iter(path).expect("couldn't get iter");
-                let interface_name = model.value(&iter, 0)
+                let interface_name = model.get_value(&iter, 0)
                                             .get::<String>()
                                             .expect("Model::get failed");
                 create_network_dialog(&mut *dialogs.borrow_mut(), &interface_name, &*sys.lock().expect("failed to lock for new network dialog (from tree)"));
@@ -224,12 +196,6 @@ impl Network {
         }
     }
 
-    pub fn hide_filter(&self) {
-        self.filter_entry.hide();
-        self.filter_entry.set_text("");
-        self.search_bar.set_search_mode(false);
-    }
-
     pub fn update_networks(&mut self, sys: &System) {
         // first part, deactivate sorting
         let sorted = TreeSortableExtManual::sort_column_id(&self.list_store);
@@ -241,7 +207,7 @@ impl Network {
         if let Some(iter) = self.list_store.iter_first() {
             let mut valid = true;
             while valid {
-                let name = match self.list_store.value(&iter, 0).get::<glib::GString>() {
+                let name = match self.list_store.get_value(&iter, 0).get::<glib::GString>() {
                     Ok(n) => n,
                     _ => {
                         valid = self.list_store.iter_next(&iter);

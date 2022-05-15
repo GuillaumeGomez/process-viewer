@@ -1,21 +1,15 @@
-use gtk::prelude::{
-    AdjustmentExt, BoxExt, ButtonExt, ContainerExt, Inhibit, LabelExt, ScrolledWindowExt,
-};
-use gtk::prelude::{
-    CellRendererTextExt, GtkListStoreExtManual, GtkWindowExt, TreeViewColumnExt, TreeViewExt,
-    WidgetExt,
-};
-use gtk::{glib, pango};
+use gtk::prelude::*;
+use gtk::{glib, pango, EventControllerKey, Inhibit};
 use sysinfo::{self, Pid, ProcessExt};
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::fmt;
 use std::iter;
 use std::rc::Rc;
 
-use crate::graph::{Connecter, Graph};
+use crate::graph::GraphWidget;
 use crate::notebook::NoteBook;
-use crate::utils::{connect_graph, format_number, get_main_window, graph_label_units, RotateVec};
+use crate::utils::{format_number, get_main_window, graph_label_units, RotateVec};
 
 #[allow(dead_code)]
 pub struct ProcDialog {
@@ -27,15 +21,15 @@ pub struct ProcDialog {
     pub popup: gtk::Window,
     pub pid: Pid,
     notebook: NoteBook,
-    ram_usage_history: Rc<RefCell<Graph>>,
-    cpu_usage_history: Rc<RefCell<Graph>>,
-    disk_usage_history: Rc<RefCell<Graph>>,
+    ram_usage_history: Rc<RefCell<GraphWidget>>,
+    cpu_usage_history: Rc<RefCell<GraphWidget>>,
+    disk_usage_history: Rc<RefCell<GraphWidget>>,
     memory_peak: RefCell<u64>,
     memory_peak_label: gtk::Label,
     disk_peak: RefCell<u64>,
     disk_peak_label: gtk::Label,
     pub is_dead: bool,
-    pub to_be_removed: Rc<RefCell<bool>>,
+    pub to_be_removed: Rc<Cell<bool>>,
 }
 
 impl fmt::Debug for ProcDialog {
@@ -70,22 +64,28 @@ impl ProcDialog {
             .set_text(&format!("{:.1}%", process.cpu_usage()));
         self.run_time.set_text(&format_time(process.run_time()));
 
-        let mut t = self.ram_usage_history.borrow_mut();
-        t.data[0].move_start();
-        *t.data[0].get_mut(0).expect("cannot get data 0") = memory as f64;
-        t.invalidate();
-        let mut t = self.cpu_usage_history.borrow_mut();
-        t.data[0].move_start();
-        *t.data[0].get_mut(0).expect("cannot get data 0") = process.cpu_usage().into();
-        t.invalidate();
-        let mut t = self.disk_usage_history.borrow_mut();
-        t.data[0].move_start();
-        *t.data[0].get_mut(0).expect("cannot get data 0") = disk_usage as f64;
-        t.invalidate();
+        let t = self.ram_usage_history.borrow_mut();
+        t.data(0, |d| {
+            d.move_start();
+            *d.get_mut(0).expect("cannot get data 0") = memory as f32;
+        });
+        t.queue_draw();
+        let t = self.cpu_usage_history.borrow_mut();
+        t.data(0, |d| {
+            d.move_start();
+            *d.get_mut(0).expect("cannot get data 0") = process.cpu_usage();
+        });
+        t.queue_draw();
+        let t = self.disk_usage_history.borrow_mut();
+        t.data(0, |d| {
+            d.move_start();
+            *d.get_mut(0).expect("cannot get data 0") = disk_usage as f32;
+        });
+        t.queue_draw();
     }
 
     pub fn need_remove(&self) -> bool {
-        *self.to_be_removed.borrow()
+        self.to_be_removed.get()
     }
 
     pub fn set_dead(&mut self) {
@@ -148,16 +148,16 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
     let text = gtk::Label::new(Some(text));
     text.set_selectable(true);
     text.set_justify(gtk::Justification::Left);
-    text.set_line_wrap(true);
-    text.set_line_wrap_mode(pango::WrapMode::Char);
+    text.set_wrap(true);
+    text.set_wrap_mode(pango::WrapMode::Char);
 
-    horizontal_layout.add(&label);
-    horizontal_layout.add(&text);
-    scroll.add(&horizontal_layout);
+    horizontal_layout.append(&label);
+    horizontal_layout.append(&text);
+    scroll.append(&horizontal_layout);
     text
 }
 
-fn append_text_column(tree: &gtk::TreeView, pos: i32) -> gtk::CellRendererText {
+fn append_text_column(tree: &gtk::TreeView, pos: i32) {
     let column = gtk::TreeViewColumn::new();
     let cell = gtk::CellRendererText::new();
 
@@ -169,23 +169,23 @@ fn append_text_column(tree: &gtk::TreeView, pos: i32) -> gtk::CellRendererText {
         column.set_expand(true);
     }
     tree.append_column(&column);
-    cell
 }
 
 pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> ProcDialog {
     let mut notebook = NoteBook::new();
 
-    let popup = gtk::Window::new(gtk::WindowType::Toplevel);
+    let popup = gtk::Window::new();
 
-    popup.set_title(&format!("Information about {}", process.name()));
+    popup.set_title(Some(&format!("Information about {}", process.name())));
     popup.set_transient_for(get_main_window().as_ref());
     popup.set_destroy_with_parent(true);
 
     //
     // PROCESS INFO TAB
     //
-    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+    let scroll = gtk::ScrolledWindow::new();
     let close_button = gtk::Button::with_label("Close");
+    close_button.add_css_class("button-with-margin");
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 
@@ -256,13 +256,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     env_tree.set_model(Some(&list_store));
 
     append_text_column(&env_tree, 0);
-    let cell = append_text_column(&env_tree, 1);
-
-    env_tree.connect_size_allocate(move |tree, _| {
-        if let Some(col) = tree.column(1) {
-            cell.set_wrap_width(col.width() - 1);
-        }
-    });
+    append_text_column(&env_tree, 1);
 
     for env in process.environ() {
         let mut parts = env.splitn(2, '=');
@@ -275,20 +269,22 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     }
 
     let components = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    components.add(&labels);
+    components.append(&labels);
 
     if !process.environ().is_empty() {
         let label = gtk::Label::new(None);
         label.set_markup("<b>Environment variables</b>");
 
-        components.add(&label);
-        components.pack_start(&env_tree, false, false, 0);
+        components.append(&label);
+        components.append(&env_tree);
     }
 
-    scroll.add(&components);
+    scroll.set_child(Some(&components));
+    scroll.set_hexpand(true);
+    scroll.set_vexpand(true);
 
-    vertical_layout.pack_start(&scroll, true, true, 0);
-    vertical_layout.pack_start(&close_button, false, true, 0);
+    vertical_layout.append(&scroll);
+    vertical_layout.append(&close_button);
 
     notebook.create_tab("Information", &vertical_layout);
 
@@ -301,25 +297,25 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     vertical_layout.set_margin_bottom(10);
     vertical_layout.set_margin_start(5);
     vertical_layout.set_margin_end(5);
-    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-    let mut cpu_usage_history = Graph::new(Some(100.), false); // In case a process uses more than 100%
+    let scroll = gtk::ScrolledWindow::new();
+    let cpu_usage_history = GraphWidget::new(Some(100.), false); // In case a process uses more than 100%
     cpu_usage_history.set_display_labels(false);
     cpu_usage_history.set_minimum(Some(100.));
 
-    let mut ram_usage_history = Graph::new(Some(total_memory as f64), false);
+    let ram_usage_history = GraphWidget::new(Some(total_memory as f32), false);
     ram_usage_history.set_display_labels(false);
     ram_usage_history.set_overhead(Some(20.));
 
-    let mut disk_usage_history = Graph::new(Some(0f64), false);
+    let disk_usage_history = GraphWidget::new(Some(0f32), false);
     disk_usage_history.set_display_labels(false);
     disk_usage_history.set_overhead(Some(20.));
 
     cpu_usage_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        RotateVec::new(iter::repeat(0f32).take(61).collect()),
         "",
         None,
     );
-    cpu_usage_history.set_label_callbacks(Some(Box::new(|v| {
+    cpu_usage_history.set_labels_callback(Some(Box::new(|v| {
         if v > 100. {
             let nb = v.ceil() as u64;
             [
@@ -337,84 +333,88 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
             ]
         }
     })));
-    vertical_layout.add(&gtk::Label::new(Some("Process usage")));
-    cpu_usage_history.attach_to(&vertical_layout);
-    cpu_usage_history.invalidate();
-    let cpu_usage_history = connect_graph(cpu_usage_history);
+    vertical_layout.append(&gtk::Label::new(Some("Process usage")));
+    vertical_layout.append(&cpu_usage_history);
+    cpu_usage_history.queue_draw();
+    // let cpu_usage_history = connect_graph(cpu_usage_history);
+    let cpu_usage_history = Rc::new(RefCell::new(cpu_usage_history));
 
     ram_usage_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        RotateVec::new(iter::repeat(0f32).take(61).collect()),
         "",
         None,
     );
 
     disk_usage_history.push(
-        RotateVec::new(iter::repeat(0f64).take(61).collect()),
+        RotateVec::new(iter::repeat(0f32).take(61).collect()),
         "",
         None,
     );
 
-    ram_usage_history.set_label_callbacks(Some(Box::new(graph_label_units)));
-    disk_usage_history.set_label_callbacks(Some(Box::new(graph_label_units)));
+    ram_usage_history.set_labels_callback(Some(Box::new(graph_label_units)));
+    disk_usage_history.set_labels_callback(Some(Box::new(graph_label_units)));
 
-    vertical_layout.add(&gtk::Label::new(Some("Memory usage")));
-    ram_usage_history.attach_to(&vertical_layout);
-    ram_usage_history.invalidate();
-    let ram_usage_history = connect_graph(ram_usage_history);
+    vertical_layout.append(&gtk::Label::new(Some("Memory usage")));
+    vertical_layout.append(&ram_usage_history);
+    ram_usage_history.queue_draw();
+    // let ram_usage_history = connect_graph(ram_usage_history);
+    let ram_usage_history = Rc::new(RefCell::new(ram_usage_history));
 
     #[cfg(not(windows))]
     {
-        vertical_layout.add(&gtk::Label::new(Some("Disk I/O usage")));
+        vertical_layout.append(&gtk::Label::new(Some("Disk I/O usage")));
     }
     #[cfg(windows)]
     {
-        vertical_layout.add(&gtk::Label::new(Some("I/O usage")));
+        vertical_layout.append(&gtk::Label::new(Some("I/O usage")));
     }
-    disk_usage_history.attach_to(&vertical_layout);
-    disk_usage_history.invalidate();
-    let disk_usage_history = connect_graph(disk_usage_history);
+    vertical_layout.append(&disk_usage_history);
+    disk_usage_history.queue_draw();
+    let disk_usage_history = Rc::new(RefCell::new(disk_usage_history));
 
-    scroll.add(&vertical_layout);
+    scroll.set_child(Some(&vertical_layout));
     scroll.connect_show(
         glib::clone!(@weak ram_usage_history, @weak cpu_usage_history, @weak disk_usage_history => move |_| {
-            ram_usage_history.borrow().show_all();
-            cpu_usage_history.borrow().show_all();
-            disk_usage_history.borrow().show_all();
+            ram_usage_history.borrow().show();
+            cpu_usage_history.borrow().show();
+            disk_usage_history.borrow().show();
         }),
     );
     notebook.create_tab("Resources usage", &scroll);
 
-    popup.add(&notebook.notebook);
-    // To silence the annoying warning:
-    // "(.:2257): Gtk-WARNING **: Allocating size to GtkWindow 0x7f8a31038290 without
-    // calling gtk_widget_get_preferred_width/height(). How does the code know the size to
-    // allocate?"
-    popup.preferred_width();
+    popup.set_child(Some(&notebook.notebook));
     popup.set_size_request(500, 600);
 
     close_button.connect_clicked(glib::clone!(@weak popup => move |_| {
         popup.close();
     }));
-    let to_be_removed = Rc::new(RefCell::new(false));
+    let to_be_removed = Rc::new(Cell::new(false));
     popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
-        *to_be_removed.borrow_mut() = true;
+        to_be_removed.set(true);
     }));
-    popup.connect_key_press_event(|win, key| {
-        if key.keyval() == gtk::gdk::keys::constants::Escape {
-            win.close();
-        }
-        Inhibit(false)
-    });
+    popup.connect_close_request(
+        glib::clone!(@weak to_be_removed => @default-return Inhibit(false), move |_| {
+            to_be_removed.set(true);
+            Inhibit(false)
+        }),
+    );
+    let event_controller = EventControllerKey::new();
+    event_controller.connect_key_pressed(
+        glib::clone!(@weak popup, @weak to_be_removed => @default-return Inhibit(false), move |_, key, _, _modifier| {
+            if key == gtk::gdk::Key::Escape {
+                popup.close();
+                to_be_removed.set(true);
+            }
+            Inhibit(false)
+        }),
+    );
+    popup.add_controller(&event_controller);
     popup.set_resizable(true);
-    popup.show_all();
+    popup.show();
 
     let adjust = scroll.vadjustment();
     adjust.set_value(0.);
     scroll.set_vadjustment(Some(&adjust));
-
-    ram_usage_history.connect_to_window_events();
-    cpu_usage_history.connect_to_window_events();
-    disk_usage_history.connect_to_window_events();
 
     ProcDialog {
         working_directory,

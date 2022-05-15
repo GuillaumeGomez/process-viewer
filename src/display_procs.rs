@@ -1,16 +1,11 @@
+use gtk::glib;
 use gtk::glib::object::Cast;
 use gtk::glib::Type;
-use gtk::prelude::{
-    BoxExt, ButtonExt, CellRendererExt, ContainerExt, EntryExt, GridExt, GtkListStoreExtManual,
-    GtkWindowExt, OverlayExt, SearchBarExt, TreeModelExt, TreeModelFilterExt, TreeSelectionExt,
-    TreeViewColumnExt, TreeViewExt, WidgetExt,
-};
-use gtk::{self, glib};
+use gtk::prelude::*;
 
 use sysinfo::{Pid, PidExt, Process, ProcessExt};
 
-use crate::notebook::NoteBook;
-use crate::utils::{create_button_with_image, format_number};
+use crate::utils::format_number;
 
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -26,39 +21,38 @@ pub struct Procs {
     pub vertical_layout: gtk::Box,
     pub list_store: gtk::ListStore,
     pub columns: Vec<gtk::TreeViewColumn>,
-    pub filter_entry: gtk::Entry,
+    pub filter_entry: gtk::SearchEntry,
     pub search_bar: gtk::SearchBar,
-    pub filter_button: gtk::Button,
 }
 
 impl Procs {
-    pub fn new(
-        proc_list: &HashMap<Pid, Process>,
-        note: &mut NoteBook,
-        window: &gtk::ApplicationWindow,
-    ) -> Procs {
+    pub fn new(proc_list: &HashMap<Pid, Process>, stack: &gtk::Stack) -> Procs {
         let left_tree = gtk::TreeView::new();
-        let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+        let scroll = gtk::ScrolledWindow::new();
         let current_pid = Rc::new(Cell::new(None));
         let kill_button = gtk::Button::with_label("End task");
         let info_button = gtk::Button::with_label("More information");
 
-        let filter_button =
-            create_button_with_image(include_bytes!("../assets/magnifier.png"), "Filter");
+        kill_button.set_hexpand(true);
+        info_button.set_hexpand(true);
+        info_button.set_margin_top(6);
+        info_button.set_margin_bottom(6);
+        info_button.set_margin_start(6);
+        kill_button.set_margin_top(6);
+        kill_button.set_margin_bottom(6);
+        kill_button.set_margin_end(6);
 
-        // TODO: maybe add an 'X' button to close search as well?
         let overlay = gtk::Overlay::new();
-        let filter_entry = gtk::Entry::new();
+        let filter_entry = gtk::SearchEntry::new();
         let search_bar = gtk::SearchBar::new();
 
         // We put the filter entry at the right bottom.
-        filter_entry.set_halign(gtk::Align::End);
-        filter_entry.set_valign(gtk::Align::End);
-        filter_entry.hide(); // By default, we don't show it.
-        search_bar.connect_entry(&filter_entry);
+        search_bar.set_halign(gtk::Align::End);
+        search_bar.set_valign(gtk::Align::End);
+        search_bar.set_child(Some(&filter_entry));
         search_bar.set_show_close_button(true);
 
-        overlay.add_overlay(&filter_entry);
+        overlay.add_overlay(&search_bar);
 
         let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
 
@@ -95,16 +89,16 @@ impl Procs {
         }
 
         left_tree.set_headers_visible(true);
-        scroll.add(&left_tree);
-        overlay.add(&scroll);
+        scroll.set_child(Some(&left_tree));
+        overlay.set_child(Some(&scroll));
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let horizontal_layout = gtk::Grid::new();
+        let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
 
         left_tree.connect_cursor_changed(
-            glib::clone!(@weak current_pid, @weak kill_button, @weak info_button => move |tree_view| {
+            glib::clone!(@strong current_pid, @weak kill_button, @weak info_button => move |tree_view| {
                 let selection = tree_view.selection();
                 let (pid, ret) = if let Some((model, iter)) = selection.selected() {
-                    if let Ok(x) = model.value(&iter, 0).get::<u32>() {
+                    if let Ok(x) = model.get_value(&iter, 0).get::<u32>() {
                         (Some(Pid::from_u32(x)), true)
                     } else {
                         (None, false)
@@ -120,58 +114,48 @@ impl Procs {
         kill_button.set_sensitive(false);
         info_button.set_sensitive(false);
 
-        vertical_layout.pack_start(&overlay, true, true, 0);
-        horizontal_layout.attach(&info_button, 0, 0, 4, 1);
-        horizontal_layout.attach_next_to(
-            &kill_button,
-            Some(&info_button),
-            gtk::PositionType::Right,
-            4,
-            1,
-        );
-        horizontal_layout.attach_next_to(
-            &filter_button,
-            Some(&kill_button),
-            gtk::PositionType::Right,
-            1,
-            1,
-        );
-        horizontal_layout.set_column_homogeneous(true);
-        vertical_layout.pack_start(&horizontal_layout, false, true, 0);
+        overlay.set_hexpand(true);
+        overlay.set_vexpand(true);
+        vertical_layout.append(&overlay);
+        horizontal_layout.append(&info_button);
+        horizontal_layout.append(&kill_button);
+        horizontal_layout.set_spacing(6);
+        vertical_layout.append(&horizontal_layout);
 
         // The filter part.
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
         filter_model.set_visible_func(
             glib::clone!(@weak filter_entry => @default-return false, move |model, iter| {
-                if !WidgetExt::is_visible(&filter_entry) || filter_entry.text_length() < 1 {
+                if !WidgetExt::is_visible(&filter_entry) {
                     return true;
                 }
                 let text = filter_entry.text();
-                    if text.is_empty() {
-                        return true;
-                    }
-                    let text: &str = text.as_ref();
-                    // TODO: Maybe add an option to make searches case sensitive?
-                    let pid = model.value(iter, 0)
-                                   .get::<u32>()
-                                   .map(|p| p.to_string())
-                                   .ok()
-                                   .unwrap_or_else(String::new);
-                    let name = model.value(iter, 1)
-                                    .get::<String>()
-                                    .map(|s| s.to_lowercase())
-                                    .ok()
-                                    .unwrap_or_else(String::new);
-                    pid.contains(text) ||
-                    text.contains(&pid) ||
-                    name.contains(text) ||
-                    text.contains(&name)
+                if text.is_empty() {
+                    return true;
+                }
+                let text: &str = text.as_ref();
+                // TODO: Maybe add an option to make searches case sensitive?
+                let pid = model.get_value(iter, 0)
+                               .get::<u32>()
+                               .map(|p| p.to_string())
+                               .ok()
+                               .unwrap_or_default();
+                let name = model.get_value(iter, 1)
+                                .get::<String>()
+                                .map(|s| s.to_lowercase())
+                                .ok()
+                                .unwrap_or_default();
+                pid.contains(text) ||
+                text.contains(&pid) ||
+                name.contains(text) ||
+                text.contains(&name)
             }),
         );
         // For the filtering to be taken into account, we need to add it directly into the
         // "global" model.
-        let sort_model = gtk::TreeModelSort::new(&filter_model);
+        let sort_model = gtk::TreeModelSort::with_model(&filter_model);
         left_tree.set_model(Some(&sort_model));
+        left_tree.set_search_entry(Some(&filter_entry));
 
         append_column("pid", &mut columns, &left_tree, None);
         append_column("process name", &mut columns, &left_tree, Some(200));
@@ -199,20 +183,14 @@ impl Procs {
         // we have to separate the display and the actual number.
         columns[4].set_sort_column_id(8);
 
-        filter_entry.connect_text_length_notify(move |_| {
+        filter_entry.connect_search_changed(move |_| {
             filter_model.refilter();
         });
 
-        note.create_tab("Process list", &vertical_layout);
+        // Sort by CPU usage by default.
+        sort_model.set_sort_column_id(gtk::SortColumn::Index(6), gtk::SortType::Descending);
 
-        filter_button.connect_clicked(glib::clone!(@weak filter_entry, @weak window => move |_| {
-            if WidgetExt::is_visible(&filter_entry) {
-                filter_entry.hide();
-            } else {
-                filter_entry.show_all();
-                window.set_focus(Some(&filter_entry));
-            }
-        }));
+        stack.add_titled(&vertical_layout, Some("Processes"), "Processes");
 
         Procs {
             left_tree,
@@ -227,14 +205,7 @@ impl Procs {
             columns,
             filter_entry,
             search_bar,
-            filter_button,
         }
-    }
-
-    pub fn hide_filter(&self) {
-        self.filter_entry.hide();
-        self.filter_entry.set_text("");
-        self.search_bar.set_search_mode(false);
     }
 }
 

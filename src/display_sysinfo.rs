@@ -1,8 +1,5 @@
 use gtk::glib;
-use gtk::prelude::{
-    AdjustmentExt, BoxExt, ContainerExt, GridExt, LabelExt, ProgressBarExt, ScrolledWindowExt,
-    ToggleButtonExt, WidgetExt,
-};
+use gtk::prelude::*;
 use sysinfo::{self, ComponentExt, ProcessorExt, SystemExt};
 
 use std::cell::RefCell;
@@ -10,36 +7,30 @@ use std::iter;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use crate::graph::Graph;
-use crate::notebook::NoteBook;
+use crate::graph::GraphWidget;
 use crate::settings::Settings;
-use crate::utils::{connect_graph, format_number, RotateVec};
+use crate::utils::{format_number, RotateVec};
 
 pub fn create_header(
     label_text: &str,
     parent_layout: &gtk::Box,
     display_graph: bool,
 ) -> gtk::CheckButton {
-    let check_box = gtk::CheckButton::with_label("Graph view");
-    check_box.set_active(display_graph);
+    let check_box = gtk::CheckButton::builder()
+        .label("Graph view")
+        .active(display_graph)
+        .halign(gtk::Align::End)
+        .build();
 
     let label = gtk::Label::new(Some(label_text));
-    let empty = gtk::Label::new(None);
-    let grid = gtk::Grid::new();
-    let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    horizontal_layout.pack_start(&gtk::Label::new(None), true, true, 0);
-    horizontal_layout.pack_start(&check_box, false, false, 0);
-    grid.attach(&empty, 0, 0, 3, 1);
-    grid.attach_next_to(&label, Some(&empty), gtk::PositionType::Right, 3, 1);
-    grid.attach_next_to(
-        &horizontal_layout,
-        Some(&label),
-        gtk::PositionType::Right,
-        3,
-        1,
-    );
-    grid.set_column_homogeneous(true);
-    parent_layout.pack_start(&grid, false, false, 15);
+    let grid = gtk::Grid::builder()
+        .hexpand(true)
+        .column_homogeneous(true)
+        .build();
+    grid.attach(&gtk::Label::new(None), 0, 0, 2, 1); // needed otherwise it won't take space
+    grid.attach(&label, 1, 0, 2, 1);
+    grid.attach(&check_box, 3, 0, 1, 1);
+    parent_layout.append(&grid);
     check_box
 }
 
@@ -49,11 +40,12 @@ pub fn create_progress_bar(
     label: &str,
     text: &str,
 ) -> gtk::ProgressBar {
-    let p = gtk::ProgressBar::new();
+    let p = gtk::ProgressBar::builder()
+        .text(text)
+        .show_text(true)
+        .build();
     let l = gtk::Label::new(Some(label));
 
-    p.set_text(Some(text));
-    p.set_show_text(true);
     non_graph_layout.attach(&l, 0, line, 1, 1);
     non_graph_layout.attach(&p, 1, line, 11, 1);
     p
@@ -66,11 +58,11 @@ pub struct DisplaySysInfo {
     swap: gtk::ProgressBar,
     vertical_layout: gtk::Box,
     components: Vec<gtk::Label>,
-    cpu_usage_history: Rc<RefCell<Graph>>,
+    cpu_usage_history: Rc<RefCell<GraphWidget>>,
     // 0 = RAM
     // 1 = SWAP
-    ram_usage_history: Rc<RefCell<Graph>>,
-    temperature_usage_history: Rc<RefCell<Graph>>,
+    ram_usage_history: Rc<RefCell<GraphWidget>>,
+    temperature_usage_history: Rc<RefCell<GraphWidget>>,
     pub ram_check_box: gtk::CheckButton,
     pub swap_check_box: gtk::CheckButton,
     pub temperature_check_box: Option<gtk::CheckButton>,
@@ -79,17 +71,19 @@ pub struct DisplaySysInfo {
 impl DisplaySysInfo {
     pub fn new(
         sys: &Arc<Mutex<sysinfo::System>>,
-        note: &mut NoteBook,
+        stack: &gtk::Stack,
         settings: &Settings,
     ) -> DisplaySysInfo {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let mut procs = Vec::new();
-        let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+        let scroll = gtk::ScrolledWindow::new();
         let mut components = vec![];
 
         // CPU
-        let mut cpu_usage_history = Graph::new(None, false);
-        cpu_usage_history.set_label_callbacks(Some(Box::new(|_| {
+        let cpu_usage_history = GraphWidget::new(None, false);
+        cpu_usage_history.set_margin_start(3);
+        cpu_usage_history.set_margin_end(6);
+        cpu_usage_history.set_labels_callback(Some(Box::new(|_| {
             [
                 "100".to_string(),
                 "50".to_string(),
@@ -100,8 +94,10 @@ impl DisplaySysInfo {
 
         let sys = sys.lock().expect("failed to lock in DisplaySysInfo::new");
         // RAM
-        let mut ram_usage_history = Graph::new(Some(sys.total_memory() as f64), true);
-        ram_usage_history.set_label_callbacks(Some(Box::new(|v| {
+        let ram_usage_history = GraphWidget::new(Some(sys.total_memory() as f32), true);
+        ram_usage_history.set_margin_start(3);
+        ram_usage_history.set_margin_end(6);
+        ram_usage_history.set_labels_callback(Some(Box::new(|v| {
             if v < 100_000. {
                 [
                     v.to_string(),
@@ -111,33 +107,34 @@ impl DisplaySysInfo {
                 ]
             } else if v < 10_000_000. {
                 [
-                    format!("{:.1}", v / 1_000f64),
-                    format!("{:.1}", v / 2_000f64),
+                    format!("{:.1}", v / 1_000f32),
+                    format!("{:.1}", v / 2_000f32),
                     "0".to_string(),
                     "MB".to_string(),
                 ]
             } else if v < 10_000_000_000. {
                 [
-                    format!("{:.1}", v / 1_000_000f64),
-                    format!("{:.1}", v / 2_000_000f64),
+                    format!("{:.1}", v / 1_000_000f32),
+                    format!("{:.1}", v / 2_000_000f32),
                     "0".to_string(),
                     "GB".to_string(),
                 ]
             } else {
                 [
-                    format!("{:.1}", v / 1_000_000_000f64),
-                    format!("{:.1}", v / 2_000_000_000f64),
+                    format!("{:.1}", v / 1_000_000_000f32),
+                    format!("{:.1}", v / 2_000_000_000f32),
                     "0".to_string(),
                     "TB".to_string(),
                 ]
             }
         })));
-        ram_usage_history.set_labels_width(70);
 
         // TEMPERATURE
-        let mut temperature_usage_history = Graph::new(Some(1.), false);
+        let temperature_usage_history = GraphWidget::new(Some(1.), false);
+        temperature_usage_history.set_margin_start(3);
+        temperature_usage_history.set_margin_end(6);
         temperature_usage_history.set_overhead(Some(20.));
-        temperature_usage_history.set_label_callbacks(Some(Box::new(|v| {
+        temperature_usage_history.set_labels_callback(Some(Box::new(|v| {
             [
                 format!("{:.1}", v),
                 format!("{:.1}", v / 2.),
@@ -145,7 +142,6 @@ impl DisplaySysInfo {
                 "°C".to_string(),
             ]
         })));
-        temperature_usage_history.set_labels_width(70);
 
         let mut check_box3 = None;
 
@@ -153,18 +149,22 @@ impl DisplaySysInfo {
         vertical_layout.set_margin_top(10);
         vertical_layout.set_margin_bottom(10);
 
-        let non_graph_layout = gtk::Grid::new();
-        non_graph_layout.set_column_homogeneous(true);
-        non_graph_layout.set_margin_end(5);
-        let non_graph_layout2 = gtk::Grid::new();
-        non_graph_layout2.set_column_homogeneous(true);
-        non_graph_layout2.set_margin_start(5);
+        let non_graph_layout = gtk::Grid::builder()
+            .column_homogeneous(true)
+            .margin_end(5)
+            .build();
+        let non_graph_layout2 = gtk::Grid::builder()
+            .column_homogeneous(true)
+            .margin_start(5)
+            .build();
         let non_graph_layout3 = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         //
         // PROCESSOR PART
         //
-        vertical_layout.pack_start(&gtk::Label::new(Some("Total CPU usage")), false, false, 7);
+        let label = gtk::Label::new(Some("Total CPU usage"));
+        label.set_margin_start(7);
+        vertical_layout.append(&label);
         procs.push(gtk::ProgressBar::new());
         {
             procs.push(gtk::ProgressBar::new());
@@ -176,7 +176,7 @@ impl DisplaySysInfo {
             let processor = sys.global_processor_info();
             p.set_text(Some(&format!("{:.1} %", processor.cpu_usage())));
             p.set_fraction(f64::from(processor.cpu_usage() / 100.));
-            vertical_layout.add(p);
+            vertical_layout.append(p);
         }
         let check_box = create_header("Processors usage", &vertical_layout, settings.display_graph);
         for (i, pro) in sys.processors().iter().enumerate() {
@@ -190,13 +190,13 @@ impl DisplaySysInfo {
             non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
             non_graph_layout.attach(p, 1, i as i32 - 1, 11, 1);
             cpu_usage_history.push(
-                RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                RotateVec::new(iter::repeat(0f32).take(61).collect()),
                 &format!("processor {}", i),
                 None,
             );
         }
-        vertical_layout.add(&non_graph_layout);
-        cpu_usage_history.attach_to(&vertical_layout);
+        vertical_layout.append(&non_graph_layout);
+        vertical_layout.append(&cpu_usage_history);
 
         //
         // MEMORY PART
@@ -204,19 +204,20 @@ impl DisplaySysInfo {
         let check_box2 = create_header("Memory usage", &vertical_layout, settings.display_graph);
         let ram = create_progress_bar(&non_graph_layout2, 0, "RAM", "");
         let swap = create_progress_bar(&non_graph_layout2, 1, "Swap", "");
-        vertical_layout.pack_start(&non_graph_layout2, false, false, 15);
-        //vertical_layout.add(&non_graph_layout2);
+        non_graph_layout2.set_margin_start(15);
+        vertical_layout.append(&non_graph_layout2);
+        //vertical_layout.append(&non_graph_layout2);
         ram_usage_history.push(
-            RotateVec::new(iter::repeat(0f64).take(61).collect()),
+            RotateVec::new(iter::repeat(0f32).take(61).collect()),
             "RAM",
             Some(4),
         );
         ram_usage_history.push(
-            RotateVec::new(iter::repeat(0f64).take(61).collect()),
+            RotateVec::new(iter::repeat(0f32).take(61).collect()),
             "Swap",
             Some(2),
         );
-        ram_usage_history.attach_to(&vertical_layout);
+        vertical_layout.append(&ram_usage_history);
 
         //
         // TEMPERATURES PART
@@ -231,44 +232,63 @@ impl DisplaySysInfo {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
                 let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature())));
-                horizontal_layout.pack_start(
-                    &gtk::Label::new(Some(component.label())),
-                    true,
-                    false,
-                    0,
-                );
-                horizontal_layout.pack_start(&temp, true, false, 0);
+                horizontal_layout.append(&gtk::Label::new(Some(component.label())));
+                horizontal_layout.append(&temp);
                 horizontal_layout.set_homogeneous(true);
-                non_graph_layout3.add(&horizontal_layout);
+                non_graph_layout3.append(&horizontal_layout);
                 components.push(temp);
                 temperature_usage_history.push(
-                    RotateVec::new(iter::repeat(0f64).take(61).collect()),
+                    RotateVec::new(iter::repeat(0f32).take(61).collect()),
                     component.label(),
                     None,
                 );
             }
-            vertical_layout.add(&non_graph_layout3);
-            temperature_usage_history.attach_to(&vertical_layout);
+            vertical_layout.append(&non_graph_layout3);
+            vertical_layout.append(&temperature_usage_history);
         }
 
         //
         // Putting everyting into places now.
         //
-        let cpu_usage_history = connect_graph(cpu_usage_history);
-        let ram_usage_history = connect_graph(ram_usage_history);
-        let temperature_usage_history = connect_graph(temperature_usage_history);
+        let cpu_usage_history = Rc::new(RefCell::new(cpu_usage_history));
+        let ram_usage_history = Rc::new(RefCell::new(ram_usage_history));
+        let temperature_usage_history = Rc::new(RefCell::new(temperature_usage_history));
 
-        scroll.add(&vertical_layout);
-        note.create_tab("System usage", &scroll);
+        scroll.set_child(Some(&vertical_layout));
 
-        // It greatly improves the scrolling on the system information tab. No more clipping.
-        let adjustment = scroll.vadjustment();
-        adjustment.connect_value_changed(
-            glib::clone!(@weak cpu_usage_history, @weak ram_usage_history, @weak temperature_usage_history => move |_| {
-            cpu_usage_history.borrow().invalidate();
-            ram_usage_history.borrow().invalidate();
-            temperature_usage_history.borrow().invalidate();
-        }));
+        stack.add_titled(&scroll, Some("System"), "System");
+
+        cpu_usage_history.borrow().hide();
+        ram_usage_history.borrow().hide();
+        temperature_usage_history.borrow().hide();
+
+        check_box.connect_toggled(
+            glib::clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
+                show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
+            }),
+        );
+        // To show the correct view based on the saved settings.
+        show_if_necessary(&check_box, &cpu_usage_history.borrow(), &non_graph_layout);
+        check_box2.connect_toggled(
+            glib::clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
+                show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
+            }),
+        );
+        // To show the correct view based on the saved settings.
+        show_if_necessary(&check_box2, &ram_usage_history.borrow(), &non_graph_layout2);
+        if let Some(ref check_box3) = check_box3 {
+            check_box3.connect_toggled(
+                glib::clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
+                    show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
+                }),
+            );
+            // To show the correct view based on the saved settings.
+            show_if_necessary(
+                check_box3,
+                &temperature_usage_history.borrow(),
+                &non_graph_layout3,
+            );
+        }
 
         let mut tmp = DisplaySysInfo {
             procs: Rc::new(RefCell::new(procs)),
@@ -276,61 +296,15 @@ impl DisplaySysInfo {
             swap,
             vertical_layout,
             components,
-            cpu_usage_history: Rc::clone(&cpu_usage_history),
-            ram_usage_history: Rc::clone(&ram_usage_history),
-            ram_check_box: check_box.clone(),
-            swap_check_box: check_box2.clone(),
-            temperature_usage_history: Rc::clone(&temperature_usage_history),
-            temperature_check_box: check_box3.clone(),
+            cpu_usage_history,
+            ram_usage_history,
+            ram_check_box: check_box,
+            swap_check_box: check_box2,
+            temperature_usage_history,
+            temperature_check_box: check_box3,
         };
         tmp.update_system_info(&sys, settings.display_fahrenheit);
-
-        check_box.connect_toggled(
-            glib::clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
-                show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
-            }),
-        );
-        check_box2.connect_toggled(
-            glib::clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
-                show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
-            }),
-        );
-        if let Some(ref check_box3) = check_box3 {
-            check_box3.connect_toggled(
-                glib::clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
-                    show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
-                }),
-            );
-        }
-
-        scroll.connect_show(
-            glib::clone!(@weak cpu_usage_history, @weak ram_usage_history => move |_| {
-                show_if_necessary(&check_box,
-                                  &cpu_usage_history.borrow(), &non_graph_layout);
-                show_if_necessary(&check_box2,
-                                  &ram_usage_history.borrow(), &non_graph_layout2);
-                if let Some(ref check_box3) = check_box3 {
-                    show_if_necessary(check_box3,
-                                      &temperature_usage_history.borrow(), &non_graph_layout3);
-                }
-            }),
-        );
         tmp
-    }
-
-    pub fn set_size_request(&self, width: i32, height: i32) {
-        self.cpu_usage_history
-            .borrow()
-            .area
-            .set_size_request(width, height);
-        self.ram_usage_history
-            .borrow()
-            .area
-            .set_size_request(width, height);
-        self.temperature_usage_history
-            .borrow()
-            .area
-            .set_size_request(width, height);
     }
 
     pub fn set_checkboxes_state(&self, active: bool) {
@@ -359,11 +333,13 @@ impl DisplaySysInfo {
             self.ram.set_fraction(0.0);
         }
         {
-            let mut r = self.ram_usage_history.borrow_mut();
-            r.data[0].move_start();
-            if let Some(p) = r.data[0].get_mut(0) {
-                *p = used as f64;
-            }
+            let r = self.ram_usage_history.borrow_mut();
+            r.data(0, |d| {
+                d.move_start();
+                if let Some(p) = d.get_mut(0) {
+                    *p = used as _;
+                }
+            });
         }
 
         let total = ::std::cmp::max(sys.total_swap(), total_ram);
@@ -376,32 +352,36 @@ impl DisplaySysInfo {
             0f64
         };
         if fraction.is_nan() {
-            fraction = 0f64;
+            fraction = 0.;
         }
         self.swap.set_fraction(fraction);
         {
-            let mut r = self.ram_usage_history.borrow_mut();
-            r.data[1].move_start();
-            if let Some(p) = r.data[1].get_mut(0) {
-                *p = used as f64;
-            }
+            let r = self.ram_usage_history.borrow_mut();
+            r.data(1, |d| {
+                d.move_start();
+                if let Some(p) = d.get_mut(0) {
+                    *p = used as _;
+                }
+            });
         }
 
         // temperature part
-        let mut t = self.temperature_usage_history.borrow_mut();
+        let t = self.temperature_usage_history.borrow_mut();
         for (pos, (component, label)) in sys
             .components()
             .iter()
             .zip(self.components.iter())
             .enumerate()
         {
-            t.data[pos].move_start();
-            if let Some(t) = t.data[pos].get_mut(0) {
-                *t = f64::from(component.temperature());
-            }
-            if let Some(t) = t.data[pos].get_mut(0) {
-                *t = f64::from(component.temperature());
-            }
+            t.data(pos, |d| {
+                d.move_start();
+                if let Some(t) = d.get_mut(0) {
+                    *t = component.temperature();
+                }
+                if let Some(t) = d.get_mut(0) {
+                    *t = component.temperature();
+                }
+            });
             if display_fahrenheit {
                 label.set_text(&format!("{:.1} °F", component.temperature() * 1.8 + 32.));
             } else {
@@ -425,27 +405,29 @@ impl DisplaySysInfo {
             v[i].set_text(Some(&format!("{:.1} %", pro.cpu_usage())));
             v[i].set_show_text(true);
             v[i].set_fraction(f64::from(pro.cpu_usage() / 100.));
-            h.data[i - 1].move_start();
-            if let Some(h) = h.data[i - 1].get_mut(0) {
-                *h = f64::from(pro.cpu_usage() / 100.);
-            }
+            h.data(i - 1, |d| {
+                d.move_start();
+                if let Some(h) = d.get_mut(0) {
+                    *h = pro.cpu_usage() / 100.;
+                }
+            });
         }
-        h.invalidate();
-        self.ram_usage_history.borrow().invalidate();
-        self.temperature_usage_history.borrow().invalidate();
+        h.queue_draw();
+        self.ram_usage_history.borrow().queue_draw();
+        self.temperature_usage_history.borrow().queue_draw();
     }
 }
 
-pub fn show_if_necessary<U: gtk::glib::IsA<gtk::ToggleButton>, T: WidgetExt>(
+pub fn show_if_necessary<U: gtk::glib::IsA<gtk::CheckButton>, T: WidgetExt>(
     check_box: &U,
-    proc_horizontal_layout: &Graph,
+    proc_horizontal_layout: &GraphWidget,
     non_graph_layout: &T,
 ) {
     if check_box.is_active() {
-        proc_horizontal_layout.show_all();
+        proc_horizontal_layout.show();
         non_graph_layout.hide();
     } else {
-        non_graph_layout.show_all();
+        non_graph_layout.show();
         proc_horizontal_layout.hide();
     }
 }
