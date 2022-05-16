@@ -5,7 +5,8 @@ It can be run on the following platforms:
 
  * Linux
  * Raspberry
- * Mac OSX
+ * macOS
+ * FreeBSD
  * Windows (for cross-compilation to Windows, you can give a try to https://hub.docker.com/r/etrombly/rust-crosscompile)
 
 Please run it in release mode to have good performance:
@@ -22,18 +23,7 @@ cargo install process_viewer
 
 ### Building/running on Linux, MacOS
 
-Running ```process-viewer``` on Gnome-based Ubuntu (>=17.10) should work out of the box.  
-For Debian, Fedora and MacOS refer to the [gtk-rs installation guide](http://gtk-rs.org/docs/requirements.html).
-
-### Bulding on Ubuntu-based Distros
-
-```bash
-sudo apt install -y libgtk-3-dev
-```
-
-### Building/running on Windows
-
-You'll need to follow the [GTK installation guide](https://www.gtk.org/docs/installations/windows/). If you still have issues to run the generated binary, just copy the `.dll`s into the executable's folder.
+Take a look at the [gtk-rs installation guide](https://gtk-rs.org/gtk4-rs/stable/latest/book/installation.html) to know how install GTK dependencies.
 
 ### Running on Raspberry
 
