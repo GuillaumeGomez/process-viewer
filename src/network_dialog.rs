@@ -9,7 +9,7 @@ use crate::utils::{
     format_number, format_number_full, get_main_window, graph_label, graph_label_units, RotateVec,
 };
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::iter;
 use std::rc::Rc;
 
@@ -24,7 +24,7 @@ pub struct NetworkDialog {
     packets_transmitted_peak: Rc<RefCell<u64>>,
     errors_on_received_peak: Rc<RefCell<u64>>,
     errors_on_transmitted_peak: Rc<RefCell<u64>>,
-    to_be_removed: Rc<RefCell<bool>>,
+    to_be_removed: Rc<Cell<bool>>,
     list_store: gtk::ListStore,
 }
 
@@ -134,7 +134,7 @@ impl NetworkDialog {
     }
 
     pub fn need_remove(&self) -> bool {
-        *self.to_be_removed.borrow()
+        self.to_be_removed.get()
     }
 }
 
@@ -407,22 +407,31 @@ pub fn create_network_dialog(
 
     popup.set_size_request(700, 540);
 
-    close_button.connect_clicked(glib::clone!(@weak popup => move |_| {
+    let to_be_removed = Rc::new(Cell::new(false));
+    popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
+        to_be_removed.set(true);
+    }));
+    close_button.connect_clicked(glib::clone!(@weak popup, @weak to_be_removed => move |_| {
         popup.close();
     }));
-    let to_be_removed = Rc::new(RefCell::new(false));
-    popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
-        *to_be_removed.borrow_mut() = true;
-    }));
-    let event_controller = EventControllerKey::new();
-    event_controller.connect_key_pressed(
-        glib::clone!(@weak popup => @default-return Inhibit(false), move |_, key, _, _modifier| {
-            if key == gtk::gdk::Key::Escape {
-                popup.close();
-            }
+    popup.connect_close_request(
+        glib::clone!(@weak to_be_removed => @default-return Inhibit(false), move |_| {
+            to_be_removed.set(true);
             Inhibit(false)
         }),
     );
+    let event_controller = EventControllerKey::new();
+    event_controller.connect_key_pressed(glib::clone!(
+        @weak popup,
+        @weak to_be_removed
+        => @default-return Inhibit(false), move |_, key, _, _modifier| {
+            if key == gtk::gdk::Key::Escape {
+                popup.close();
+                to_be_removed.set(true);
+            }
+            Inhibit(false)
+        }
+    ));
     popup.add_controller(&event_controller);
     popup.set_resizable(true);
     popup.show();

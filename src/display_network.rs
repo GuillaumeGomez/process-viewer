@@ -173,7 +173,11 @@ impl Network {
         info_button.connect_clicked(glib::clone!(@weak dialogs, @weak sys => move |_| {
             let current_network = current_network.borrow();
             if let Some(ref interface_name) = *current_network {
-                create_network_dialog(&mut *dialogs.borrow_mut(), interface_name, &*sys.lock().expect("failed to lock for new network dialog"));
+                create_network_dialog(
+                    &mut *dialogs.borrow_mut(),
+                    interface_name,
+                    &*sys.lock().expect("failed to lock for new network dialog"),
+                );
             }
         }));
 
@@ -182,9 +186,13 @@ impl Network {
                 let model = tree_view.model().expect("couldn't get model");
                 let iter = model.iter(path).expect("couldn't get iter");
                 let interface_name = model.get_value(&iter, 0)
-                                            .get::<String>()
-                                            .expect("Model::get failed");
-                create_network_dialog(&mut *dialogs.borrow_mut(), &interface_name, &*sys.lock().expect("failed to lock for new network dialog (from tree)"));
+                    .get::<String>()
+                    .expect("Model::get failed");
+                create_network_dialog(
+                    &mut *dialogs.borrow_mut(),
+                    &interface_name,
+                    &*sys.lock().expect("failed to lock for new network dialog (from tree)"),
+                );
             }),
         );
 
