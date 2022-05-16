@@ -598,7 +598,7 @@ dependencies = [
 
 [[package]]
 name = "process_viewer"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "gtk4",
  "libc",
