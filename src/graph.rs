@@ -120,6 +120,12 @@ impl ObjectImpl for GraphWidgetImp {
         self.graph.borrow().set_parent(obj);
         self.labels.borrow().set_parent(obj);
     }
+
+    fn dispose(&self, _obj: &Self::Type) {
+        // Child widgets need to be manually unparented in `dispose()`.
+        self.graph.borrow().unparent();
+        self.labels.borrow().unparent();
+    }
 }
 
 glib::wrapper! {
