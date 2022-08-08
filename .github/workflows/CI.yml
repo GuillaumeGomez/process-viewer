@@ -32,12 +32,12 @@ jobs:
           - macos-latest
     steps:
       - run: sudo apt-get update -y
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
       - run: sudo apt-get install -y libgtk-4-dev curl libcairo-gobject2 libcairo2-dev
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
       - run: brew update
         if: matrix.os == 'macos-latest'
-      - run: brew install gtk+4 cairo atk
+      - run: brew install gtk4 cairo atk
         if: matrix.os == 'macos-latest'
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
