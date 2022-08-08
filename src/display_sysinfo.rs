@@ -1,6 +1,6 @@
 use gtk::glib;
 use gtk::prelude::*;
-use sysinfo::{self, ComponentExt, ProcessorExt, SystemExt};
+use sysinfo::{self, ComponentExt, CpuExt, SystemExt};
 
 use std::cell::RefCell;
 use std::iter;
@@ -173,13 +173,13 @@ impl DisplaySysInfo {
             p.set_margin_end(5);
             p.set_margin_start(5);
             p.set_show_text(true);
-            let processor = sys.global_processor_info();
+            let processor = sys.global_cpu_info();
             p.set_text(Some(&format!("{:.1} %", processor.cpu_usage())));
             p.set_fraction(f64::from(processor.cpu_usage() / 100.));
             vertical_layout.append(p);
         }
         let check_box = create_header("Processors usage", &vertical_layout, settings.display_graph);
-        for (i, pro) in sys.processors().iter().enumerate() {
+        for (i, pro) in sys.cpus().iter().enumerate() {
             procs.push(gtk::ProgressBar::new());
             let p: &gtk::ProgressBar = &procs[i + 1];
             let l = gtk::Label::new(Some(&format!("{}", i)));
@@ -394,13 +394,10 @@ impl DisplaySysInfo {
         let v = &*self.procs.borrow_mut();
         let h = &mut *self.cpu_usage_history.borrow_mut();
 
-        v[0].set_text(Some(&format!(
-            "{:.1} %",
-            sys.global_processor_info().cpu_usage()
-        )));
+        v[0].set_text(Some(&format!("{:.1} %", sys.global_cpu_info().cpu_usage())));
         v[0].set_show_text(true);
-        v[0].set_fraction(f64::from(sys.global_processor_info().cpu_usage() / 100.));
-        for (i, pro) in sys.processors().iter().enumerate() {
+        v[0].set_fraction(f64::from(sys.global_cpu_info().cpu_usage() / 100.));
+        for (i, pro) in sys.cpus().iter().enumerate() {
             let i = i + 1;
             v[i].set_text(Some(&format!("{:.1} %", pro.cpu_usage())));
             v[i].set_show_text(true);
