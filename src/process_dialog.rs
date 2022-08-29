@@ -45,7 +45,7 @@ impl ProcDialog {
         }
         self.working_directory
             .set_text(&process.cwd().display().to_string());
-        let memory = process.memory() * 1_000; // It returns in kB so we have to convert it to B
+        let memory = process.memory();
         let memory_s = format_number(memory);
         self.memory_usage.set_text(&memory_s);
         if memory > *self.memory_peak.borrow() {
@@ -195,7 +195,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
 
     create_and_add_new_label(&labels, "name", process.name());
     create_and_add_new_label(&labels, "pid", &process.pid().to_string());
-    let memory_peak = process.memory() * 1_000;
+    let memory_peak = process.memory();
     let memory_usage =
         create_and_add_new_label(&labels, "memory usage", &format_number(memory_peak));
     let memory_peak_label =

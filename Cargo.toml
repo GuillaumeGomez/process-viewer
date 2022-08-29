@@ -14,7 +14,7 @@ keywords = ["GUI", "process", "viewer", "gtk"]
 
 [dependencies]
 gtk = { version = "0.4", package = "gtk4" }
-sysinfo = "0.25.2"
+sysinfo = "0.26"
 libc = "0.2"
 serde = "1.0"
 serde_derive = "1.0"
