@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::graph::GraphWidget;
 use crate::settings::Settings;
-use crate::utils::{format_number, RotateVec};
+use crate::utils::{format_number, graph_label_units, RotateVec};
 
 pub fn create_header(
     label_text: &str,
@@ -97,37 +97,7 @@ impl DisplaySysInfo {
         let ram_usage_history = GraphWidget::new(Some(sys.total_memory() as f32), true);
         ram_usage_history.set_margin_start(3);
         ram_usage_history.set_margin_end(6);
-        ram_usage_history.set_labels_callback(Some(Box::new(|v| {
-            if v < 100_000. {
-                [
-                    v.to_string(),
-                    format!("{}", v / 2.),
-                    "0".to_string(),
-                    "kB".to_string(),
-                ]
-            } else if v < 10_000_000. {
-                [
-                    format!("{:.1}", v / 1_000f32),
-                    format!("{:.1}", v / 2_000f32),
-                    "0".to_string(),
-                    "MB".to_string(),
-                ]
-            } else if v < 10_000_000_000. {
-                [
-                    format!("{:.1}", v / 1_000_000f32),
-                    format!("{:.1}", v / 2_000_000f32),
-                    "0".to_string(),
-                    "GB".to_string(),
-                ]
-            } else {
-                [
-                    format!("{:.1}", v / 1_000_000_000f32),
-                    format!("{:.1}", v / 2_000_000_000f32),
-                    "0".to_string(),
-                    "TB".to_string(),
-                ]
-            }
-        })));
+        ram_usage_history.set_labels_callback(Some(Box::new(graph_label_units)));
 
         // TEMPERATURE
         let temperature_usage_history = GraphWidget::new(Some(1.), false);
@@ -319,8 +289,8 @@ impl DisplaySysInfo {
         let disp = |total, used| {
             format!(
                 "{} / {}",
-                format_number(used * 1_000),
-                format_number(total * 1_000) // We need to multiply to get the "right" unit.
+                format_number(used),
+                format_number(total) // We need to multiply to get the "right" unit.
             )
         };
 

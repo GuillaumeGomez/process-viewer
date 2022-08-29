@@ -147,7 +147,7 @@ pub fn build_spin(label: &str, grid: &gtk::Grid, top: i32, refresh: u32) -> gtk:
     refresh_label.set_halign(gtk::Align::Start);
     refresh_entry.set_hexpand(true);
 
-    refresh_entry.set_value(f64::from(refresh) / 1000.);
+    refresh_entry.set_value(f64::from(refresh) / 1_000.);
 
     grid.attach(&refresh_label, 0, top, 1, 1);
     grid.attach(&refresh_entry, 1, top, 3, 1);
@@ -201,20 +201,20 @@ pub fn show_settings_dialog(settings: &Rc<RefCell<Settings>>, rfs: &RequiredForS
     @weak rfs.process_refresh_timeout as process_refresh_timeout
     => move |entry| {
         let mut settings = settings.borrow_mut();
-        settings.refresh_processes_rate = (entry.value() * 1000.) as u32;
+        settings.refresh_processes_rate = (entry.value() * 1_000.) as _;
         *process_refresh_timeout.lock().expect("failed to lock process_refresh_timeout") =
             settings.refresh_processes_rate;
         settings.save();
     }));
     refresh_network.connect_value_changed(glib::clone!(@weak settings, @weak rfs.network_refresh_timeout as network_refresh_timeout => move |entry| {
         let mut settings = settings.borrow_mut();
-        settings.refresh_network_rate = (entry.value() * 1000.) as u32;
+        settings.refresh_network_rate = (entry.value() * 1_000.) as _;
         *network_refresh_timeout.lock().expect("failed to lock network_refresh_timeout") = settings.refresh_network_rate;
         settings.save();
     }));
     refresh_sys.connect_value_changed(glib::clone!(@weak settings, @weak rfs.system_refresh_timeout as system_refresh_timeout => move |entry| {
         let mut settings = settings.borrow_mut();
-        settings.refresh_system_rate = (entry.value() * 1000.) as u32;
+        settings.refresh_system_rate = (entry.value() * 1_000.) as _;
         *system_refresh_timeout.lock().expect("failed to lock system_refresh_timeout") = settings.refresh_system_rate;
         settings.save();
     }));

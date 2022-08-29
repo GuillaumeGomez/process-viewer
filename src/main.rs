@@ -64,7 +64,7 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
             if let Some(p) = entries.get(&(pid)) {
                 let disk_usage = p.disk_usage();
                 let disk_usage = disk_usage.written_bytes + disk_usage.read_bytes;
-                let memory = p.memory() * 1_000;
+                let memory = p.memory();
                 list.set(
                     &iter,
                     &[
@@ -99,7 +99,7 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
                 pro.cmd(),
                 pro.name(),
                 pro.cpu_usage(),
-                pro.memory() * 1_000,
+                pro.memory(),
             );
         }
     }
