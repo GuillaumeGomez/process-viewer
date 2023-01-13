@@ -70,7 +70,7 @@ impl NetworkDialog {
             network.packets_received(),
             network.total_packets_received(),
             packets_received_peak,
-            8,
+            9,
             formatter
         );
         update_graph!(
@@ -80,7 +80,7 @@ impl NetworkDialog {
             network.packets_transmitted(),
             network.total_packets_transmitted(),
             packets_transmitted_peak,
-            11,
+            12,
             formatter
         );
         update_graph!(
@@ -90,7 +90,7 @@ impl NetworkDialog {
             network.errors_on_received(),
             network.total_errors_on_received(),
             errors_on_received_peak,
-            14,
+            15,
             formatter
         );
         update_graph!(
@@ -100,7 +100,7 @@ impl NetworkDialog {
             network.errors_on_transmitted(),
             network.total_errors_on_transmitted(),
             errors_on_transmitted_peak,
-            17,
+            18,
             formatter
         );
         t.queue_draw();
@@ -113,7 +113,7 @@ impl NetworkDialog {
             network.received(),
             network.total_received(),
             received_peak,
-            2,
+            3,
             format_number
         );
         update_graph!(
@@ -123,7 +123,7 @@ impl NetworkDialog {
             network.transmitted(),
             network.total_transmitted(),
             transmitted_peak,
-            5,
+            6,
             format_number
         );
         t.queue_draw();
@@ -264,6 +264,10 @@ pub fn create_network_dialog(
     append_text_column(&tree, "property", 0, false);
     append_text_column(&tree, "value", 1, true);
 
+    list_store.insert_with_values(
+        None,
+        &[(0, &"MAC address"), (1, &network.mac_address().to_string())],
+    );
     list_store.insert_with_values(
         None,
         &[(0, &"received"), (1, &format_number(network.received()))],
