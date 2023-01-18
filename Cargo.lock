@@ -598,7 +598,7 @@ dependencies = [
 
 [[package]]
 name = "process_viewer"
-version = "0.5.5"
+version = "0.5.6"
 dependencies = [
  "gtk4",
  "libc",
@@ -725,9 +725,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.27.6"
+version = "0.27.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c215311383d25d03753375c53ab9fad8fc0cf46953c409211e065edeabf577ee"
+checksum = "975fe381e0ecba475d4acff52466906d95b153a40324956552e027b2a9eaa89e"
 dependencies = [
  "cfg-if",
  "core-foundation-sys",
