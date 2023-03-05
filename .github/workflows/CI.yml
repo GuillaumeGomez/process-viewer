@@ -26,7 +26,7 @@ jobs:
           - stable
           - beta
           - nightly
-          - "1.59.0" # Minimum supported version (from gtk-rs)
+          - "1.64.0" # Minimum supported version (from gtk-rs)
         os:
           - ubuntu-22.04
           - macos-latest
