@@ -141,8 +141,7 @@ impl<T> Index<usize> for RotateVec<T> {
 
 pub fn get_app() -> gtk::Application {
     gio::Application::default()
-        .expect("No default application")
-        .downcast::<gtk::Application>()
+        .and_downcast::<gtk::Application>()
         .expect("Default application has wrong type")
 }
 

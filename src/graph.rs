@@ -113,8 +113,7 @@ impl ObjectImpl for GraphWidgetImp {
         let obj = self.obj();
         let layout = obj
             .layout_manager()
-            .unwrap()
-            .downcast::<gtk::BoxLayout>()
+            .and_downcast::<gtk::BoxLayout>()
             .unwrap();
         layout.set_orientation(gtk::Orientation::Vertical);
         layout.set_spacing(5);
