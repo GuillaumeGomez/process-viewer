@@ -46,7 +46,7 @@ fn refresh_disks(container: &gtk::Box, disks: &[sysinfo::Disk], elems: &mut Vec<
             if let Some(entry) = elems.iter_mut().find(|e| e.mount_point == mount_point) {
                 entry
             } else {
-                let label = gtk::builders::LabelBuilder::new()
+                let label = gtk::Label::builder()
                     .margin_top(if elems.is_empty() { 8 } else { 20 })
                     .build();
 
@@ -79,9 +79,12 @@ fn refresh_disks(container: &gtk::Box, disks: &[sysinfo::Disk], elems: &mut Vec<
 pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
     let elems: Rc<RefCell<Vec<DiskInfo>>> = Rc::new(RefCell::new(Vec::new()));
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let scroll = gtk::ScrolledWindow::new();
-
     let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let scroll = gtk::ScrolledWindow::builder()
+        .hexpand(true)
+        .vexpand(true)
+        .child(&container)
+        .build();
 
     let refresh_but = gtk::Button::with_label("Refresh disks");
 
@@ -89,13 +92,10 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
         glib::clone!(@weak sys, @weak container, @strong elems => move |_| {
             let mut sys = sys.lock().expect("failed to lock to refresh disks");
             sys.refresh_disks();
-            refresh_disks(&container, sys.disks(), &mut *elems.borrow_mut());
+            refresh_disks(&container, sys.disks(), &mut elems.borrow_mut());
         }),
     );
 
-    scroll.set_child(Some(&container));
-    scroll.set_hexpand(true);
-    scroll.set_vexpand(true);
     vertical_layout.append(&scroll);
     vertical_layout.append(&refresh_but);
 
@@ -104,6 +104,6 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
     refresh_disks(
         &container,
         sys.lock().expect("failed to lock to get disks").disks(),
-        &mut *elems.borrow_mut(),
+        &mut elems.borrow_mut(),
     );
 }

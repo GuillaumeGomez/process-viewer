@@ -8,13 +8,12 @@
 
 use sysinfo::*;
 
-use gtk::gdk::Texture;
-use gtk::gdk_pixbuf::Pixbuf;
-use gtk::gio::prelude::*;
-use gtk::gio::MemoryInputStream;
-use gtk::glib::{Bytes, IsA, ToVariant};
+use gdk::Texture;
+use gdk_pixbuf::Pixbuf;
+use gio::MemoryInputStream;
+use glib::Bytes;
 use gtk::prelude::*;
-use gtk::{gdk, gio, glib};
+use gtk::{gdk, gdk_pixbuf, gio, glib};
 use gtk::{AboutDialog, Dialog, Entry, MessageDialog};
 
 use std::cell::RefCell;
@@ -182,7 +181,7 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
         gtk::DialogFlags::DESTROY_WITH_PARENT,
         gtk::MessageType::Info,
         gtk::ButtonsType::Ok,
-        &x,
+        x,
     );
     m.set_modal(true);
     m.connect_response(|dialog, response| {
@@ -303,7 +302,7 @@ fn setup_network_timeout(rfs: &RequiredForSettings) {
 
     ready_rx.attach(None,
         glib::clone!(@weak sys, @weak network_tab => @default-panic, move |_: bool| {
-            network_tab.borrow_mut().update_networks(&*sys.lock().expect("failed to lock to update networks"));
+            network_tab.borrow_mut().update_networks(&sys.lock().expect("failed to lock to update networks"));
             glib::Continue(true)
         })
     );
@@ -335,8 +334,8 @@ fn setup_system_timeout(rfs: &RequiredForSettings, settings: &Rc<RefCell<Setting
             let sys = sys.lock().expect("failed to lock to update system");
             let display_fahrenheit = settings.borrow().display_fahrenheit;
 
-            info.update_system_info(&*sys, display_fahrenheit);
-            info.update_system_info_display(&*sys);
+            info.update_system_info(&sys, display_fahrenheit);
+            info.update_system_info_display(&sys);
             glib::Continue(true)
         }),
     );
@@ -449,7 +448,7 @@ fn build_ui(application: &gtk::Application) {
                 create_new_proc_diag(
                     &process_dialogs,
                     pid,
-                    &*sys.lock().expect("failed to lock to create new proc dialog"),
+                    &sys.lock().expect("failed to lock to create new proc dialog"),
                 );
             }
         }),
@@ -466,7 +465,7 @@ fn build_ui(application: &gtk::Application) {
                 create_new_proc_diag(
                     &process_dialogs,
                     Pid::from_u32(pid),
-                    &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"),
+                    &sys.lock().expect("failed to lock to create new proc dialog (from tree)"),
                 );
             }
         ));
@@ -486,7 +485,7 @@ fn build_ui(application: &gtk::Application) {
         let bytes = Bytes::from_static(include_bytes!(
             concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png")));
         let memory_stream = MemoryInputStream::from_bytes(&bytes);
-        let pixbuf = Pixbuf::from_stream(&memory_stream, None::<&gio::Cancellable>);
+        let pixbuf = Pixbuf::from_stream(&memory_stream, gio::Cancellable::NONE);
         let p = if let Ok(pixbuf) = pixbuf {
             let logo = Texture::for_pixbuf(&pixbuf);
             p.logo(&logo)
@@ -544,7 +543,7 @@ fn build_ui(application: &gtk::Application) {
     let graphs = gio::SimpleAction::new_stateful(
         "graphs",
         None,
-        &settings.borrow().display_graph.to_variant(),
+        settings.borrow().display_graph.to_variant(),
     );
     graphs.connect_activate(glib::clone!(@weak settings => move |g, _| {
         let mut is_active = false;
@@ -563,7 +562,7 @@ fn build_ui(application: &gtk::Application) {
     let temperature = gio::SimpleAction::new_stateful(
         "temperature",
         None,
-        &settings.borrow().display_fahrenheit.to_variant(),
+        settings.borrow().display_fahrenheit.to_variant(),
     );
     temperature.connect_activate(move |g, _| {
         let mut is_active = false;
@@ -635,7 +634,7 @@ fn build_ui(application: &gtk::Application) {
                     network_tab
                         .borrow()
                         .search_bar
-                        .set_key_capture_widget(None::<&gtk::Widget>);
+                        .set_key_capture_widget(gtk::Widget::NONE);
                     search_filter_button.set_sensitive(true);
                     return;
                 }
@@ -644,9 +643,7 @@ fn build_ui(application: &gtk::Application) {
                         .borrow()
                         .search_bar
                         .set_key_capture_widget(Some(&window));
-                    procs
-                        .search_bar
-                        .set_key_capture_widget(None::<&gtk::Widget>);
+                    procs.search_bar.set_key_capture_widget(gtk::Widget::NONE);
                     search_filter_button.set_sensitive(true);
                     return;
                 }
@@ -654,13 +651,11 @@ fn build_ui(application: &gtk::Application) {
             }
         }
         search_filter_button.set_sensitive(false);
-        procs
-            .search_bar
-            .set_key_capture_widget(None::<&gtk::Widget>);
+        procs.search_bar.set_key_capture_widget(gtk::Widget::NONE);
         network_tab
             .borrow()
             .search_bar
-            .set_key_capture_widget(None::<&gtk::Widget>);
+            .set_key_capture_widget(gtk::Widget::NONE);
     });
 }
 
@@ -671,7 +666,7 @@ fn main() {
         let provider = gtk::CssProvider::new();
         // Style needed for graph.
         provider.load_from_data(
-            br#"
+            r#"
 graph_widget {
     color: @theme_fg_color;
 }

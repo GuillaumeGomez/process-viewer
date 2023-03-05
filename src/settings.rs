@@ -4,9 +4,7 @@
 // Copyright (c) 2019 Guillaume Gomez
 //
 
-use gtk::{self, glib};
-
-use gtk::gio::prelude::ApplicationExt;
+use gtk::glib;
 use gtk::prelude::*;
 
 use serde_derive::{Deserialize, Serialize};
@@ -140,12 +138,13 @@ fn show_error_dialog(fatal: bool, text: &str) {
 
 pub fn build_spin(label: &str, grid: &gtk::Grid, top: i32, refresh: u32) -> gtk::SpinButton {
     // Refresh rate.
-    let refresh_label = gtk::Label::new(Some(label));
+    let refresh_label = gtk::Label::builder()
+        .label(label)
+        .halign(gtk::Align::Start)
+        .hexpand(true)
+        .build();
     // We allow 0.5 to 5 seconds, in 0.1 second steps.
     let refresh_entry = gtk::SpinButton::with_range(0.5, 5., 0.1);
-
-    refresh_label.set_halign(gtk::Align::Start);
-    refresh_entry.set_hexpand(true);
 
     refresh_entry.set_value(f64::from(refresh) / 1_000.);
 
@@ -165,10 +164,11 @@ pub fn show_settings_dialog(settings: &Rc<RefCell<Settings>>, rfs: &RequiredForS
     );
 
     // All the UI widgets are going to be stored in a grid.
-    let grid = gtk::Grid::new();
-    grid.set_column_spacing(4);
-    grid.set_row_spacing(4);
-    grid.set_margin_bottom(12);
+    let grid = gtk::Grid::builder()
+        .column_spacing(4)
+        .row_spacing(4)
+        .margin_bottom(12)
+        .build();
 
     let refresh_procs = build_spin(
         "Processes refresh rate (in seconds)",

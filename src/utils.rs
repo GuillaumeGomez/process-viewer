@@ -1,5 +1,4 @@
 use gtk::gio;
-use gtk::glib::Cast;
 use gtk::prelude::*;
 
 use std::ops::Index;
@@ -142,16 +141,13 @@ impl<T> Index<usize> for RotateVec<T> {
 
 pub fn get_app() -> gtk::Application {
     gio::Application::default()
-        .expect("No default application")
-        .downcast::<gtk::Application>()
+        .and_downcast::<gtk::Application>()
         .expect("Default application has wrong type")
 }
 
 pub fn get_main_window() -> Option<gtk::Window> {
-    for window in get_app().windows() {
-        if window.widget_name() == MAIN_WINDOW_NAME {
-            return Some(window);
-        }
-    }
-    None
+    get_app()
+        .windows()
+        .into_iter()
+        .find(|window| window.widget_name() == MAIN_WINDOW_NAME)
 }

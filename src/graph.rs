@@ -1,9 +1,9 @@
-use gtk::gdk::RGBA;
-use gtk::graphene::Rect;
-use gtk::gsk::RoundedRect;
+use gdk::RGBA;
+use graphene::Rect;
+use gsk::RoundedRect;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use gtk::{cairo, glib};
+use gtk::{cairo, gdk, glib, graphene, gsk};
 use std::cell::{Cell, RefCell};
 
 use crate::color::Color;
@@ -23,7 +23,7 @@ impl GraphWidget {
     /// If `keep_max` is set to `true`, then this value will never go down, meaning that graphs
     /// won't rescale down. It is not taken into account if `max` is `None`.
     pub fn new(max: Option<f32>, keep_max: bool) -> Self {
-        let widget: Self = glib::Object::new(&[]).expect("Failed to create GraphWidget");
+        let widget = glib::Object::new::<Self>();
         widget.imp().graph.borrow().set_max(max);
         widget.imp().graph.borrow().set_keep_max(keep_max);
         widget.imp().graph.borrow().set_hexpand(true);
@@ -99,8 +99,8 @@ impl ObjectSubclass for GraphWidgetImp {
 }
 
 impl WidgetImpl for GraphWidgetImp {
-    fn show(&self, widget: &Self::Type) {
-        self.parent_show(widget);
+    fn show(&self) {
+        self.parent_show();
         if !self.display_labels.get() {
             self.labels.borrow().hide();
         }
@@ -108,20 +108,21 @@ impl WidgetImpl for GraphWidgetImp {
 }
 
 impl ObjectImpl for GraphWidgetImp {
-    fn constructed(&self, obj: &Self::Type) {
+    fn constructed(&self) {
+        self.parent_constructed();
+        let obj = self.obj();
         let layout = obj
             .layout_manager()
-            .unwrap()
-            .downcast::<gtk::BoxLayout>()
+            .and_downcast::<gtk::BoxLayout>()
             .unwrap();
         layout.set_orientation(gtk::Orientation::Vertical);
         layout.set_spacing(5);
         self.labels.borrow().set_homogeneous(true);
-        self.graph.borrow().set_parent(obj);
-        self.labels.borrow().set_parent(obj);
+        self.graph.borrow().set_parent(&*obj);
+        self.labels.borrow().set_parent(&*obj);
     }
 
-    fn dispose(&self, _obj: &Self::Type) {
+    fn dispose(&self) {
         // Child widgets need to be manually unparented in `dispose()`.
         self.graph.borrow().unparent();
         self.labels.borrow().unparent();
@@ -136,7 +137,7 @@ glib::wrapper! {
 impl GraphInnerWidget {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        glib::Object::new(&[]).expect("Failed to create GraphInnerWidget")
+        glib::Object::new()
     }
 
     pub fn set_max(&self, max: Option<f32>) {
@@ -290,12 +291,7 @@ impl GraphPainter {
 impl ObjectImpl for GraphPainter {}
 
 impl WidgetImpl for GraphPainter {
-    fn measure(
-        &self,
-        _widget: &Self::Type,
-        orientation: gtk::Orientation,
-        _for_size: i32,
-    ) -> (i32, i32, i32, i32) {
+    fn measure(&self, orientation: gtk::Orientation, _for_size: i32) -> (i32, i32, i32, i32) {
         if orientation == gtk::Orientation::Vertical {
             // Minimum height is HEIGHT.
             (HEIGHT as i32, HEIGHT as i32, -1, -1)
@@ -305,7 +301,8 @@ impl WidgetImpl for GraphPainter {
         }
     }
 
-    fn snapshot(&self, widget: &Self::Type, snapshot: &gtk::Snapshot) {
+    fn snapshot(&self, snapshot: &gtk::Snapshot) {
+        let widget = self.obj();
         let x_start = if self.labels_callback.borrow().is_some() {
             LEFT_WIDTH
         } else {
@@ -400,7 +397,7 @@ impl WidgetImpl for GraphPainter {
                 }
             }
             let c = snapshot.append_cairo(&Rect::new(1., 0., x_start, HEIGHT - 2.));
-            self.draw_labels(widget, &c, max);
+            self.draw_labels(&widget, &c, max);
         } else {
             let data = self.data.borrow();
             if !data.is_empty() && !data[0].is_empty() {
@@ -430,7 +427,7 @@ impl WidgetImpl for GraphPainter {
             }
             let c = snapshot.append_cairo(&Rect::new(1., 0., x_start, HEIGHT));
             // To be called in last to avoid having to restore state (rotation).
-            self.draw_labels(widget, &c, 100.);
+            self.draw_labels(&widget, &c, 100.);
         }
     }
 }
@@ -442,7 +439,7 @@ glib::wrapper! {
 
 impl SquareWidget {
     pub fn new(color: Color) -> Self {
-        let widget: Self = glib::Object::new(&[]).expect("Failed to create SquareWidget");
+        let widget = glib::Object::new::<Self>();
         widget.imp().color.set(color);
         widget
     }
@@ -472,21 +469,17 @@ impl ObjectSubclass for SquarePainter {
 impl ObjectImpl for SquarePainter {}
 
 impl WidgetImpl for SquarePainter {
-    fn measure(
-        &self,
-        _widget: &Self::Type,
-        _orientation: gtk::Orientation,
-        _for_size: i32,
-    ) -> (i32, i32, i32, i32) {
+    fn measure(&self, _orientation: gtk::Orientation, _for_size: i32) -> (i32, i32, i32, i32) {
         // Minimum width is 20.
         (20, 20, -1, -1)
     }
 
-    fn request_mode(&self, _: &Self::Type) -> gtk::SizeRequestMode {
+    fn request_mode(&self) -> gtk::SizeRequestMode {
         gtk::SizeRequestMode::WidthForHeight
     }
 
-    fn snapshot(&self, widget: &Self::Type, snapshot: &gtk::Snapshot) {
+    fn snapshot(&self, snapshot: &gtk::Snapshot) {
+        let widget = self.obj();
         let width = widget.width() as f32;
         let height = widget.height() as f32;
         let margin = 2.; // only to limit the height

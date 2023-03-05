@@ -139,7 +139,10 @@ impl NetworkDialog {
 }
 
 fn append_text_column(tree: &gtk::TreeView, title: &str, pos: i32, right_align: bool) {
-    let column = gtk::TreeViewColumn::new();
+    let column = gtk::TreeViewColumn::builder()
+        .title(title)
+        .resizable(true)
+        .build();
     let cell = gtk::CellRendererText::new();
 
     if right_align {
@@ -151,8 +154,6 @@ fn append_text_column(tree: &gtk::TreeView, title: &str, pos: i32, right_align: 
         cell.set_wrap_mode(gtk::pango::WrapMode::Char);
         column.set_expand(true);
     }
-    column.set_title(title);
-    column.set_resizable(true);
     tree.append_column(&column);
 }
 
@@ -184,12 +185,14 @@ pub fn create_network_dialog(
     //
     // GRAPH TAB
     //
-    let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    vertical_layout.set_spacing(5);
-    vertical_layout.set_margin_top(10);
-    vertical_layout.set_margin_bottom(10);
-    vertical_layout.set_margin_start(5);
-    vertical_layout.set_margin_end(5);
+    let vertical_layout = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(5)
+        .margin_top(10)
+        .margin_bottom(10)
+        .margin_start(5)
+        .margin_end(5)
+        .build();
     let scroll = gtk::ScrolledWindow::new();
     let in_out_history = GraphWidget::new(Some(1.), false);
 
@@ -255,11 +258,11 @@ pub fn create_network_dialog(
     //
     // NETWORK INFO TAB
     //
-    let tree = gtk::TreeView::new();
     let list_store = gtk::ListStore::new(&[glib::Type::STRING, glib::Type::STRING]);
-
-    tree.set_headers_visible(true);
-    tree.set_model(Some(&list_store));
+    let tree = gtk::TreeView::builder()
+        .headers_visible(true)
+        .model(&list_store)
+        .build();
 
     append_text_column(&tree, "property", 0, false);
     append_text_column(&tree, "value", 1, true);
@@ -436,7 +439,7 @@ pub fn create_network_dialog(
             Inhibit(false)
         }
     ));
-    popup.add_controller(&event_controller);
+    popup.add_controller(event_controller);
     popup.set_resizable(true);
     popup.show();
 
