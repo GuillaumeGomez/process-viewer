@@ -1,9 +1,9 @@
-use gtk::gdk::RGBA;
-use gtk::graphene::Rect;
-use gtk::gsk::RoundedRect;
+use gdk::RGBA;
+use graphene::Rect;
+use gsk::RoundedRect;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use gtk::{cairo, glib};
+use gtk::{cairo, gdk, glib, graphene, gsk};
 use std::cell::{Cell, RefCell};
 
 use crate::color::Color;

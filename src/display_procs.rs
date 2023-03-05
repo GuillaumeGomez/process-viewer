@@ -1,6 +1,4 @@
 use gtk::glib;
-use gtk::glib::object::Cast;
-use gtk::glib::Type;
 use gtk::prelude::*;
 
 use sysinfo::{Pid, PidExt, Process, ProcessExt};
@@ -58,16 +56,16 @@ impl Procs {
 
         let list_store = gtk::ListStore::new(&[
             // The first four columns of the model are going to be visible in the view.
-            Type::U32,    // pid
-            Type::STRING, // name
-            Type::STRING, // CPU
-            Type::STRING, // mem
-            Type::STRING, // disk I/O
+            glib::Type::U32,    // pid
+            glib::Type::STRING, // name
+            glib::Type::STRING, // CPU
+            glib::Type::STRING, // mem
+            glib::Type::STRING, // disk I/O
             // These two will serve as keys when sorting by process name and CPU usage.
-            Type::STRING, // name_lowercase
-            Type::F32,    // CPU_f32
-            Type::U64,    // mem
-            Type::U64,    // disk I/O
+            glib::Type::STRING, // name_lowercase
+            glib::Type::F32,    // CPU_f32
+            glib::Type::U64,    // mem
+            glib::Type::U64,    // disk I/O
         ]);
 
         for pro in proc_list.values() {

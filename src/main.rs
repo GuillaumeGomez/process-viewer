@@ -8,13 +8,12 @@
 
 use sysinfo::*;
 
-use gtk::gdk::Texture;
-use gtk::gdk_pixbuf::Pixbuf;
-use gtk::gio::prelude::*;
-use gtk::gio::MemoryInputStream;
-use gtk::glib::{Bytes, IsA, ToVariant};
+use gdk::Texture;
+use gdk_pixbuf::Pixbuf;
+use gio::MemoryInputStream;
+use glib::Bytes;
 use gtk::prelude::*;
-use gtk::{gdk, gio, glib};
+use gtk::{gdk, gdk_pixbuf, gio, glib};
 use gtk::{AboutDialog, Dialog, Entry, MessageDialog};
 
 use std::cell::RefCell;

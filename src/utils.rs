@@ -1,5 +1,4 @@
 use gtk::gio;
-use gtk::glib::Cast;
 use gtk::prelude::*;
 
 use std::ops::Index;

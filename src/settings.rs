@@ -4,9 +4,7 @@
 // Copyright (c) 2019 Guillaume Gomez
 //
 
-use gtk::{self, glib};
-
-use gtk::gio::prelude::ApplicationExt;
+use gtk::glib;
 use gtk::prelude::*;
 
 use serde_derive::{Deserialize, Serialize};

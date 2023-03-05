@@ -1,4 +1,3 @@
-use gtk::glib::IsA;
 use gtk::prelude::*;
 use gtk::{Box, Label, Notebook, Orientation, Widget};
 

@@ -1,6 +1,6 @@
 use gtk::glib;
 use gtk::prelude::*;
-use sysinfo::{self, ComponentExt, CpuExt, SystemExt};
+use sysinfo::{ComponentExt, CpuExt, SystemExt};
 
 use std::cell::RefCell;
 use std::iter;
