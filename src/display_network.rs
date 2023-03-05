@@ -174,9 +174,9 @@ impl Network {
             let current_network = current_network.borrow();
             if let Some(ref interface_name) = *current_network {
                 create_network_dialog(
-                    &mut *dialogs.borrow_mut(),
+                    &mut dialogs.borrow_mut(),
                     interface_name,
-                    &*sys.lock().expect("failed to lock for new network dialog"),
+                    &sys.lock().expect("failed to lock for new network dialog"),
                 );
             }
         }));
@@ -189,9 +189,9 @@ impl Network {
                     .get::<String>()
                     .expect("Model::get failed");
                 create_network_dialog(
-                    &mut *dialogs.borrow_mut(),
+                    &mut dialogs.borrow_mut(),
                     &interface_name,
-                    &*sys.lock().expect("failed to lock for new network dialog (from tree)"),
+                    &sys.lock().expect("failed to lock for new network dialog (from tree)"),
                 );
             }),
         );

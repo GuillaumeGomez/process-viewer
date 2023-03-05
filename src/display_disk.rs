@@ -89,7 +89,7 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
         glib::clone!(@weak sys, @weak container, @strong elems => move |_| {
             let mut sys = sys.lock().expect("failed to lock to refresh disks");
             sys.refresh_disks();
-            refresh_disks(&container, sys.disks(), &mut *elems.borrow_mut());
+            refresh_disks(&container, sys.disks(), &mut elems.borrow_mut());
         }),
     );
 
@@ -104,6 +104,6 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
     refresh_disks(
         &container,
         sys.lock().expect("failed to lock to get disks").disks(),
-        &mut *elems.borrow_mut(),
+        &mut elems.borrow_mut(),
     );
 }

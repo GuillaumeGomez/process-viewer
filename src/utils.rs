@@ -147,10 +147,8 @@ pub fn get_app() -> gtk::Application {
 }
 
 pub fn get_main_window() -> Option<gtk::Window> {
-    for window in get_app().windows() {
-        if window.widget_name() == MAIN_WINDOW_NAME {
-            return Some(window);
-        }
-    }
-    None
+    get_app()
+        .windows()
+        .into_iter()
+        .find(|window| window.widget_name() == MAIN_WINDOW_NAME)
 }

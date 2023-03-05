@@ -181,7 +181,7 @@ fn run_command<T: IsA<gtk::Window>>(input: &Entry, window: &T, d: &Dialog) {
         gtk::DialogFlags::DESTROY_WITH_PARENT,
         gtk::MessageType::Info,
         gtk::ButtonsType::Ok,
-        &x,
+        x,
     );
     m.set_modal(true);
     m.connect_response(|dialog, response| {
@@ -302,7 +302,7 @@ fn setup_network_timeout(rfs: &RequiredForSettings) {
 
     ready_rx.attach(None,
         glib::clone!(@weak sys, @weak network_tab => @default-panic, move |_: bool| {
-            network_tab.borrow_mut().update_networks(&*sys.lock().expect("failed to lock to update networks"));
+            network_tab.borrow_mut().update_networks(&sys.lock().expect("failed to lock to update networks"));
             glib::Continue(true)
         })
     );
@@ -334,8 +334,8 @@ fn setup_system_timeout(rfs: &RequiredForSettings, settings: &Rc<RefCell<Setting
             let sys = sys.lock().expect("failed to lock to update system");
             let display_fahrenheit = settings.borrow().display_fahrenheit;
 
-            info.update_system_info(&*sys, display_fahrenheit);
-            info.update_system_info_display(&*sys);
+            info.update_system_info(&sys, display_fahrenheit);
+            info.update_system_info_display(&sys);
             glib::Continue(true)
         }),
     );
@@ -448,7 +448,7 @@ fn build_ui(application: &gtk::Application) {
                 create_new_proc_diag(
                     &process_dialogs,
                     pid,
-                    &*sys.lock().expect("failed to lock to create new proc dialog"),
+                    &sys.lock().expect("failed to lock to create new proc dialog"),
                 );
             }
         }),
@@ -465,7 +465,7 @@ fn build_ui(application: &gtk::Application) {
                 create_new_proc_diag(
                     &process_dialogs,
                     Pid::from_u32(pid),
-                    &*sys.lock().expect("failed to lock to create new proc dialog (from tree)"),
+                    &sys.lock().expect("failed to lock to create new proc dialog (from tree)"),
                 );
             }
         ));
