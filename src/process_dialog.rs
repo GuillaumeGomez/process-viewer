@@ -408,7 +408,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
             Inhibit(false)
         }),
     );
-    popup.add_controller(&event_controller);
+    popup.add_controller(event_controller);
     popup.set_resizable(true);
     popup.show();
 

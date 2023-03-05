@@ -544,7 +544,7 @@ fn build_ui(application: &gtk::Application) {
     let graphs = gio::SimpleAction::new_stateful(
         "graphs",
         None,
-        &settings.borrow().display_graph.to_variant(),
+        settings.borrow().display_graph.to_variant(),
     );
     graphs.connect_activate(glib::clone!(@weak settings => move |g, _| {
         let mut is_active = false;
@@ -563,7 +563,7 @@ fn build_ui(application: &gtk::Application) {
     let temperature = gio::SimpleAction::new_stateful(
         "temperature",
         None,
-        &settings.borrow().display_fahrenheit.to_variant(),
+        settings.borrow().display_fahrenheit.to_variant(),
     );
     temperature.connect_activate(move |g, _| {
         let mut is_active = false;
@@ -671,7 +671,7 @@ fn main() {
         let provider = gtk::CssProvider::new();
         // Style needed for graph.
         provider.load_from_data(
-            br#"
+            r#"
 graph_widget {
     color: @theme_fg_color;
 }

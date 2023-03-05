@@ -46,7 +46,7 @@ fn refresh_disks(container: &gtk::Box, disks: &[sysinfo::Disk], elems: &mut Vec<
             if let Some(entry) = elems.iter_mut().find(|e| e.mount_point == mount_point) {
                 entry
             } else {
-                let label = gtk::builders::LabelBuilder::new()
+                let label = gtk::Label::builder()
                     .margin_top(if elems.is_empty() { 8 } else { 20 })
                     .build();
 

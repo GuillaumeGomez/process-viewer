@@ -436,7 +436,7 @@ pub fn create_network_dialog(
             Inhibit(false)
         }
     ));
-    popup.add_controller(&event_controller);
+    popup.add_controller(event_controller);
     popup.set_resizable(true);
     popup.show();
 
