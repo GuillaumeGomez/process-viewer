@@ -485,7 +485,7 @@ fn build_ui(application: &gtk::Application) {
         let bytes = Bytes::from_static(include_bytes!(
             concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png")));
         let memory_stream = MemoryInputStream::from_bytes(&bytes);
-        let pixbuf = Pixbuf::from_stream(&memory_stream, None::<&gio::Cancellable>);
+        let pixbuf = Pixbuf::from_stream(&memory_stream, gio::Cancellable::NONE);
         let p = if let Ok(pixbuf) = pixbuf {
             let logo = Texture::for_pixbuf(&pixbuf);
             p.logo(&logo)
@@ -634,7 +634,7 @@ fn build_ui(application: &gtk::Application) {
                     network_tab
                         .borrow()
                         .search_bar
-                        .set_key_capture_widget(None::<&gtk::Widget>);
+                        .set_key_capture_widget(gtk::Widget::NONE);
                     search_filter_button.set_sensitive(true);
                     return;
                 }
@@ -643,9 +643,7 @@ fn build_ui(application: &gtk::Application) {
                         .borrow()
                         .search_bar
                         .set_key_capture_widget(Some(&window));
-                    procs
-                        .search_bar
-                        .set_key_capture_widget(None::<&gtk::Widget>);
+                    procs.search_bar.set_key_capture_widget(gtk::Widget::NONE);
                     search_filter_button.set_sensitive(true);
                     return;
                 }
@@ -653,13 +651,11 @@ fn build_ui(application: &gtk::Application) {
             }
         }
         search_filter_button.set_sensitive(false);
-        procs
-            .search_bar
-            .set_key_capture_widget(None::<&gtk::Widget>);
+        procs.search_bar.set_key_capture_widget(gtk::Widget::NONE);
         network_tab
             .borrow()
             .search_bar
-            .set_key_capture_widget(None::<&gtk::Widget>);
+            .set_key_capture_widget(gtk::Widget::NONE);
     });
 }
 
