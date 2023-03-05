@@ -25,31 +25,40 @@ pub struct Procs {
 
 impl Procs {
     pub fn new(proc_list: &HashMap<Pid, Process>, stack: &gtk::Stack) -> Procs {
-        let left_tree = gtk::TreeView::new();
-        let scroll = gtk::ScrolledWindow::new();
+        let left_tree = gtk::TreeView::builder().headers_visible(true).build();
+        let scroll = gtk::ScrolledWindow::builder().child(&left_tree).build();
         let current_pid = Rc::new(Cell::new(None));
-        let kill_button = gtk::Button::with_label("End task");
-        let info_button = gtk::Button::with_label("More information");
+        let kill_button = gtk::Button::builder()
+            .label("End task")
+            .hexpand(true)
+            .margin_top(6)
+            .margin_bottom(6)
+            .margin_end(6)
+            .sensitive(false)
+            .build();
+        let info_button = gtk::Button::builder()
+            .label("More information")
+            .hexpand(true)
+            .margin_top(6)
+            .margin_bottom(6)
+            .margin_end(6)
+            .sensitive(false)
+            .build();
 
-        kill_button.set_hexpand(true);
-        info_button.set_hexpand(true);
-        info_button.set_margin_top(6);
-        info_button.set_margin_bottom(6);
-        info_button.set_margin_start(6);
-        kill_button.set_margin_top(6);
-        kill_button.set_margin_bottom(6);
-        kill_button.set_margin_end(6);
-
-        let overlay = gtk::Overlay::new();
+        let overlay = gtk::Overlay::builder()
+            .child(&scroll)
+            .hexpand(true)
+            .vexpand(true)
+            .build();
         let filter_entry = gtk::SearchEntry::new();
-        let search_bar = gtk::SearchBar::new();
+        let search_bar = gtk::SearchBar::builder()
+            .halign(gtk::Align::End)
+            .valign(gtk::Align::End)
+            .show_close_button(true)
+            .child(&filter_entry)
+            .build();
 
         // We put the filter entry at the right bottom.
-        search_bar.set_halign(gtk::Align::End);
-        search_bar.set_valign(gtk::Align::End);
-        search_bar.set_child(Some(&filter_entry));
-        search_bar.set_show_close_button(true);
-
         overlay.add_overlay(&search_bar);
 
         let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
@@ -86,11 +95,8 @@ impl Procs {
             }
         }
 
-        left_tree.set_headers_visible(true);
-        scroll.set_child(Some(&left_tree));
-        overlay.set_child(Some(&scroll));
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 6);
 
         left_tree.connect_cursor_changed(
             glib::clone!(@strong current_pid, @weak kill_button, @weak info_button => move |tree_view| {
@@ -109,15 +115,9 @@ impl Procs {
                 info_button.set_sensitive(ret);
             }),
         );
-        kill_button.set_sensitive(false);
-        info_button.set_sensitive(false);
-
-        overlay.set_hexpand(true);
-        overlay.set_vexpand(true);
         vertical_layout.append(&overlay);
         horizontal_layout.append(&info_button);
         horizontal_layout.append(&kill_button);
-        horizontal_layout.set_spacing(6);
         vertical_layout.append(&horizontal_layout);
 
         // The filter part.
@@ -220,18 +220,20 @@ fn append_column(
         renderer.set_xalign(1.0);
     }
 
-    let column = gtk::TreeViewColumn::new();
-    column.set_title(title);
-    column.set_resizable(true);
+    let column = gtk::TreeViewColumn::builder()
+        .title(title)
+        .resizable(true)
+        .min_width(10)
+        .clickable(true)
+        .sort_column_id(id)
+        .build();
+
     if let Some(max_width) = max_width {
         column.set_max_width(max_width);
         column.set_expand(true);
     }
-    column.set_min_width(10);
     column.pack_start(&renderer, true);
     column.add_attribute(&renderer, "text", id);
-    column.set_clickable(true);
-    column.set_sort_column_id(id);
     left_tree.append_column(&column);
     v.push(column);
 }

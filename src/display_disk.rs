@@ -79,9 +79,12 @@ fn refresh_disks(container: &gtk::Box, disks: &[sysinfo::Disk], elems: &mut Vec<
 pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
     let elems: Rc<RefCell<Vec<DiskInfo>>> = Rc::new(RefCell::new(Vec::new()));
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let scroll = gtk::ScrolledWindow::new();
-
     let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let scroll = gtk::ScrolledWindow::builder()
+        .hexpand(true)
+        .vexpand(true)
+        .child(&container)
+        .build();
 
     let refresh_but = gtk::Button::with_label("Refresh disks");
 
@@ -93,9 +96,6 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
         }),
     );
 
-    scroll.set_child(Some(&container));
-    scroll.set_hexpand(true);
-    scroll.set_vexpand(true);
     vertical_layout.append(&scroll);
     vertical_layout.append(&refresh_but);
 

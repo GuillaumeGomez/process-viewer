@@ -23,17 +23,18 @@ fn append_column(
         renderer.set_xalign(1.0);
     }
 
-    let column = gtk::TreeViewColumn::new();
-    column.set_title(title);
-    column.set_resizable(true);
+    let column = gtk::TreeViewColumn::builder()
+        .title(title)
+        .resizable(true)
+        .clickable(true)
+        .min_width(10)
+        .build();
     if let Some(max_width) = max_width {
         column.set_max_width(max_width);
         column.set_expand(true);
     }
-    column.set_min_width(10);
     column.pack_start(&renderer, true);
     column.add_attribute(&renderer, "text", id);
-    column.set_clickable(true);
     tree.append_column(&column);
     v.push(column);
 }
@@ -52,6 +53,7 @@ impl Network {
         let info_button = gtk::Button::builder()
             .label("More information")
             .hexpand(true)
+            .sensitive(false)
             .css_classes(vec!["button-with-margin".to_owned()])
             .build();
         let current_network = Rc::new(RefCell::new(None));
@@ -65,7 +67,11 @@ impl Network {
             .show_close_button(true)
             .build();
 
-        let overlay = gtk::Overlay::builder().child(&scroll).build();
+        let overlay = gtk::Overlay::builder()
+            .child(&scroll)
+            .hexpand(true)
+            .vexpand(true)
+            .build();
         overlay.add_overlay(&search_bar);
 
         let mut columns: Vec<gtk::TreeViewColumn> = Vec::new();
@@ -139,8 +145,6 @@ impl Network {
 
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
-        overlay.set_hexpand(true);
-        overlay.set_vexpand(true);
         vertical_layout.append(&overlay);
         vertical_layout.append(&info_button);
 
@@ -166,7 +170,6 @@ impl Network {
                 info_button.set_sensitive(ret);
             }),
         );
-        info_button.set_sensitive(false);
 
         let dialogs = Rc::new(RefCell::new(Vec::new()));
 
