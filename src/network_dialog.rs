@@ -1,5 +1,5 @@
 use gtk::prelude::*;
-use gtk::{glib, EventControllerKey, Inhibit};
+use gtk::{glib, EventControllerKey};
 
 use sysinfo::NetworkExt;
 
@@ -422,21 +422,21 @@ pub fn create_network_dialog(
         popup.close();
     }));
     popup.connect_close_request(
-        glib::clone!(@weak to_be_removed => @default-return Inhibit(false), move |_| {
+        glib::clone!(@weak to_be_removed => @default-return glib::Propagation::Proceed, move |_| {
             to_be_removed.set(true);
-            Inhibit(false)
+            glib::Propagation::Proceed
         }),
     );
     let event_controller = EventControllerKey::new();
     event_controller.connect_key_pressed(glib::clone!(
         @weak popup,
         @weak to_be_removed
-        => @default-return Inhibit(false), move |_, key, _, _modifier| {
+        => @default-return glib::Propagation::Proceed, move |_, key, _, _modifier| {
             if key == gtk::gdk::Key::Escape {
                 popup.close();
                 to_be_removed.set(true);
             }
-            Inhibit(false)
+            glib::Propagation::Proceed
         }
     ));
     popup.add_controller(event_controller);
