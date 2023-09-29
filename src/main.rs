@@ -230,7 +230,7 @@ pub struct RequiredForSettings {
 }
 
 fn setup_timeout(rfs: &RequiredForSettings) {
-    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::Priority::default());
 
     let sys = &rfs.sys;
     let process_dialogs = &rfs.process_dialogs;
@@ -250,7 +250,7 @@ fn setup_timeout(rfs: &RequiredForSettings) {
     );
 
     ready_rx.attach(None,
-        glib::clone!(@weak sys, @weak list_store, @weak process_dialogs => @default-return glib::Continue(true), move |_: bool| {
+        glib::clone!(@weak sys, @weak list_store, @weak process_dialogs => @default-return glib::ControlFlow::Continue, move |_: bool| {
         // first part, deactivate sorting
         let sorted = TreeSortableExtManual::sort_column_id(&list_store);
         list_store.set_unsorted();
@@ -277,12 +277,12 @@ fn setup_timeout(rfs: &RequiredForSettings) {
             panic!("failed to lock sys to refresh UI");
         }
         dialogs.retain(|x| !x.need_remove());
-        glib::Continue(true)
+        glib::ControlFlow::Continue
     }));
 }
 
 fn setup_network_timeout(rfs: &RequiredForSettings) {
-    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::Priority::default());
 
     let network_refresh_timeout = &rfs.network_refresh_timeout;
     let network_tab = &rfs.network_tab;
@@ -303,13 +303,13 @@ fn setup_network_timeout(rfs: &RequiredForSettings) {
     ready_rx.attach(None,
         glib::clone!(@weak sys, @weak network_tab => @default-panic, move |_: bool| {
             network_tab.borrow_mut().update_networks(&sys.lock().expect("failed to lock to update networks"));
-            glib::Continue(true)
+            glib::ControlFlow::Continue
         })
     );
 }
 
 fn setup_system_timeout(rfs: &RequiredForSettings, settings: &Rc<RefCell<Settings>>) {
-    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::Priority::default());
 
     let system_refresh_timeout = &rfs.system_refresh_timeout;
     let sys = &rfs.sys;
@@ -336,7 +336,7 @@ fn setup_system_timeout(rfs: &RequiredForSettings, settings: &Rc<RefCell<Setting
 
             info.update_system_info(&sys, display_fahrenheit);
             info.update_system_info_display(&sys);
-            glib::Continue(true)
+            glib::ControlFlow::Continue
         }),
     );
 }
@@ -543,7 +543,7 @@ fn build_ui(application: &gtk::Application) {
     let graphs = gio::SimpleAction::new_stateful(
         "graphs",
         None,
-        settings.borrow().display_graph.to_variant(),
+        &settings.borrow().display_graph.to_variant(),
     );
     graphs.connect_activate(glib::clone!(@weak settings => move |g, _| {
         let mut is_active = false;
@@ -562,7 +562,7 @@ fn build_ui(application: &gtk::Application) {
     let temperature = gio::SimpleAction::new_stateful(
         "temperature",
         None,
-        settings.borrow().display_fahrenheit.to_variant(),
+        &settings.borrow().display_fahrenheit.to_variant(),
     );
     temperature.connect_activate(move |g, _| {
         let mut is_active = false;
@@ -684,7 +684,7 @@ graph_widget {
 }
 "#,
         );
-        gtk::StyleContext::add_provider_for_display(
+        gtk::style_context_add_provider_for_display(
             &gdk::Display::default().expect("Could not connect to a display."),
             &provider,
             gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
