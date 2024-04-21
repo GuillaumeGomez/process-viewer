@@ -385,7 +385,7 @@ impl DisplaySysInfo {
     }
 }
 
-pub fn show_if_necessary<U: gtk::glib::IsA<gtk::CheckButton>, T: WidgetExt>(
+pub fn show_if_necessary<U: gtk::glib::object::IsA<gtk::CheckButton>, T: WidgetExt>(
     check_box: &U,
     proc_horizontal_layout: &GraphWidget,
     non_graph_layout: &T,

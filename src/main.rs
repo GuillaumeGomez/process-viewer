@@ -230,7 +230,7 @@ pub struct RequiredForSettings {
 }
 
 fn setup_timeout(rfs: &RequiredForSettings) {
-    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::Priority::default());
+    let (sender, receiver) = async_channel::bounded(1);
 
     let sys = &rfs.sys;
     let process_dialogs = &rfs.process_dialogs;
@@ -244,45 +244,52 @@ fn setup_timeout(rfs: &RequiredForSettings) {
                     *process_refresh_timeout.lock().expect("failed to lock process refresh mutex") as _);
                 thread::sleep(sleep_dur);
                 sys.lock().expect("failed to lock to refresh processes").refresh_processes();
-                ready_tx.send(false).expect("failed to send data through process refresh channel");
+                sender.send_blocking(()).expect("failed to send data through process refresh channel");
             }
         }),
     );
 
-    ready_rx.attach(None,
-        glib::clone!(@weak sys, @weak list_store, @weak process_dialogs => @default-return glib::ControlFlow::Continue, move |_: bool| {
-        // first part, deactivate sorting
-        let sorted = TreeSortableExtManual::sort_column_id(&list_store);
-        list_store.set_unsorted();
+    glib::spawn_future_local(
+        glib::clone!(@weak sys, @weak list_store, @weak process_dialogs => async move {
+            loop {
+                match receiver.recv().await {
+                    Ok(_) => {},
+                    Err(error) => {
+                        eprintln!("Stopping process info update loop: {error:?}");
+                        return;
+                    }
+                }
+                // first part, deactivate sorting
+                let sorted = TreeSortableExtManual::sort_column_id(&list_store);
+                list_store.set_unsorted();
 
-        let mut dialogs = process_dialogs.borrow_mut();
+                let mut dialogs = process_dialogs.borrow_mut();
 
-        if let Ok(sys) = sys.lock() {
-            // we update the tree view
-            update_window(&list_store, sys.processes());
+                if let Ok(sys) = sys.lock() {
+                    // we update the tree view
+                    update_window(&list_store, sys.processes());
 
-            // we re-enable the sorting
-            if let Some((col, order)) = sorted {
-                list_store.set_sort_column_id(col, order);
-            }
-            for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
-                // TODO: check if the process name matches the PID too!
-                if let Some(process) = sys.processes().get(&dialog.pid) {
-                    dialog.update(process);
-                } else {
-                    dialog.set_dead();
+                    // we re-enable the sorting
+                    if let Some((col, order)) = sorted {
+                        list_store.set_sort_column_id(col, order);
+                    }
+                    for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
+                        // TODO: check if the process name matches the PID too!
+                        if let Some(process) = sys.processes().get(&dialog.pid) {
+                            dialog.update(process);
+                        } else {
+                            dialog.set_dead();
+                        }
+                    }
+                    dialogs.retain(|x| !x.need_remove());
                 }
             }
-        } else {
-            panic!("failed to lock sys to refresh UI");
-        }
-        dialogs.retain(|x| !x.need_remove());
-        glib::ControlFlow::Continue
-    }));
+        }),
+    );
 }
 
 fn setup_network_timeout(rfs: &RequiredForSettings) {
-    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::Priority::default());
+    let (sender, receiver) = async_channel::bounded(1);
 
     let network_refresh_timeout = &rfs.network_refresh_timeout;
     let network_tab = &rfs.network_tab;
@@ -295,21 +302,27 @@ fn setup_network_timeout(rfs: &RequiredForSettings) {
                     *network_refresh_timeout.lock().expect("failed to lock networks refresh mutex") as _);
                 thread::sleep(sleep_dur);
                 sys.lock().expect("failed to lock to refresh networks").refresh_networks();
-                ready_tx.send(false).expect("failed to send data through networks refresh channel");
+                sender.send_blocking(()).expect("failed to send data through networks refresh channel");
             }
         }),
     );
 
-    ready_rx.attach(None,
-        glib::clone!(@weak sys, @weak network_tab => @default-panic, move |_: bool| {
+    glib::spawn_future_local(glib::clone!(@weak sys, @weak network_tab => async move {
+        loop {
+            match receiver.recv().await {
+                Ok(_) => {},
+                Err(error) => {
+                    eprintln!("Stopping network info update loop: {error:?}");
+                    return;
+                }
+            }
             network_tab.borrow_mut().update_networks(&sys.lock().expect("failed to lock to update networks"));
-            glib::ControlFlow::Continue
-        })
-    );
+        }
+    }));
 }
 
 fn setup_system_timeout(rfs: &RequiredForSettings, settings: &Rc<RefCell<Settings>>) {
-    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::Priority::default());
+    let (sender, receiver) = async_channel::bounded(1);
 
     let system_refresh_timeout = &rfs.system_refresh_timeout;
     let sys = &rfs.sys;
@@ -322,21 +335,28 @@ fn setup_system_timeout(rfs: &RequiredForSettings, settings: &Rc<RefCell<Setting
                     *system_refresh_timeout.lock().expect("failed to lock system refresh mutex") as _);
                 thread::sleep(sleep_dur);
                 sys.lock().expect("failed to lock to refresh system").refresh_system();
-                ready_tx.send(false).expect("failed to send data through system refresh channel");
+                sender.send_blocking(()).expect("failed to send data through system refresh channel");
             }
         }),
     );
 
-    ready_rx.attach(
-        None,
-        glib::clone!(@weak sys, @weak display_tab, @weak settings => @default-panic, move |_: bool| {
-            let mut info = display_tab.borrow_mut();
-            let sys = sys.lock().expect("failed to lock to update system");
-            let display_fahrenheit = settings.borrow().display_fahrenheit;
+    glib::spawn_future_local(
+        glib::clone!(@weak sys, @weak display_tab, @weak settings => async move {
+            loop {
+                match receiver.recv().await {
+                    Ok(_) => {},
+                    Err(error) => {
+                        eprintln!("Stopping system info update loop: {error:?}");
+                        return;
+                    }
+                }
+                let mut info = display_tab.borrow_mut();
+                let sys = sys.lock().expect("failed to lock to update system");
+                let display_fahrenheit = settings.borrow().display_fahrenheit;
 
-            info.update_system_info(&sys, display_fahrenheit);
-            info.update_system_info_display(&sys);
-            glib::ControlFlow::Continue
+                info.update_system_info(&sys, display_fahrenheit);
+                info.update_system_info_display(&sys);
+            }
         }),
     );
 }
