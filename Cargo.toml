@@ -13,7 +13,8 @@ readme = "README.md"
 keywords = ["GUI", "process", "viewer", "gtk"]
 
 [dependencies]
-gtk = { version = "0.7", package = "gtk4" }
+async-channel = { version = "2.2" }
+gtk = { version = "0.8", package = "gtk4" }
 sysinfo = "0.28.2"
 libc = "0.2"
 serde = "1.0"
