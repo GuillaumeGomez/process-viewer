@@ -3,7 +3,7 @@ use crate::network_dialog::{self, NetworkDialog};
 use crate::utils::{format_number, format_number_full};
 use gtk::glib;
 use gtk::prelude::*;
-use sysinfo::{NetworkExt, NetworksExt, System, SystemExt};
+use sysinfo::Networks;
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -41,13 +41,12 @@ fn append_column(
 
 pub struct Network {
     list_store: gtk::ListStore,
-    pub filter_entry: gtk::SearchEntry,
     pub search_bar: gtk::SearchBar,
     dialogs: Rc<RefCell<Vec<NetworkDialog>>>,
 }
 
 impl Network {
-    pub fn new(stack: &gtk::Stack, sys: &Arc<Mutex<System>>) -> Network {
+    pub fn new(stack: &gtk::Stack, networks: &Arc<Mutex<Networks>>) -> Self {
         let tree = gtk::TreeView::builder().headers_visible(true).build();
         let scroll = gtk::ScrolledWindow::builder().child(&tree).build();
         let info_button = gtk::Button::builder()
@@ -99,7 +98,7 @@ impl Network {
         // The filter model
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
         filter_model.set_visible_func(
-            glib::clone!(@weak filter_entry => @default-return false, move |model, iter| {
+            glib::clone!(@strong filter_entry => @default-return false, move |model, iter| {
                 if !WidgetExt::is_visible(&filter_entry) {
                     return true;
                 }
@@ -173,19 +172,19 @@ impl Network {
 
         let dialogs = Rc::new(RefCell::new(Vec::new()));
 
-        info_button.connect_clicked(glib::clone!(@weak dialogs, @weak sys => move |_| {
+        info_button.connect_clicked(glib::clone!(@weak dialogs, @weak networks => move |_| {
             let current_network = current_network.borrow();
             if let Some(ref interface_name) = *current_network {
                 create_network_dialog(
                     &mut dialogs.borrow_mut(),
                     interface_name,
-                    &sys.lock().expect("failed to lock for new network dialog"),
+                    &networks.lock().expect("failed to lock for new network dialog"),
                 );
             }
         }));
 
         tree.connect_row_activated(
-            glib::clone!(@weak sys, @weak dialogs => move |tree_view, path, _| {
+            glib::clone!(@weak networks, @weak dialogs => move |tree_view, path, _| {
                 let model = tree_view.model().expect("couldn't get model");
                 let iter = model.iter(path).expect("couldn't get iter");
                 let interface_name = model.get_value(&iter, 0)
@@ -194,26 +193,24 @@ impl Network {
                 create_network_dialog(
                     &mut dialogs.borrow_mut(),
                     &interface_name,
-                    &sys.lock().expect("failed to lock for new network dialog (from tree)"),
+                    &networks.lock().expect("failed to lock for new network dialog (from tree)"),
                 );
             }),
         );
 
         Network {
             list_store,
-            filter_entry,
             search_bar,
             dialogs,
         }
     }
 
-    pub fn update_networks(&mut self, sys: &System) {
+    pub fn update_networks(&mut self, networks: &Networks) {
         // first part, deactivate sorting
         let sorted = TreeSortableExtManual::sort_column_id(&self.list_store);
         self.list_store.set_unsorted();
 
         let mut seen: HashSet<String> = HashSet::new();
-        let networks = sys.networks();
 
         if let Some(iter) = self.list_store.iter_first() {
             let mut valid = true;
@@ -319,15 +316,18 @@ fn create_and_fill_model(
     );
 }
 
-fn create_network_dialog(dialogs: &mut Vec<NetworkDialog>, interface_name: &str, sys: &System) {
+fn create_network_dialog(
+    dialogs: &mut Vec<NetworkDialog>,
+    interface_name: &str,
+    networks: &Networks,
+) {
     for dialog in dialogs.iter() {
         if dialog.name == interface_name {
             dialog.show();
             return;
         }
     }
-    if let Some((_, data)) = sys
-        .networks()
+    if let Some((_, data)) = networks
         .iter()
         .find(|(name, _)| name.as_str() == interface_name)
     {

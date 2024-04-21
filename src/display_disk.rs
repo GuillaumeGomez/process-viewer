@@ -1,13 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 
 use crate::utils::format_number;
 
 use gtk::glib;
 use gtk::prelude::*;
-
-use sysinfo::{DiskExt, SystemExt};
 
 struct DiskInfo {
     label: gtk::Label,
@@ -76,7 +73,7 @@ fn refresh_disks(container: &gtk::Box, disks: &[sysinfo::Disk], elems: &mut Vec<
     }
 }
 
-pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
+pub fn create_disk_info(stack: &gtk::Stack) {
     let elems: Rc<RefCell<Vec<DiskInfo>>> = Rc::new(RefCell::new(Vec::new()));
     let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -86,24 +83,19 @@ pub fn create_disk_info(sys: &Arc<Mutex<sysinfo::System>>, stack: &gtk::Stack) {
         .child(&container)
         .build();
 
+    let disks = RefCell::new(sysinfo::Disks::new_with_refreshed_list());
+
+    refresh_disks(&container, &disks.borrow(), &mut elems.borrow_mut());
+
     let refresh_but = gtk::Button::with_label("Refresh disks");
 
-    refresh_but.connect_clicked(
-        glib::clone!(@weak sys, @weak container, @strong elems => move |_| {
-            let mut sys = sys.lock().expect("failed to lock to refresh disks");
-            sys.refresh_disks();
-            refresh_disks(&container, sys.disks(), &mut elems.borrow_mut());
-        }),
-    );
+    refresh_but.connect_clicked(glib::clone!(@weak container, @strong elems => move |_| {
+        disks.borrow_mut().refresh_list();
+        refresh_disks(&container, &disks.borrow(), &mut elems.borrow_mut());
+    }));
 
     vertical_layout.append(&scroll);
     vertical_layout.append(&refresh_but);
 
     stack.add_titled(&vertical_layout, Some("Disks"), "Disks");
-
-    refresh_disks(
-        &container,
-        sys.lock().expect("failed to lock to get disks").disks(),
-        &mut elems.borrow_mut(),
-    );
 }

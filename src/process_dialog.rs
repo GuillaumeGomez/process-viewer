@@ -1,6 +1,6 @@
 use gtk::prelude::*;
 use gtk::{glib, pango, EventControllerKey};
-use sysinfo::{self, Pid, ProcessExt};
+use sysinfo::Pid;
 
 use std::cell::{Cell, RefCell};
 use std::fmt;
@@ -43,8 +43,12 @@ impl ProcDialog {
         if self.is_dead {
             return;
         }
-        self.working_directory
-            .set_text(&process.cwd().display().to_string());
+        self.working_directory.set_text(
+            &process
+                .cwd()
+                .map(|path| path.display().to_string())
+                .unwrap_or_default(),
+        );
         let memory = process.memory();
         let memory_s = format_number(memory);
         self.memory_usage.set_text(&memory_s);
@@ -236,17 +240,26 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     create_and_add_new_label(
         &labels,
         "executable path",
-        &process.exe().display().to_string(),
+        &process
+            .exe()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
     );
     let working_directory = create_and_add_new_label(
         &labels,
         "current working directory",
-        &process.cwd().display().to_string(),
+        &process
+            .cwd()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
     );
     create_and_add_new_label(
         &labels,
         "root directory",
-        &process.root().display().to_string(),
+        &process
+            .root()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
     );
 
     let env_tree = gtk::TreeView::new();

@@ -1,6 +1,5 @@
 use gtk::glib;
 use gtk::prelude::*;
-use sysinfo::{ComponentExt, CpuExt, SystemExt};
 
 use std::cell::RefCell;
 use std::iter;
@@ -71,6 +70,7 @@ pub struct DisplaySysInfo {
 impl DisplaySysInfo {
     pub fn new(
         sys: &Arc<Mutex<sysinfo::System>>,
+        sys_components: &sysinfo::Components,
         stack: &gtk::Stack,
         settings: &Settings,
     ) -> DisplaySysInfo {
@@ -192,13 +192,13 @@ impl DisplaySysInfo {
         //
         // TEMPERATURES PART
         //
-        if !sys.components().is_empty() {
+        if !sys_components.is_empty() {
             check_box3 = Some(create_header(
                 "Components' temperature",
                 &vertical_layout,
                 settings.display_graph,
             ));
-            for component in sys.components() {
+            for component in sys_components {
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
                 let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature())));
@@ -273,7 +273,7 @@ impl DisplaySysInfo {
             temperature_usage_history,
             temperature_check_box: check_box3,
         };
-        tmp.update_system_info(&sys, settings.display_fahrenheit);
+        tmp.update_system_info(&sys, sys_components, settings.display_fahrenheit);
         tmp
     }
 
@@ -285,7 +285,12 @@ impl DisplaySysInfo {
         }
     }
 
-    pub fn update_system_info(&mut self, sys: &sysinfo::System, display_fahrenheit: bool) {
+    pub fn update_system_info(
+        &mut self,
+        sys: &sysinfo::System,
+        sys_components: &sysinfo::Components,
+        display_fahrenheit: bool,
+    ) {
         let disp = |total, used| {
             format!(
                 "{} / {}",
@@ -337,8 +342,7 @@ impl DisplaySysInfo {
 
         // temperature part
         let t = self.temperature_usage_history.borrow_mut();
-        for (pos, (component, label)) in sys
-            .components()
+        for (pos, (component, label)) in sys_components
             .iter()
             .zip(self.components.iter())
             .enumerate()
