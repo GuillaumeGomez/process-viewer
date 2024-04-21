@@ -1,8 +1,6 @@
 use gtk::prelude::*;
 use gtk::{glib, EventControllerKey};
 
-use sysinfo::NetworkExt;
-
 use crate::graph::GraphWidget;
 use crate::notebook::NoteBook;
 use crate::utils::{

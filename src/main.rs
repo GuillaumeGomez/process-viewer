@@ -6,8 +6,6 @@
 
 #![crate_type = "bin"]
 
-use sysinfo::*;
-
 use gdk::Texture;
 use gdk_pixbuf::Pixbuf;
 use gio::MemoryInputStream;
@@ -15,6 +13,8 @@ use glib::Bytes;
 use gtk::prelude::*;
 use gtk::{gdk, gdk_pixbuf, gio, glib};
 use gtk::{AboutDialog, Dialog, Entry, MessageDialog};
+
+use sysinfo::{Networks, Pid, RefreshKind};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -230,7 +230,7 @@ pub struct RequiredForSettings {
 }
 
 fn setup_timeout(rfs: &RequiredForSettings) {
-    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::Priority::default());
+    let (sender, receiver) = async_channel::bounded(1);
 
     let sys = &rfs.sys;
     let process_dialogs = &rfs.process_dialogs;
@@ -244,99 +244,125 @@ fn setup_timeout(rfs: &RequiredForSettings) {
                     *process_refresh_timeout.lock().expect("failed to lock process refresh mutex") as _);
                 thread::sleep(sleep_dur);
                 sys.lock().expect("failed to lock to refresh processes").refresh_processes();
-                ready_tx.send(false).expect("failed to send data through process refresh channel");
+                sender.send_blocking(()).expect("failed to send data through process refresh channel");
             }
         }),
     );
 
-    ready_rx.attach(None,
-        glib::clone!(@weak sys, @weak list_store, @weak process_dialogs => @default-return glib::ControlFlow::Continue, move |_: bool| {
-        // first part, deactivate sorting
-        let sorted = TreeSortableExtManual::sort_column_id(&list_store);
-        list_store.set_unsorted();
+    glib::spawn_future_local(
+        glib::clone!(@weak sys, @weak list_store, @weak process_dialogs => async move {
+            loop {
+                match receiver.recv().await {
+                    Ok(_) => {},
+                    Err(error) => {
+                        eprintln!("Stopping process info update loop: {error:?}");
+                        return;
+                    }
+                }
+                // first part, deactivate sorting
+                let sorted = TreeSortableExtManual::sort_column_id(&list_store);
+                list_store.set_unsorted();
 
-        let mut dialogs = process_dialogs.borrow_mut();
+                let mut dialogs = process_dialogs.borrow_mut();
 
-        if let Ok(sys) = sys.lock() {
-            // we update the tree view
-            update_window(&list_store, sys.processes());
+                if let Ok(sys) = sys.lock() {
+                    // we update the tree view
+                    update_window(&list_store, sys.processes());
 
-            // we re-enable the sorting
-            if let Some((col, order)) = sorted {
-                list_store.set_sort_column_id(col, order);
-            }
-            for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
-                // TODO: check if the process name matches the PID too!
-                if let Some(process) = sys.processes().get(&dialog.pid) {
-                    dialog.update(process);
-                } else {
-                    dialog.set_dead();
+                    // we re-enable the sorting
+                    if let Some((col, order)) = sorted {
+                        list_store.set_sort_column_id(col, order);
+                    }
+                    for dialog in dialogs.iter_mut().filter(|x| !x.is_dead) {
+                        // TODO: check if the process name matches the PID too!
+                        if let Some(process) = sys.processes().get(&dialog.pid) {
+                            dialog.update(process);
+                        } else {
+                            dialog.set_dead();
+                        }
+                    }
+                    dialogs.retain(|x| !x.need_remove());
                 }
             }
-        } else {
-            panic!("failed to lock sys to refresh UI");
-        }
-        dialogs.retain(|x| !x.need_remove());
-        glib::ControlFlow::Continue
-    }));
+        }),
+    );
 }
 
-fn setup_network_timeout(rfs: &RequiredForSettings) {
-    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::Priority::default());
+fn setup_network_timeout(rfs: &RequiredForSettings, networks: Arc<Mutex<Networks>>) {
+    let (sender, receiver) = async_channel::bounded(1);
 
     let network_refresh_timeout = &rfs.network_refresh_timeout;
     let network_tab = &rfs.network_tab;
-    let sys = &rfs.sys;
 
     thread::spawn(
-        glib::clone!(@weak sys, @weak network_refresh_timeout => move || {
+        glib::clone!(@weak networks, @weak network_refresh_timeout => move || {
             loop {
                 let sleep_dur = Duration::from_millis(
                     *network_refresh_timeout.lock().expect("failed to lock networks refresh mutex") as _);
                 thread::sleep(sleep_dur);
-                sys.lock().expect("failed to lock to refresh networks").refresh_networks();
-                ready_tx.send(false).expect("failed to send data through networks refresh channel");
+                networks.lock().expect("failed to lock to refresh networks").refresh_list();
+                sender.send_blocking(()).expect("failed to send data through networks refresh channel");
             }
         }),
     );
 
-    ready_rx.attach(None,
-        glib::clone!(@weak sys, @weak network_tab => @default-panic, move |_: bool| {
-            network_tab.borrow_mut().update_networks(&sys.lock().expect("failed to lock to update networks"));
-            glib::ControlFlow::Continue
-        })
-    );
+    glib::spawn_future_local(glib::clone!(@weak network_tab => async move {
+        loop {
+            match receiver.recv().await {
+                Ok(_) => {},
+                Err(error) => {
+                    eprintln!("Stopping network info update loop: {error:?}");
+                    return;
+                }
+            }
+            network_tab.borrow_mut().update_networks(&networks.lock().expect("failed to lock to update networks"));
+        }
+    }));
 }
 
-fn setup_system_timeout(rfs: &RequiredForSettings, settings: &Rc<RefCell<Settings>>) {
-    let (ready_tx, ready_rx) = glib::MainContext::channel(glib::Priority::default());
+fn setup_system_timeout(
+    rfs: &RequiredForSettings,
+    settings: &Rc<RefCell<Settings>>,
+    components: sysinfo::Components,
+) {
+    let (sender, receiver) = async_channel::bounded(1);
 
     let system_refresh_timeout = &rfs.system_refresh_timeout;
     let sys = &rfs.sys;
     let display_tab = &rfs.display_tab;
+    let components = Arc::new(Mutex::new(components));
 
     thread::spawn(
-        glib::clone!(@weak sys, @weak system_refresh_timeout => move || {
+        glib::clone!(@weak sys, @weak system_refresh_timeout, @weak components => move || {
             loop {
                 let sleep_dur = Duration::from_millis(
                     *system_refresh_timeout.lock().expect("failed to lock system refresh mutex") as _);
                 thread::sleep(sleep_dur);
-                sys.lock().expect("failed to lock to refresh system").refresh_system();
-                ready_tx.send(false).expect("failed to send data through system refresh channel");
+                sys.lock().expect("failed to lock to refresh system").refresh_all();
+                components.lock().expect("failed to lock components").refresh_list();
+                sender.send_blocking(()).expect("failed to send data through system refresh channel");
             }
         }),
     );
 
-    ready_rx.attach(
-        None,
-        glib::clone!(@weak sys, @weak display_tab, @weak settings => @default-panic, move |_: bool| {
-            let mut info = display_tab.borrow_mut();
-            let sys = sys.lock().expect("failed to lock to update system");
-            let display_fahrenheit = settings.borrow().display_fahrenheit;
+    glib::spawn_future_local(
+        glib::clone!(@weak sys, @weak display_tab, @weak settings => async move {
+            loop {
+                match receiver.recv().await {
+                    Ok(_) => {},
+                    Err(error) => {
+                        eprintln!("Stopping system info update loop: {error:?}");
+                        return;
+                    }
+                }
+                let mut info = display_tab.borrow_mut();
+                let sys = sys.lock().expect("failed to lock to update system");
+                let components = components.lock().expect("failed to lock components");
+                let display_fahrenheit = settings.borrow().display_fahrenheit;
 
-            info.update_system_info(&sys, display_fahrenheit);
-            info.update_system_info_display(&sys);
-            glib::ControlFlow::Continue
+                info.update_system_info(&sys, &components, display_fahrenheit);
+                info.update_system_info_display(&sys);
+            }
         }),
     );
 }
@@ -388,8 +414,7 @@ fn build_ui(application: &gtk::Application) {
     let (header_bar, search_filter_button) = create_header_bar(&stack);
     window.set_titlebar(Some(&header_bar));
 
-    let mut sys =
-        sysinfo::System::new_with_specifics(RefreshKind::everything().without_users_list());
+    let mut sys = sysinfo::System::new_with_specifics(RefreshKind::everything());
     let procs = Procs::new(sys.processes(), &stack);
     let current_pid = Rc::clone(&procs.current_pid);
     let info_button = procs.info_button.clone();
@@ -408,11 +433,13 @@ fn build_ui(application: &gtk::Application) {
         }));
 
     let settings = Settings::load();
-    let display_tab = DisplaySysInfo::new(&sys, &stack, &settings);
+    let sys_components = sysinfo::Components::new_with_refreshed_list();
+    let display_tab = DisplaySysInfo::new(&sys, &sys_components, &stack, &settings);
 
     let settings = Rc::new(RefCell::new(settings));
-    let network_tab = Rc::new(RefCell::new(Network::new(&stack, &sys)));
-    display_disk::create_disk_info(&sys, &stack);
+    let networks = Arc::new(Mutex::new(Networks::new_with_refreshed_list()));
+    let network_tab = Rc::new(RefCell::new(Network::new(&stack, &networks)));
+    display_disk::create_disk_info(&stack);
 
     let display_tab = Rc::new(RefCell::new(display_tab));
 
@@ -434,8 +461,8 @@ fn build_ui(application: &gtk::Application) {
     };
 
     setup_timeout(&rfs);
-    setup_network_timeout(&rfs);
-    setup_system_timeout(&rfs, &settings);
+    setup_network_timeout(&rfs, networks);
+    setup_system_timeout(&rfs, &settings, sys_components);
 
     let settings_action = gio::SimpleAction::new("settings", None);
     settings_action.connect_activate(glib::clone!(@weak settings, @strong rfs => move |_, _| {

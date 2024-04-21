@@ -1,7 +1,7 @@
 use gtk::glib;
 use gtk::prelude::*;
 
-use sysinfo::{Pid, PidExt, Process, ProcessExt};
+use sysinfo::{Pid, Process};
 
 use crate::utils::format_number;
 
@@ -42,6 +42,7 @@ impl Procs {
             .margin_top(6)
             .margin_bottom(6)
             .margin_end(6)
+            .margin_start(6)
             .sensitive(false)
             .build();
 
@@ -80,8 +81,7 @@ impl Procs {
         for pro in proc_list.values() {
             if let Some(exe) = pro
                 .exe()
-                .file_name()
-                .and_then(|f| f.to_str())
+                .and_then(|exe| exe.file_name().and_then(|f| f.to_str()))
                 .or_else(|| Some(pro.name()))
             {
                 create_and_fill_model(
