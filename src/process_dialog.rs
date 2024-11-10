@@ -180,7 +180,8 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
 
     let popup = gtk::Window::new();
 
-    popup.set_title(Some(&format!("Information about {}", process.name())));
+    let name = process.name().to_string_lossy();
+    popup.set_title(Some(&format!("Information about {name}")));
     popup.set_transient_for(get_main_window().as_ref());
     popup.set_destroy_with_parent(true);
 
@@ -197,7 +198,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
 
     let labels = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
-    create_and_add_new_label(&labels, "name", process.name());
+    create_and_add_new_label(&labels, "name", &name);
     create_and_add_new_label(&labels, "pid", &process.pid().to_string());
     let memory_peak = process.memory();
     let memory_usage =
@@ -232,7 +233,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
             process
                 .cmd()
                 .iter()
-                .map(|x| format!("\"{}\"", x))
+                .map(|x| format!("\"{}\"", x.to_string_lossy()))
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
@@ -272,6 +273,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     append_text_column(&env_tree, 1);
 
     for env in process.environ() {
+        let env = env.to_string_lossy();
         let mut parts = env.splitn(2, '=');
         let name = match parts.next() {
             Some(n) => n,

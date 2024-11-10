@@ -14,7 +14,7 @@ use gtk::prelude::*;
 use gtk::{gdk, gdk_pixbuf, gio, glib};
 use gtk::{AboutDialog, Dialog, Entry, MessageDialog};
 
-use sysinfo::{Networks, Pid, RefreshKind};
+use sysinfo::{Networks, Pid, ProcessesToUpdate, RefreshKind};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -243,7 +243,7 @@ fn setup_timeout(rfs: &RequiredForSettings) {
                 let sleep_dur = Duration::from_millis(
                     *process_refresh_timeout.lock().expect("failed to lock process refresh mutex") as _);
                 thread::sleep(sleep_dur);
-                sys.lock().expect("failed to lock to refresh processes").refresh_processes();
+                sys.lock().expect("failed to lock to refresh processes").refresh_processes(ProcessesToUpdate::All, false);
                 sender.send_blocking(()).expect("failed to send data through process refresh channel");
             }
         }),
