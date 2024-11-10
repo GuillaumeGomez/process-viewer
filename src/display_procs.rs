@@ -7,6 +7,7 @@ use crate::utils::format_number;
 
 use std::cell::Cell;
 use std::collections::HashMap;
+use std::ffi::{OsStr, OsString};
 use std::rc::Rc;
 
 #[allow(dead_code)]
@@ -81,7 +82,7 @@ impl Procs {
         for pro in proc_list.values() {
             if let Some(exe) = pro
                 .exe()
-                .and_then(|exe| exe.file_name().and_then(|f| f.to_str()))
+                .and_then(|exe| exe.file_name())
                 .or_else(|| Some(pro.name()))
             {
                 create_and_fill_model(
@@ -241,14 +242,23 @@ fn append_column(
 pub fn create_and_fill_model(
     list_store: &gtk::ListStore,
     pid: u32,
-    cmdline: &[String],
-    name: &str,
+    cmdline: &[OsString],
+    name: &OsStr,
     cpu: f32,
     memory: u64,
 ) {
-    if cmdline.is_empty() || name.is_empty() {
-        return;
-    }
+    let name = if name.is_empty() {
+        let Some(cmd) = cmdline
+            .iter()
+            .map(|c| c.to_string_lossy().to_string())
+            .next()
+        else {
+            return;
+        };
+        cmd
+    } else {
+        name.to_string_lossy().to_string()
+    };
     list_store.insert_with_values(
         None,
         &[
