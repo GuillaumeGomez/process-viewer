@@ -26,7 +26,7 @@ jobs:
           - stable
           - beta
           - nightly
-          - "1.74" # Minimum supported version (from sysinfo)
+          - "1.88" # Minimum supported version (from sysinfo)
         os:
           - ubuntu-22.04
           - macos-latest
