@@ -112,25 +112,25 @@ fn format_time(t: u64) -> String {
         {
             let days = t / 86_400;
             if days > 0 {
-                format!("{}d ", days)
+                format!("{days}d ")
             } else {
-                "".to_owned()
+                String::new()
             }
         },
         {
             let hours = t / 3_600 % 24;
             if hours > 0 {
-                format!("{}h ", hours)
+                format!("{hours}h ")
             } else {
-                "".to_owned()
+                String::new()
             }
         },
         {
             let minutes = t / 60 % 60;
             if minutes > 0 {
-                format!("{}m ", minutes)
+                format!("{minutes}m ")
             } else {
-                "".to_owned()
+                String::new()
             }
         },
         t % 60
@@ -147,7 +147,7 @@ fn create_and_add_new_label(scroll: &gtk::Box, title: &str, text: &str) -> gtk::
 
     let label = gtk::Label::new(None);
     label.set_justify(gtk::Justification::Left);
-    label.set_markup(&format!("<b>{}:</b> ", title));
+    label.set_markup(&format!("<b>{title}:</b> "));
 
     let text = gtk::Label::new(Some(text));
     text.set_selectable(true);
@@ -218,7 +218,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     }
     let disk_usage = create_and_add_new_label(&labels, s, &format_number(disk_peak));
     let disk_peak_label =
-        create_and_add_new_label(&labels, &format!("{} peak", s), &format_number(disk_peak));
+        create_and_add_new_label(&labels, &format!("{s} peak"), &format_number(disk_peak));
     let cpu_usage = create_and_add_new_label(
         &labels,
         "cpu usage",
@@ -325,11 +325,7 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     disk_usage_history.set_display_labels(false);
     disk_usage_history.set_overhead(Some(20.));
 
-    cpu_usage_history.push(
-        RotateVec::new(iter::repeat(0f32).take(61).collect()),
-        "",
-        None,
-    );
+    cpu_usage_history.push(RotateVec::new(iter::repeat_n(0f32, 61).collect()), "", None);
     cpu_usage_history.set_labels_callback(Some(Box::new(|v| {
         if v > 100. {
             let nb = v.ceil() as u64;
@@ -354,17 +350,9 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     // let cpu_usage_history = connect_graph(cpu_usage_history);
     let cpu_usage_history = Rc::new(RefCell::new(cpu_usage_history));
 
-    ram_usage_history.push(
-        RotateVec::new(iter::repeat(0f32).take(61).collect()),
-        "",
-        None,
-    );
+    ram_usage_history.push(RotateVec::new(iter::repeat_n(0f32, 61).collect()), "", None);
 
-    disk_usage_history.push(
-        RotateVec::new(iter::repeat(0f32).take(61).collect()),
-        "",
-        None,
-    );
+    disk_usage_history.push(RotateVec::new(iter::repeat_n(0f32, 61).collect()), "", None);
 
     ram_usage_history.set_labels_callback(Some(Box::new(graph_label_units)));
     disk_usage_history.set_labels_callback(Some(Box::new(graph_label_units)));

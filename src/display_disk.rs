@@ -90,7 +90,7 @@ pub fn create_disk_info(stack: &gtk::Stack) {
     let refresh_but = gtk::Button::with_label("Refresh disks");
 
     refresh_but.connect_clicked(glib::clone!(@weak container, @strong elems => move |_| {
-        disks.borrow_mut().refresh_list();
+        disks.borrow_mut().refresh(true);
         refresh_disks(&container, &disks.borrow(), &mut elems.borrow_mut());
     }));
 

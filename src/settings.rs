@@ -101,14 +101,14 @@ impl Settings {
                 if let Err(e) = std::fs::write(&s, output) {
                     show_error_dialog(
                         false,
-                        format!("Error while trying to save file: {}", e).as_str(),
+                        format!("Error while trying to save file: {e}").as_str(),
                     );
                 }
             }
             Err(e) => {
                 show_error_dialog(
                     false,
-                    format!("Error while trying to save file: {}", e).as_str(),
+                    format!("Error while trying to save file: {e}").as_str(),
                 );
             }
         }
