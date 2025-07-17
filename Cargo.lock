@@ -564,7 +564,7 @@ dependencies = [
 
 [[package]]
 name = "process_viewer"
-version = "0.5.9"
+version = "0.5.10"
 dependencies = [
  "async-channel",
  "gtk4",
