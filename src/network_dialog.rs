@@ -163,10 +163,9 @@ pub fn create_network_dialog(
 
     let popup = gtk::Window::new();
 
-    popup.set_title(Some(&format!(
-        "Information about network {}",
-        interface_name
-    )));
+    popup.set_title(Some(
+        &format!("Information about network {interface_name}",),
+    ));
     popup.set_transient_for(get_main_window().as_ref());
     popup.set_destroy_with_parent(true);
 
@@ -195,12 +194,12 @@ pub fn create_network_dialog(
     let in_out_history = GraphWidget::new(Some(1.), false);
 
     in_out_history.push(
-        RotateVec::new(iter::repeat(0f32).take(61).collect()),
+        RotateVec::new(iter::repeat_n(0f32, 61).collect()),
         "received",
         None,
     );
     in_out_history.push(
-        RotateVec::new(iter::repeat(0f32).take(61).collect()),
+        RotateVec::new(iter::repeat_n(0f32, 61).collect()),
         "transmitted",
         None,
     );
@@ -216,22 +215,22 @@ pub fn create_network_dialog(
     let packets_errors_history = GraphWidget::new(Some(1.), false);
 
     packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f32).take(61).collect()),
+        RotateVec::new(iter::repeat_n(0f32, 61).collect()),
         "received packets",
         None,
     );
     packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f32).take(61).collect()),
+        RotateVec::new(iter::repeat_n(0f32, 61).collect()),
         "transmitted packets",
         None,
     );
     packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f32).take(61).collect()),
+        RotateVec::new(iter::repeat_n(0f32, 61).collect()),
         "errors on received",
         None,
     );
     packets_errors_history.push(
-        RotateVec::new(iter::repeat(0f32).take(61).collect()),
+        RotateVec::new(iter::repeat_n(0f32, 61).collect()),
         "errors on transmitted",
         None,
     );

@@ -300,7 +300,7 @@ fn setup_network_timeout(rfs: &RequiredForSettings, networks: Arc<Mutex<Networks
                 let sleep_dur = Duration::from_millis(
                     *network_refresh_timeout.lock().expect("failed to lock networks refresh mutex") as _);
                 thread::sleep(sleep_dur);
-                networks.lock().expect("failed to lock to refresh networks").refresh_list();
+                networks.lock().expect("failed to lock to refresh networks").refresh(true);
                 sender.send_blocking(()).expect("failed to send data through networks refresh channel");
             }
         }),
@@ -339,7 +339,7 @@ fn setup_system_timeout(
                     *system_refresh_timeout.lock().expect("failed to lock system refresh mutex") as _);
                 thread::sleep(sleep_dur);
                 sys.lock().expect("failed to lock to refresh system").refresh_all();
-                components.lock().expect("failed to lock components").refresh_list();
+                components.lock().expect("failed to lock components").refresh(true);
                 sender.send_blocking(()).expect("failed to send data through system refresh channel");
             }
         }),

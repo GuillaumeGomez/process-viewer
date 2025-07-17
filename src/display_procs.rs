@@ -264,7 +264,7 @@ pub fn create_and_fill_model(
         &[
             (0, &pid),
             (1, &name),
-            (2, &format!("{:.1}", cpu)),
+            (2, &format!("{cpu:.1}")),
             (3, &format_number(memory)),
             (4, &String::new()),
             (5, &name.to_lowercase()),

@@ -333,6 +333,6 @@ fn create_network_dialog(
     {
         dialogs.push(network_dialog::create_network_dialog(data, interface_name));
     } else {
-        eprintln!("couldn't find {}...", interface_name);
+        eprintln!("couldn't find {interface_name}...");
     }
 }

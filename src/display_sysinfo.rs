@@ -106,7 +106,7 @@ impl DisplaySysInfo {
         temperature_usage_history.set_overhead(Some(20.));
         temperature_usage_history.set_labels_callback(Some(Box::new(|v| {
             [
-                format!("{:.1}", v),
+                format!("{v:.1}"),
                 format!("{:.1}", v / 2.),
                 "0".to_string(),
                 "°C".to_string(),
@@ -144,7 +144,7 @@ impl DisplaySysInfo {
             p.set_margin_start(5);
             p.set_show_text(true);
             let cpu_usage = sys.global_cpu_usage();
-            p.set_text(Some(&format!("{:.1} %", cpu_usage)));
+            p.set_text(Some(&format!("{cpu_usage:.1} %")));
             p.set_fraction(f64::from(cpu_usage / 100.));
             vertical_layout.append(p);
         }
@@ -152,7 +152,7 @@ impl DisplaySysInfo {
         for (i, pro) in sys.cpus().iter().enumerate() {
             procs.push(gtk::ProgressBar::new());
             let p: &gtk::ProgressBar = &procs[i + 1];
-            let l = gtk::Label::new(Some(&format!("{}", i)));
+            let l = gtk::Label::new(Some(&format!("{i}")));
 
             p.set_text(Some(&format!("{:.1} %", pro.cpu_usage())));
             p.set_show_text(true);
@@ -160,8 +160,8 @@ impl DisplaySysInfo {
             non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
             non_graph_layout.attach(p, 1, i as i32 - 1, 11, 1);
             cpu_usage_history.push(
-                RotateVec::new(iter::repeat(0f32).take(61).collect()),
-                &format!("processor {}", i),
+                RotateVec::new(iter::repeat_n(0f32, 61).collect()),
+                &format!("processor {i}"),
                 None,
             );
         }
@@ -178,12 +178,12 @@ impl DisplaySysInfo {
         vertical_layout.append(&non_graph_layout2);
         //vertical_layout.append(&non_graph_layout2);
         ram_usage_history.push(
-            RotateVec::new(iter::repeat(0f32).take(61).collect()),
+            RotateVec::new(iter::repeat_n(0f32, 61).collect()),
             "RAM",
             Some(4),
         );
         ram_usage_history.push(
-            RotateVec::new(iter::repeat(0f32).take(61).collect()),
+            RotateVec::new(iter::repeat_n(0f32, 61).collect()),
             "Swap",
             Some(2),
         );
@@ -199,16 +199,19 @@ impl DisplaySysInfo {
                 settings.display_graph,
             ));
             for component in sys_components {
+                let Some(temperature) = component.temperature() else {
+                    continue;
+                };
                 let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 10);
                 // TODO: add max and critical temperatures as well
-                let temp = gtk::Label::new(Some(&format!("{:.1} °C", component.temperature())));
+                let temp = gtk::Label::new(Some(&format!("{temperature:.1} °C")));
                 horizontal_layout.append(&gtk::Label::new(Some(component.label())));
                 horizontal_layout.append(&temp);
                 horizontal_layout.set_homogeneous(true);
                 non_graph_layout3.append(&horizontal_layout);
                 components.push(temp);
                 temperature_usage_history.push(
-                    RotateVec::new(iter::repeat(0f32).take(61).collect()),
+                    RotateVec::new(iter::repeat_n(0f32, 61).collect()),
                     component.label(),
                     None,
                 );
@@ -342,24 +345,30 @@ impl DisplaySysInfo {
 
         // temperature part
         let t = self.temperature_usage_history.borrow_mut();
+        #[allow(clippy::collapsible_else_if)]
         for (pos, (component, label)) in sys_components
             .iter()
             .zip(self.components.iter())
             .enumerate()
         {
-            t.data(pos, |d| {
-                d.move_start();
-                if let Some(t) = d.get_mut(0) {
-                    *t = component.temperature();
+            if let Some(temperature) = component.temperature() {
+                t.data(pos, |d| {
+                    d.move_start();
+                    if let Some(t) = d.get_mut(0) {
+                        *t = temperature;
+                    }
+                });
+                if display_fahrenheit {
+                    label.set_text(&format!("{:.1} °F", temperature * 1.8 + 32.));
+                } else {
+                    label.set_text(&format!("{temperature:.1} °C"));
                 }
-                if let Some(t) = d.get_mut(0) {
-                    *t = component.temperature();
-                }
-            });
-            if display_fahrenheit {
-                label.set_text(&format!("{:.1} °F", component.temperature() * 1.8 + 32.));
             } else {
-                label.set_text(&format!("{:.1} °C", component.temperature()));
+                if display_fahrenheit {
+                    label.set_text("?? °F");
+                } else {
+                    label.set_text("?? °C");
+                }
             }
         }
     }
@@ -369,7 +378,7 @@ impl DisplaySysInfo {
         let h = &mut *self.cpu_usage_history.borrow_mut();
 
         let cpu_usage = sys.global_cpu_usage();
-        v[0].set_text(Some(&format!("{:.1} %", cpu_usage)));
+        v[0].set_text(Some(&format!("{cpu_usage:.1} %")));
         v[0].set_show_text(true);
         v[0].set_fraction(f64::from(cpu_usage / 100.));
         for (i, pro) in sys.cpus().iter().enumerate() {
