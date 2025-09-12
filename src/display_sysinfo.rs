@@ -235,26 +235,38 @@ impl DisplaySysInfo {
         ram_usage_history.borrow().hide();
         temperature_usage_history.borrow().hide();
 
-        check_box.connect_toggled(
-            glib::clone!(@weak non_graph_layout, @weak cpu_usage_history => move |c| {
+        check_box.connect_toggled(glib::clone!(
+            #[weak]
+            non_graph_layout,
+            #[weak]
+            cpu_usage_history,
+            move |c| {
                 show_if_necessary(c, &cpu_usage_history.borrow(), &non_graph_layout);
-            }),
-        );
+            }
+        ));
         // To show the correct view based on the saved settings.
         show_if_necessary(&check_box, &cpu_usage_history.borrow(), &non_graph_layout);
-        check_box2.connect_toggled(
-            glib::clone!(@weak non_graph_layout2, @weak ram_usage_history => move |c| {
+        check_box2.connect_toggled(glib::clone!(
+            #[weak]
+            non_graph_layout2,
+            #[weak]
+            ram_usage_history,
+            move |c| {
                 show_if_necessary(c, &ram_usage_history.borrow(), &non_graph_layout2);
-            }),
-        );
+            }
+        ));
         // To show the correct view based on the saved settings.
         show_if_necessary(&check_box2, &ram_usage_history.borrow(), &non_graph_layout2);
         if let Some(ref check_box3) = check_box3 {
-            check_box3.connect_toggled(
-                glib::clone!(@weak non_graph_layout3, @weak temperature_usage_history => move |c| {
+            check_box3.connect_toggled(glib::clone!(
+                #[weak]
+                non_graph_layout3,
+                #[weak]
+                temperature_usage_history,
+                move |c| {
                     show_if_necessary(c, &temperature_usage_history.borrow(), &non_graph_layout3);
-                }),
-            );
+                }
+            ));
             // To show the correct view based on the saved settings.
             show_if_necessary(
                 check_box3,

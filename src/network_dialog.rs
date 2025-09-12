@@ -244,12 +244,16 @@ pub fn create_network_dialog(
     let packets_errors_history = Rc::new(RefCell::new(packets_errors_history));
 
     scroll.set_child(Some(&vertical_layout));
-    scroll.connect_show(
-        glib::clone!(@weak packets_errors_history, @weak in_out_history => move |_| {
+    scroll.connect_show(glib::clone!(
+        #[weak]
+        packets_errors_history,
+        #[weak]
+        in_out_history,
+        move |_| {
             packets_errors_history.borrow().show();
             in_out_history.borrow().show();
-        }),
-    );
+        }
+    ));
     notebook.create_tab("Graphics", &scroll);
 
     //
@@ -412,23 +416,41 @@ pub fn create_network_dialog(
     popup.set_size_request(700, 540);
 
     let to_be_removed = Rc::new(Cell::new(false));
-    popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
-        to_be_removed.set(true);
-    }));
-    close_button.connect_clicked(glib::clone!(@weak popup, @weak to_be_removed => move |_| {
-        popup.close();
-    }));
-    popup.connect_close_request(
-        glib::clone!(@weak to_be_removed => @default-return glib::Propagation::Proceed, move |_| {
+    popup.connect_destroy(glib::clone!(
+        #[weak]
+        to_be_removed,
+        move |_| {
+            to_be_removed.set(true);
+        }
+    ));
+    close_button.connect_clicked(glib::clone!(
+        #[weak]
+        popup,
+        #[weak]
+        to_be_removed,
+        move |_| {
+            popup.close();
+        }
+    ));
+    popup.connect_close_request(glib::clone!(
+        #[weak]
+        to_be_removed,
+        #[upgrade_or]
+        glib::Propagation::Proceed,
+        move |_| {
             to_be_removed.set(true);
             glib::Propagation::Proceed
-        }),
-    );
+        }
+    ));
     let event_controller = EventControllerKey::new();
     event_controller.connect_key_pressed(glib::clone!(
-        @weak popup,
-        @weak to_be_removed
-        => @default-return glib::Propagation::Proceed, move |_, key, _, _modifier| {
+        #[weak]
+        popup,
+        #[weak]
+        to_be_removed,
+        #[upgrade_or]
+        glib::Propagation::Proceed,
+        move |_, key, _, _modifier| {
             if key == gtk::gdk::Key::Escape {
                 popup.close();
                 to_be_removed.set(true);

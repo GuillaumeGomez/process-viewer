@@ -99,8 +99,14 @@ impl Procs {
         let vertical_layout = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let horizontal_layout = gtk::Box::new(gtk::Orientation::Horizontal, 6);
 
-        left_tree.connect_cursor_changed(
-            glib::clone!(@strong current_pid, @weak kill_button, @weak info_button => move |tree_view| {
+        left_tree.connect_cursor_changed(glib::clone!(
+            #[strong]
+            current_pid,
+            #[weak]
+            kill_button,
+            #[weak]
+            info_button,
+            move |tree_view| {
                 let selection = tree_view.selection();
                 let (pid, ret) = if let Some((model, iter)) = selection.selected() {
                     if let Ok(x) = model.get_value(&iter, 0).get::<u32>() {
@@ -114,8 +120,8 @@ impl Procs {
                 current_pid.set(pid);
                 kill_button.set_sensitive(ret);
                 info_button.set_sensitive(ret);
-            }),
-        );
+            }
+        ));
         vertical_layout.append(&overlay);
         horizontal_layout.append(&info_button);
         horizontal_layout.append(&kill_button);
@@ -123,8 +129,12 @@ impl Procs {
 
         // The filter part.
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
-        filter_model.set_visible_func(
-            glib::clone!(@weak filter_entry => @default-return false, move |model, iter| {
+        filter_model.set_visible_func(glib::clone!(
+            #[weak]
+            filter_entry,
+            #[upgrade_or]
+            false,
+            move |model, iter| {
                 if !WidgetExt::is_visible(&filter_entry) {
                     return true;
                 }
@@ -134,22 +144,24 @@ impl Procs {
                 }
                 let text: &str = text.as_ref();
                 // TODO: Maybe add an option to make searches case sensitive?
-                let pid = model.get_value(iter, 0)
-                               .get::<u32>()
-                               .map(|p| p.to_string())
-                               .ok()
-                               .unwrap_or_default();
-                let name = model.get_value(iter, 1)
-                                .get::<String>()
-                                .map(|s| s.to_lowercase())
-                                .ok()
-                                .unwrap_or_default();
-                pid.contains(text) ||
-                text.contains(&pid) ||
-                name.contains(text) ||
-                text.contains(&name)
-            }),
-        );
+                let pid = model
+                    .get_value(iter, 0)
+                    .get::<u32>()
+                    .map(|p| p.to_string())
+                    .ok()
+                    .unwrap_or_default();
+                let name = model
+                    .get_value(iter, 1)
+                    .get::<String>()
+                    .map(|s| s.to_lowercase())
+                    .ok()
+                    .unwrap_or_default();
+                pid.contains(text)
+                    || text.contains(&pid)
+                    || name.contains(text)
+                    || text.contains(&name)
+            }
+        ));
         // For the filtering to be taken into account, we need to add it directly into the
         // "global" model.
         let sort_model = gtk::TreeModelSort::with_model(&filter_model);

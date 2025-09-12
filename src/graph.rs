@@ -14,7 +14,8 @@ const HEIGHT: f32 = 200.;
 
 glib::wrapper! {
     pub struct GraphWidget(ObjectSubclass<GraphWidgetImp>)
-        @extends gtk::Widget;
+         @extends gtk::Widget,
+         @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
 
 impl GraphWidget {
@@ -131,7 +132,8 @@ impl ObjectImpl for GraphWidgetImp {
 
 glib::wrapper! {
     pub struct GraphInnerWidget(ObjectSubclass<GraphPainter>)
-        @extends gtk::Widget;
+        @extends gtk::Widget,
+        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
 
 impl GraphInnerWidget {
@@ -434,7 +436,8 @@ impl WidgetImpl for GraphPainter {
 
 glib::wrapper! {
     pub struct SquareWidget(ObjectSubclass<SquarePainter>)
-        @extends gtk::Widget;
+        @extends gtk::Widget,
+        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
 
 impl SquareWidget {

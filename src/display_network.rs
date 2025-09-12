@@ -97,8 +97,10 @@ impl Network {
 
         // The filter model
         let filter_model = gtk::TreeModelFilter::new(&list_store, None);
-        filter_model.set_visible_func(
-            glib::clone!(@strong filter_entry => @default-return false, move |model, iter| {
+        filter_model.set_visible_func(glib::clone!(
+            #[strong]
+            filter_entry,
+            move |model, iter| {
                 if !WidgetExt::is_visible(&filter_entry) {
                     return true;
                 }
@@ -108,14 +110,15 @@ impl Network {
                 }
                 let text: &str = text.as_ref();
                 // TODO: Maybe add an option to make searches case sensitive?
-                let name = model.get_value(iter, 0)
-                                .get::<String>()
-                                .map(|s| s.to_lowercase())
-                                .ok()
-                                .unwrap_or_default();
+                let name = model
+                    .get_value(iter, 0)
+                    .get::<String>()
+                    .map(|s| s.to_lowercase())
+                    .ok()
+                    .unwrap_or_default();
                 name.contains(text)
-            }),
-        );
+            }
+        ));
 
         // For the filtering to be taken into account, we need to add it directly into the
         // "global" model.
@@ -153,8 +156,12 @@ impl Network {
 
         stack.add_titled(&vertical_layout, Some("Networks"), "Networks");
 
-        tree.connect_cursor_changed(
-            glib::clone!(@weak current_network, @weak info_button => move |tree_view| {
+        tree.connect_cursor_changed(glib::clone!(
+            #[weak]
+            current_network,
+            #[weak]
+            info_button,
+            move |tree_view| {
                 let selection = tree_view.selection();
                 let (name, ret) = if let Some((model, iter)) = selection.selected() {
                     if let Ok(x) = model.get_value(&iter, 0).get::<String>() {
@@ -167,36 +174,51 @@ impl Network {
                 };
                 *current_network.borrow_mut() = name;
                 info_button.set_sensitive(ret);
-            }),
-        );
+            }
+        ));
 
         let dialogs = Rc::new(RefCell::new(Vec::new()));
 
-        info_button.connect_clicked(glib::clone!(@weak dialogs, @weak networks => move |_| {
-            let current_network = current_network.borrow();
-            if let Some(ref interface_name) = *current_network {
-                create_network_dialog(
-                    &mut dialogs.borrow_mut(),
-                    interface_name,
-                    &networks.lock().expect("failed to lock for new network dialog"),
-                );
+        info_button.connect_clicked(glib::clone!(
+            #[weak]
+            dialogs,
+            #[weak]
+            networks,
+            move |_| {
+                let current_network = current_network.borrow();
+                if let Some(ref interface_name) = *current_network {
+                    create_network_dialog(
+                        &mut dialogs.borrow_mut(),
+                        interface_name,
+                        &networks
+                            .lock()
+                            .expect("failed to lock for new network dialog"),
+                    );
+                }
             }
-        }));
+        ));
 
-        tree.connect_row_activated(
-            glib::clone!(@weak networks, @weak dialogs => move |tree_view, path, _| {
+        tree.connect_row_activated(glib::clone!(
+            #[weak]
+            networks,
+            #[weak]
+            dialogs,
+            move |tree_view, path, _| {
                 let model = tree_view.model().expect("couldn't get model");
                 let iter = model.iter(path).expect("couldn't get iter");
-                let interface_name = model.get_value(&iter, 0)
+                let interface_name = model
+                    .get_value(&iter, 0)
                     .get::<String>()
                     .expect("Model::get failed");
                 create_network_dialog(
                     &mut dialogs.borrow_mut(),
                     &interface_name,
-                    &networks.lock().expect("failed to lock for new network dialog (from tree)"),
+                    &networks
+                        .lock()
+                        .expect("failed to lock for new network dialog (from tree)"),
                 );
-            }),
-        );
+            }
+        ));
 
         Network {
             list_store,

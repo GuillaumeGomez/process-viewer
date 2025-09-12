@@ -376,41 +376,65 @@ pub fn create_process_dialog(process: &sysinfo::Process, total_memory: u64) -> P
     let disk_usage_history = Rc::new(RefCell::new(disk_usage_history));
 
     scroll.set_child(Some(&vertical_layout));
-    scroll.connect_show(
-        glib::clone!(@weak ram_usage_history, @weak cpu_usage_history, @weak disk_usage_history => move |_| {
+    scroll.connect_show(glib::clone!(
+        #[weak]
+        ram_usage_history,
+        #[weak]
+        cpu_usage_history,
+        #[weak]
+        disk_usage_history,
+        move |_| {
             ram_usage_history.borrow().show();
             cpu_usage_history.borrow().show();
             disk_usage_history.borrow().show();
-        }),
-    );
+        }
+    ));
     notebook.create_tab("Resources usage", &scroll);
 
     popup.set_child(Some(&notebook.notebook));
     popup.set_size_request(500, 600);
 
-    close_button.connect_clicked(glib::clone!(@weak popup => move |_| {
-        popup.close();
-    }));
+    close_button.connect_clicked(glib::clone!(
+        #[weak]
+        popup,
+        move |_| {
+            popup.close();
+        }
+    ));
     let to_be_removed = Rc::new(Cell::new(false));
-    popup.connect_destroy(glib::clone!(@weak to_be_removed => move |_| {
-        to_be_removed.set(true);
-    }));
-    popup.connect_close_request(
-        glib::clone!(@weak to_be_removed => @default-return glib::Propagation::Proceed, move |_| {
+    popup.connect_destroy(glib::clone!(
+        #[weak]
+        to_be_removed,
+        move |_| {
+            to_be_removed.set(true);
+        }
+    ));
+    popup.connect_close_request(glib::clone!(
+        #[weak]
+        to_be_removed,
+        #[upgrade_or]
+        glib::Propagation::Proceed,
+        move |_| {
             to_be_removed.set(true);
             glib::Propagation::Proceed
-        }),
-    );
+        }
+    ));
     let event_controller = EventControllerKey::new();
-    event_controller.connect_key_pressed(
-        glib::clone!(@weak popup, @weak to_be_removed => @default-return glib::Propagation::Proceed, move |_, key, _, _modifier| {
+    event_controller.connect_key_pressed(glib::clone!(
+        #[weak]
+        popup,
+        #[weak]
+        to_be_removed,
+        #[upgrade_or]
+        glib::Propagation::Proceed,
+        move |_, key, _, _modifier| {
             if key == gtk::gdk::Key::Escape {
                 popup.close();
                 to_be_removed.set(true);
             }
             glib::Propagation::Proceed
-        }),
-    );
+        }
+    ));
     popup.add_controller(event_controller);
     popup.set_resizable(true);
     popup.show();
