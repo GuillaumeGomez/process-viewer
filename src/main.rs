@@ -237,23 +237,40 @@ fn setup_timeout(rfs: &RequiredForSettings) {
     let list_store = &rfs.list_store;
     let process_refresh_timeout = &rfs.process_refresh_timeout;
 
-    thread::spawn(
-        glib::clone!(@weak sys, @weak process_refresh_timeout => move || {
+    thread::spawn(glib::clone!(
+        #[weak]
+        sys,
+        #[weak]
+        process_refresh_timeout,
+        move || {
             loop {
                 let sleep_dur = Duration::from_millis(
-                    *process_refresh_timeout.lock().expect("failed to lock process refresh mutex") as _);
+                    *process_refresh_timeout
+                        .lock()
+                        .expect("failed to lock process refresh mutex") as _,
+                );
                 thread::sleep(sleep_dur);
-                sys.lock().expect("failed to lock to refresh processes").refresh_processes(ProcessesToUpdate::All, false);
-                sender.send_blocking(()).expect("failed to send data through process refresh channel");
+                sys.lock()
+                    .expect("failed to lock to refresh processes")
+                    .refresh_processes(ProcessesToUpdate::All, false);
+                sender
+                    .send_blocking(())
+                    .expect("failed to send data through process refresh channel");
             }
-        }),
-    );
+        }
+    ));
 
-    glib::spawn_future_local(
-        glib::clone!(@weak sys, @weak list_store, @weak process_dialogs => async move {
+    glib::spawn_future_local(glib::clone!(
+        #[weak]
+        sys,
+        #[weak]
+        list_store,
+        #[weak]
+        process_dialogs,
+        async move {
             loop {
                 match receiver.recv().await {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(error) => {
                         eprintln!("Stopping process info update loop: {error:?}");
                         return;
@@ -284,8 +301,8 @@ fn setup_timeout(rfs: &RequiredForSettings) {
                     dialogs.retain(|x| !x.need_remove());
                 }
             }
-        }),
-    );
+        }
+    ));
 }
 
 fn setup_network_timeout(rfs: &RequiredForSettings, networks: Arc<Mutex<Networks>>) {
@@ -294,30 +311,48 @@ fn setup_network_timeout(rfs: &RequiredForSettings, networks: Arc<Mutex<Networks
     let network_refresh_timeout = &rfs.network_refresh_timeout;
     let network_tab = &rfs.network_tab;
 
-    thread::spawn(
-        glib::clone!(@weak networks, @weak network_refresh_timeout => move || {
+    thread::spawn(glib::clone!(
+        #[weak]
+        networks,
+        #[weak]
+        network_refresh_timeout,
+        move || {
             loop {
                 let sleep_dur = Duration::from_millis(
-                    *network_refresh_timeout.lock().expect("failed to lock networks refresh mutex") as _);
+                    *network_refresh_timeout
+                        .lock()
+                        .expect("failed to lock networks refresh mutex") as _,
+                );
                 thread::sleep(sleep_dur);
-                networks.lock().expect("failed to lock to refresh networks").refresh(true);
-                sender.send_blocking(()).expect("failed to send data through networks refresh channel");
+                networks
+                    .lock()
+                    .expect("failed to lock to refresh networks")
+                    .refresh(true);
+                sender
+                    .send_blocking(())
+                    .expect("failed to send data through networks refresh channel");
             }
-        }),
-    );
-
-    glib::spawn_future_local(glib::clone!(@weak network_tab => async move {
-        loop {
-            match receiver.recv().await {
-                Ok(_) => {},
-                Err(error) => {
-                    eprintln!("Stopping network info update loop: {error:?}");
-                    return;
-                }
-            }
-            network_tab.borrow_mut().update_networks(&networks.lock().expect("failed to lock to update networks"));
         }
-    }));
+    ));
+
+    glib::spawn_future_local(glib::clone!(
+        #[weak]
+        network_tab,
+        async move {
+            loop {
+                match receiver.recv().await {
+                    Ok(_) => {}
+                    Err(error) => {
+                        eprintln!("Stopping network info update loop: {error:?}");
+                        return;
+                    }
+                }
+                network_tab
+                    .borrow_mut()
+                    .update_networks(&networks.lock().expect("failed to lock to update networks"));
+            }
+        }
+    ));
 }
 
 fn setup_system_timeout(
@@ -332,24 +367,46 @@ fn setup_system_timeout(
     let display_tab = &rfs.display_tab;
     let components = Arc::new(Mutex::new(components));
 
-    thread::spawn(
-        glib::clone!(@weak sys, @weak system_refresh_timeout, @weak components => move || {
+    thread::spawn(glib::clone!(
+        #[weak]
+        sys,
+        #[weak]
+        system_refresh_timeout,
+        #[weak]
+        components,
+        move || {
             loop {
                 let sleep_dur = Duration::from_millis(
-                    *system_refresh_timeout.lock().expect("failed to lock system refresh mutex") as _);
+                    *system_refresh_timeout
+                        .lock()
+                        .expect("failed to lock system refresh mutex") as _,
+                );
                 thread::sleep(sleep_dur);
-                sys.lock().expect("failed to lock to refresh system").refresh_all();
-                components.lock().expect("failed to lock components").refresh(true);
-                sender.send_blocking(()).expect("failed to send data through system refresh channel");
+                sys.lock()
+                    .expect("failed to lock to refresh system")
+                    .refresh_all();
+                components
+                    .lock()
+                    .expect("failed to lock components")
+                    .refresh(true);
+                sender
+                    .send_blocking(())
+                    .expect("failed to send data through system refresh channel");
             }
-        }),
-    );
+        }
+    ));
 
-    glib::spawn_future_local(
-        glib::clone!(@weak sys, @weak display_tab, @weak settings => async move {
+    glib::spawn_future_local(glib::clone!(
+        #[weak]
+        sys,
+        #[weak]
+        display_tab,
+        #[weak]
+        settings,
+        async move {
             loop {
                 match receiver.recv().await {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(error) => {
                         eprintln!("Stopping system info update loop: {error:?}");
                         return;
@@ -363,8 +420,8 @@ fn setup_system_timeout(
                 info.update_system_info(&sys, &components, display_fahrenheit);
                 info.update_system_info_display(&sys);
             }
-        }),
-    );
+        }
+    ));
 }
 
 fn create_header_bar(stack: &gtk::Stack) -> (gtk::HeaderBar, gtk::Button) {
@@ -423,14 +480,18 @@ fn build_ui(application: &gtk::Application) {
 
     sys.refresh_all();
     let sys = Arc::new(Mutex::new(sys));
-    procs
-        .kill_button
-        .connect_clicked(glib::clone!(@weak current_pid, @weak sys => move |_| {
+    procs.kill_button.connect_clicked(glib::clone!(
+        #[weak]
+        current_pid,
+        #[weak]
+        sys,
+        move |_| {
             let sys = sys.lock().expect("failed to lock to kill a process");
             if let Some(process) = current_pid.get().and_then(|pid| sys.process(pid)) {
                 process.kill();
             }
-        }));
+        }
+    ));
 
     let settings = Settings::load();
     let sys_components = sysinfo::Components::new_with_refreshed_list();
@@ -465,126 +526,175 @@ fn build_ui(application: &gtk::Application) {
     setup_system_timeout(&rfs, &settings, sys_components);
 
     let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(glib::clone!(@weak settings, @strong rfs => move |_, _| {
-        settings::show_settings_dialog(&settings, &rfs);
-    }));
+    settings_action.connect_activate(glib::clone!(
+        #[weak]
+        settings,
+        #[strong]
+        rfs,
+        move |_, _| {
+            settings::show_settings_dialog(&settings, &rfs);
+        }
+    ));
 
-    info_button.connect_clicked(
-        glib::clone!(@weak current_pid, @weak process_dialogs, @weak sys => move |_| {
+    info_button.connect_clicked(glib::clone!(
+        #[weak]
+        current_pid,
+        #[weak]
+        process_dialogs,
+        #[weak]
+        sys,
+        move |_| {
             if let Some(pid) = current_pid.get() {
                 create_new_proc_diag(
                     &process_dialogs,
                     pid,
-                    &sys.lock().expect("failed to lock to create new proc dialog"),
+                    &sys.lock()
+                        .expect("failed to lock to create new proc dialog"),
                 );
             }
-        }),
-    );
+        }
+    ));
 
-    procs
-        .left_tree
-        .connect_row_activated(glib::clone!(@weak sys => move |tree_view, path, _| {
-                let model = tree_view.model().expect("couldn't get model");
-                let iter = model.iter(path).expect("couldn't get iter");
-                let pid = model.get_value(&iter, 0)
-                               .get::<u32>()
-                               .expect("Model::get failed");
-                create_new_proc_diag(
-                    &process_dialogs,
-                    Pid::from_u32(pid),
-                    &sys.lock().expect("failed to lock to create new proc dialog (from tree)"),
-                );
-            }
-        ));
+    procs.left_tree.connect_row_activated(glib::clone!(
+        #[weak]
+        sys,
+        move |tree_view, path, _| {
+            let model = tree_view.model().expect("couldn't get model");
+            let iter = model.iter(path).expect("couldn't get iter");
+            let pid = model
+                .get_value(&iter, 0)
+                .get::<u32>()
+                .expect("Model::get failed");
+            create_new_proc_diag(
+                &process_dialogs,
+                Pid::from_u32(pid),
+                &sys.lock()
+                    .expect("failed to lock to create new proc dialog (from tree)"),
+            );
+        }
+    ));
 
     let about = gio::SimpleAction::new("about", None);
-    about.connect_activate(glib::clone!(@weak window => move |_, _| {
-        let p = AboutDialog::builder()
-            .authors(vec!["Guillaume Gomez".to_owned()])
-            .website_label("my website")
-            .website("https://guillaume-gomez.fr/")
-            .comments("A process viewer GUI written with gtk-rs")
-            .copyright("Licensed under MIT")
-            .program_name("process-viewer")
-            .transient_for(&window)
-            .modal(true);
+    about.connect_activate(glib::clone!(
+        #[weak]
+        window,
+        move |_, _| {
+            let p = AboutDialog::builder()
+                .authors(vec!["Guillaume Gomez".to_owned()])
+                .website_label("my website")
+                .website("https://guillaume-gomez.fr/")
+                .comments("A process viewer GUI written with gtk-rs")
+                .copyright("Licensed under MIT")
+                .program_name("process-viewer")
+                .transient_for(&window)
+                .modal(true);
 
-        let bytes = Bytes::from_static(include_bytes!(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eye.png")));
-        let memory_stream = MemoryInputStream::from_bytes(&bytes);
-        let pixbuf = Pixbuf::from_stream(&memory_stream, gio::Cancellable::NONE);
-        let p = if let Ok(pixbuf) = pixbuf {
-            let logo = Texture::for_pixbuf(&pixbuf);
-            p.logo(&logo)
-        } else {
-            p
-        };
+            let bytes = Bytes::from_static(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/eye.png"
+            )));
+            let memory_stream = MemoryInputStream::from_bytes(&bytes);
+            let pixbuf = Pixbuf::from_stream(&memory_stream, gio::Cancellable::NONE);
+            let p = if let Ok(pixbuf) = pixbuf {
+                let logo = Texture::for_pixbuf(&pixbuf);
+                p.logo(&logo)
+            } else {
+                p
+            };
 
-        p.build().show();
-    }));
+            p.build().show();
+        }
+    ));
 
     let new_task = gio::SimpleAction::new("new-task", None);
-    new_task.connect_activate(glib::clone!(@weak window => move |_, _| {
-        let dialog = gtk::Dialog::with_buttons(
-            Some("Launch new executable"),
-            Some(&window),
-            gtk::DialogFlags::MODAL,
-            &[("Run", gtk::ResponseType::Other(0)), ("Cancel", gtk::ResponseType::Close)],
-        );
-        let input = Entry::builder()
-            .css_classes(vec!["button-with-margin".to_owned()])
-            .vexpand(false)
-            .hexpand(true)
-            .build();
+    new_task.connect_activate(glib::clone!(
+        #[weak]
+        window,
+        move |_, _| {
+            let dialog = gtk::Dialog::with_buttons(
+                Some("Launch new executable"),
+                Some(&window),
+                gtk::DialogFlags::MODAL,
+                &[
+                    ("Run", gtk::ResponseType::Other(0)),
+                    ("Cancel", gtk::ResponseType::Close),
+                ],
+            );
+            let input = Entry::builder()
+                .css_classes(vec!["button-with-margin".to_owned()])
+                .vexpand(false)
+                .hexpand(true)
+                .build();
 
-        // To set "run" button disabled by default.
-        dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
+            // To set "run" button disabled by default.
+            dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
 
-        input.connect_changed(glib::clone!(@weak dialog => move |input| {
-            if !input.text().is_empty() {
-                dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
-            } else {
-                dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
-            }
-        }));
-        input.connect_activate(glib::clone!(@weak window, @weak dialog => move |input| {
-            run_command(input, &window, &dialog);
-        }));
-        dialog.connect_response(glib::clone!(@weak input, @weak window => move |dialog, response| {
-            match response {
-                gtk::ResponseType::Close => {
-                    dialog.close();
+            input.connect_changed(glib::clone!(
+                #[weak]
+                dialog,
+                move |input| {
+                    if !input.text().is_empty() {
+                        dialog.set_response_sensitive(gtk::ResponseType::Other(0), true);
+                    } else {
+                        dialog.set_response_sensitive(gtk::ResponseType::Other(0), false);
+                    }
                 }
-                gtk::ResponseType::Other(0) => {
-                    run_command(&input, &window, dialog);
+            ));
+            input.connect_activate(glib::clone!(
+                #[weak]
+                window,
+                #[weak]
+                dialog,
+                move |input| {
+                    run_command(input, &window, &dialog);
                 }
-                _ => {}
-            }
-        }));
+            ));
+            dialog.connect_response(glib::clone!(
+                #[weak]
+                input,
+                #[weak]
+                window,
+                move |dialog, response| {
+                    match response {
+                        gtk::ResponseType::Close => {
+                            dialog.close();
+                        }
+                        gtk::ResponseType::Other(0) => {
+                            run_command(&input, &window, dialog);
+                        }
+                        _ => {}
+                    }
+                }
+            ));
 
-        dialog.content_area().append(&input);
-        dialog.set_size_request(400, 70);
-        dialog.show();
-    }));
+            dialog.content_area().append(&input);
+            dialog.set_size_request(400, 70);
+            dialog.show();
+        }
+    ));
 
     let graphs = gio::SimpleAction::new_stateful(
         "graphs",
         None,
         &settings.borrow().display_graph.to_variant(),
     );
-    graphs.connect_activate(glib::clone!(@weak settings => move |g, _| {
-        let mut is_active = false;
-        if let Some(g) = g.state() {
-            is_active = g.get().expect("couldn't get bool");
-            rfs.display_tab.borrow().set_checkboxes_state(!is_active);
-        }
-        // We need to change the toggle state ourselves. `gio` dark magic.
-        g.change_state(&(!is_active).to_variant());
+    graphs.connect_activate(glib::clone!(
+        #[weak]
+        settings,
+        move |g, _| {
+            let mut is_active = false;
+            if let Some(g) = g.state() {
+                is_active = g.get().expect("couldn't get bool");
+                rfs.display_tab.borrow().set_checkboxes_state(!is_active);
+            }
+            // We need to change the toggle state ourselves. `gio` dark magic.
+            g.change_state(&(!is_active).to_variant());
 
-        // We update the setting and save it!
-        settings.borrow_mut().display_graph = !is_active;
-        settings.borrow().save();
-    }));
+            // We update the setting and save it!
+            settings.borrow_mut().display_graph = !is_active;
+            settings.borrow().save();
+        }
+    ));
 
     let temperature = gio::SimpleAction::new_stateful(
         "temperature",
@@ -604,15 +714,23 @@ fn build_ui(application: &gtk::Application) {
         settings.borrow().save();
     });
     let quit = gio::SimpleAction::new("quit", None);
-    quit.connect_activate(glib::clone!(@weak application => move |_,_| {
-        application.quit();
-    }));
+    quit.connect_activate(glib::clone!(
+        #[weak]
+        application,
+        move |_, _| {
+            application.quit();
+        }
+    ));
     application.set_accels_for_action("app.quit", &["<Primary>Q"]);
     let finder = gio::SimpleAction::new("finder", None);
     // Little hack to correctly handle `ctrl+F` shortcut.
-    finder.connect_activate(glib::clone!(@weak search_filter_button => move |_,_| {
-        search_filter_button.emit_clicked();
-    }));
+    finder.connect_activate(glib::clone!(
+        #[weak]
+        search_filter_button,
+        move |_, _| {
+            search_filter_button.emit_clicked();
+        }
+    ));
     application.set_accels_for_action("app.finder", &["<Primary>F"]);
 
     application.add_action(&about);
@@ -625,9 +743,13 @@ fn build_ui(application: &gtk::Application) {
 
     window.set_widget_name(utils::MAIN_WINDOW_NAME);
 
-    application.connect_activate(glib::clone!(@weak window => move |_| {
-        window.present();
-    }));
+    application.connect_activate(glib::clone!(
+        #[weak]
+        window,
+        move |_| {
+            window.present();
+        }
+    ));
 
     procs.search_bar.set_key_capture_widget(Some(&window));
 
@@ -640,18 +762,22 @@ fn build_ui(application: &gtk::Application) {
     }
 
     search_filter_button.connect_clicked(glib::clone!(
-        @strong stack,
-        @weak procs.search_bar as procs_search_bar,
-        @weak network_tab,
-        => move |_| {
-        if let Some(name) = stack.visible_child_name() {
-            match name.as_str() {
-                "Processes" => revert_display(&procs_search_bar),
-                "Networks" => revert_display(&network_tab.borrow().search_bar),
-                _ => {}
-            };
+        #[strong]
+        stack,
+        #[weak(rename_to = procs_search_bar)]
+        procs.search_bar,
+        #[weak]
+        network_tab,
+        move |_| {
+            if let Some(name) = stack.visible_child_name() {
+                match name.as_str() {
+                    "Processes" => revert_display(&procs_search_bar),
+                    "Networks" => revert_display(&network_tab.borrow().search_bar),
+                    _ => {}
+                };
+            }
         }
-    }));
+    ));
 
     stack.connect_visible_child_notify(move |s| {
         if let Some(name) = s.visible_child_name() {
