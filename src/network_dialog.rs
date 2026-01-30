@@ -426,8 +426,6 @@ pub fn create_network_dialog(
     close_button.connect_clicked(glib::clone!(
         #[weak]
         popup,
-        #[weak]
-        to_be_removed,
         move |_| {
             popup.close();
         }
