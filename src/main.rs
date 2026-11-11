@@ -218,23 +218,28 @@ fn create_new_proc_diag(
 }
 
 #[derive(Clone)]
-pub struct RequiredForSettings {
-    process_refresh_timeout: Arc<Mutex<u32>>,
-    network_refresh_timeout: Arc<Mutex<u32>>,
-    system_refresh_timeout: Arc<Mutex<u32>>,
+struct SystemData {
     sys: Arc<Mutex<sysinfo::System>>,
     process_dialogs: Rc<RefCell<Vec<process_dialog::ProcDialog>>>,
     list_store: gtk::ListStore,
     display_tab: Rc<RefCell<DisplaySysInfo>>,
-    network_tab: Rc<RefCell<Network>>,
 }
 
-fn setup_timeout(rfs: &RequiredForSettings) {
+#[derive(Clone)]
+pub struct RequiredForSettings {
+    process_refresh_timeout: Arc<Mutex<u32>>,
+    network_refresh_timeout: Arc<Mutex<u32>>,
+    system_refresh_timeout: Arc<Mutex<u32>>,
+    system: Option<SystemData>,
+    network_tab: Option<Rc<RefCell<Network>>>,
+}
+
+fn setup_timeout(rfs: &RequiredForSettings, system: &SystemData) {
     let (sender, receiver) = async_channel::bounded(1);
 
-    let sys = &rfs.sys;
-    let process_dialogs = &rfs.process_dialogs;
-    let list_store = &rfs.list_store;
+    let sys = &system.sys;
+    let process_dialogs = &system.process_dialogs;
+    let list_store = &system.list_store;
     let process_refresh_timeout = &rfs.process_refresh_timeout;
 
     thread::spawn(glib::clone!(
@@ -305,11 +310,14 @@ fn setup_timeout(rfs: &RequiredForSettings) {
     ));
 }
 
-fn setup_network_timeout(rfs: &RequiredForSettings, networks: Arc<Mutex<Networks>>) {
+fn setup_network_timeout(
+    rfs: &RequiredForSettings,
+    network_tab: &Rc<RefCell<Network>>,
+    networks: Arc<Mutex<Networks>>,
+) {
     let (sender, receiver) = async_channel::bounded(1);
 
     let network_refresh_timeout = &rfs.network_refresh_timeout;
-    let network_tab = &rfs.network_tab;
 
     thread::spawn(glib::clone!(
         #[weak]
@@ -357,14 +365,15 @@ fn setup_network_timeout(rfs: &RequiredForSettings, networks: Arc<Mutex<Networks
 
 fn setup_system_timeout(
     rfs: &RequiredForSettings,
+    system: &SystemData,
     settings: &Rc<RefCell<Settings>>,
-    components: sysinfo::Components,
+    components: Option<sysinfo::Components>,
 ) {
     let (sender, receiver) = async_channel::bounded(1);
 
     let system_refresh_timeout = &rfs.system_refresh_timeout;
-    let sys = &rfs.sys;
-    let display_tab = &rfs.display_tab;
+    let sys = &system.sys;
+    let display_tab = &system.display_tab;
     let components = Arc::new(Mutex::new(components));
 
     thread::spawn(glib::clone!(
@@ -385,10 +394,13 @@ fn setup_system_timeout(
                 sys.lock()
                     .expect("failed to lock to refresh system")
                     .refresh_all();
-                components
+                if let Some(components) = components
                     .lock()
                     .expect("failed to lock components")
-                    .refresh(true);
+                    .as_mut()
+                {
+                    components.refresh(true);
+                }
                 sender
                     .send_blocking(())
                     .expect("failed to send data through system refresh channel");
@@ -417,7 +429,7 @@ fn setup_system_timeout(
                 let components = components.lock().expect("failed to lock components");
                 let display_fahrenheit = settings.borrow().display_fahrenheit;
 
-                info.update_system_info(&sys, &components, display_fahrenheit);
+                info.update_system_info(&sys, components.as_ref(), display_fahrenheit);
                 info.update_system_info_display(&sys);
             }
         }
@@ -464,19 +476,14 @@ fn create_header_bar(stack: &gtk::Stack) -> (gtk::HeaderBar, gtk::Button) {
     (header_bar, search_filter_button)
 }
 
-fn build_ui(application: &gtk::Application) {
-    let window = gtk::ApplicationWindow::new(application);
-    let stack = gtk::Stack::new();
-
-    let (header_bar, search_filter_button) = create_header_bar(&stack);
-    window.set_titlebar(Some(&header_bar));
-
-    let mut sys = sysinfo::System::new_with_specifics(RefreshKind::everything());
-    let procs = Procs::new(sys.processes(), &stack);
+fn setup_system_tabs(
+    stack: &gtk::Stack,
+    mut sys: sysinfo::System,
+    settings: &Rc<RefCell<Settings>>,
+    rfs: &RequiredForSettings,
+) -> (SystemData, gtk::SearchBar) {
+    let procs = Procs::new(sys.processes(), stack);
     let current_pid = Rc::clone(&procs.current_pid);
-    let info_button = procs.info_button.clone();
-
-    window.set_default_size(630, 700);
 
     sys.refresh_all();
     let sys = Arc::new(Mutex::new(sys));
@@ -493,50 +500,29 @@ fn build_ui(application: &gtk::Application) {
         }
     ));
 
-    let settings = Settings::load();
-    let sys_components = sysinfo::Components::new_with_refreshed_list();
-    let display_tab = DisplaySysInfo::new(&sys, &sys_components, &stack, &settings);
-
-    let settings = Rc::new(RefCell::new(settings));
-    let networks = Arc::new(Mutex::new(Networks::new_with_refreshed_list()));
-    let network_tab = Rc::new(RefCell::new(Network::new(&stack, &networks)));
-    display_disk::create_disk_info(&stack);
-
-    let display_tab = Rc::new(RefCell::new(display_tab));
-
-    window.set_child(Some(&stack));
+    let sys_components = match sysinfo::Components::new_with_refreshed_list() {
+        Ok(components) => Some(components),
+        Err(error) => {
+            eprintln!("Failed to retrieve components information: {error}");
+            None
+        }
+    };
+    let display_tab = DisplaySysInfo::new(&sys, sys_components.as_ref(), stack, &settings.borrow());
 
     let process_dialogs: Rc<RefCell<Vec<process_dialog::ProcDialog>>> =
         Rc::new(RefCell::new(Vec::new()));
-    let list_store = procs.list_store.clone();
 
-    let rfs = RequiredForSettings {
-        process_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_processes_rate)),
-        network_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_network_rate)),
-        system_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_system_rate)),
+    let system = SystemData {
         sys: sys.clone(),
         process_dialogs: process_dialogs.clone(),
-        list_store,
-        display_tab,
-        network_tab: network_tab.clone(),
+        list_store: procs.list_store.clone(),
+        display_tab: Rc::new(RefCell::new(display_tab)),
     };
 
-    setup_timeout(&rfs);
-    setup_network_timeout(&rfs, networks);
-    setup_system_timeout(&rfs, &settings, sys_components);
+    setup_timeout(rfs, &system);
+    setup_system_timeout(rfs, &system, settings, sys_components);
 
-    let settings_action = gio::SimpleAction::new("settings", None);
-    settings_action.connect_activate(glib::clone!(
-        #[weak]
-        settings,
-        #[strong]
-        rfs,
-        move |_, _| {
-            settings::show_settings_dialog(&settings, &rfs);
-        }
-    ));
-
-    info_button.connect_clicked(glib::clone!(
+    procs.info_button.connect_clicked(glib::clone!(
         #[weak]
         current_pid,
         #[weak]
@@ -571,6 +557,69 @@ fn build_ui(application: &gtk::Application) {
                 &sys.lock()
                     .expect("failed to lock to create new proc dialog (from tree)"),
             );
+        }
+    ));
+
+    (system, procs.search_bar)
+}
+
+fn build_ui(application: &gtk::Application) {
+    let window = gtk::ApplicationWindow::new(application);
+    let stack = gtk::Stack::new();
+
+    let (header_bar, search_filter_button) = create_header_bar(&stack);
+    window.set_titlebar(Some(&header_bar));
+
+    window.set_default_size(630, 700);
+
+    let settings = Rc::new(RefCell::new(Settings::load()));
+    let mut rfs = RequiredForSettings {
+        process_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_processes_rate)),
+        network_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_network_rate)),
+        system_refresh_timeout: Arc::new(Mutex::new(settings.borrow().refresh_system_rate)),
+        system: None,
+        network_tab: None,
+    };
+
+    let procs_search_bar = match sysinfo::System::new_with_specifics(RefreshKind::everything()) {
+        Ok(sys) => {
+            let (system, search_bar) = setup_system_tabs(&stack, sys, &settings, &rfs);
+            rfs.system = Some(system);
+            Some(search_bar)
+        }
+        Err(error) => {
+            utils::add_not_available_page(&stack, "Processes", &error);
+            utils::add_not_available_page(&stack, "System", &error);
+            None
+        }
+    };
+
+    match Networks::new_with_refreshed_list() {
+        Ok(networks) => {
+            let networks = Arc::new(Mutex::new(networks));
+            let network_tab = Rc::new(RefCell::new(Network::new(&stack, &networks)));
+            setup_network_timeout(&rfs, &network_tab, networks);
+            rfs.network_tab = Some(network_tab);
+        }
+        Err(error) => utils::add_not_available_page(&stack, "Networks", &error),
+    }
+    let network_search_bar = rfs
+        .network_tab
+        .as_ref()
+        .map(|network_tab| network_tab.borrow().search_bar.clone());
+
+    display_disk::create_disk_info(&stack);
+
+    window.set_child(Some(&stack));
+
+    let settings_action = gio::SimpleAction::new("settings", None);
+    settings_action.connect_activate(glib::clone!(
+        #[weak]
+        settings,
+        #[strong]
+        rfs,
+        move |_, _| {
+            settings::show_settings_dialog(&settings, &rfs);
         }
     ));
 
@@ -685,7 +734,9 @@ fn build_ui(application: &gtk::Application) {
             let mut is_active = false;
             if let Some(g) = g.state() {
                 is_active = g.get().expect("couldn't get bool");
-                rfs.display_tab.borrow().set_checkboxes_state(!is_active);
+                if let Some(ref system) = rfs.system {
+                    system.display_tab.borrow().set_checkboxes_state(!is_active);
+                }
             }
             // We need to change the toggle state ourselves. `gio` dark magic.
             g.change_state(&(!is_active).to_variant());
@@ -751,7 +802,9 @@ fn build_ui(application: &gtk::Application) {
         }
     ));
 
-    procs.search_bar.set_key_capture_widget(Some(&window));
+    if let Some(ref procs_search_bar) = procs_search_bar {
+        procs_search_bar.set_key_capture_widget(Some(&window));
+    }
 
     fn revert_display(search_bar: &gtk::SearchBar) {
         if search_bar.is_search_mode() {
@@ -764,51 +817,40 @@ fn build_ui(application: &gtk::Application) {
     search_filter_button.connect_clicked(glib::clone!(
         #[strong]
         stack,
-        #[weak(rename_to = procs_search_bar)]
-        procs.search_bar,
-        #[weak]
-        network_tab,
+        #[strong]
+        procs_search_bar,
+        #[strong]
+        network_search_bar,
         move |_| {
-            if let Some(name) = stack.visible_child_name() {
-                match name.as_str() {
-                    "Processes" => revert_display(&procs_search_bar),
-                    "Networks" => revert_display(&network_tab.borrow().search_bar),
-                    _ => {}
-                };
+            let search_bar = match stack.visible_child_name().as_deref() {
+                Some("Processes") => procs_search_bar.as_ref(),
+                Some("Networks") => network_search_bar.as_ref(),
+                _ => None,
+            };
+            if let Some(search_bar) = search_bar {
+                revert_display(search_bar);
             }
         }
     ));
 
     stack.connect_visible_child_notify(move |s| {
-        if let Some(name) = s.visible_child_name() {
-            match name.as_str() {
-                "Processes" => {
-                    procs.search_bar.set_key_capture_widget(Some(&window));
-                    network_tab
-                        .borrow()
-                        .search_bar
-                        .set_key_capture_widget(gtk::Widget::NONE);
-                    search_filter_button.set_sensitive(true);
-                    return;
-                }
-                "Networks" => {
-                    network_tab
-                        .borrow()
-                        .search_bar
-                        .set_key_capture_widget(Some(&window));
-                    procs.search_bar.set_key_capture_widget(gtk::Widget::NONE);
-                    search_filter_button.set_sensitive(true);
-                    return;
-                }
-                _ => {}
+        let (active, inactive) = match s.visible_child_name().as_deref() {
+            Some("Processes") => (procs_search_bar.as_ref(), network_search_bar.as_ref()),
+            Some("Networks") => (network_search_bar.as_ref(), procs_search_bar.as_ref()),
+            _ => (None, None),
+        };
+        if let Some(active) = active {
+            active.set_key_capture_widget(Some(&window));
+            if let Some(inactive) = inactive {
+                inactive.set_key_capture_widget(gtk::Widget::NONE);
             }
+            search_filter_button.set_sensitive(true);
+            return;
         }
         search_filter_button.set_sensitive(false);
-        procs.search_bar.set_key_capture_widget(gtk::Widget::NONE);
-        network_tab
-            .borrow()
-            .search_bar
-            .set_key_capture_widget(gtk::Widget::NONE);
+        for search_bar in procs_search_bar.iter().chain(network_search_bar.iter()) {
+            search_bar.set_key_capture_widget(gtk::Widget::NONE);
+        }
     });
 }
 

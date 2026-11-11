@@ -5,6 +5,21 @@ use std::ops::Index;
 
 pub const MAIN_WINDOW_NAME: &str = "main-window";
 
+pub fn add_not_available_page(stack: &gtk::Stack, name: &str, error: &sysinfo::Error) {
+    eprintln!(
+        "Failed to retrieve {} information: {error}",
+        name.to_lowercase()
+    );
+    let label = gtk::Label::builder()
+        .label(format!(
+            "{name} information is not available on this system"
+        ))
+        .hexpand(true)
+        .vexpand(true)
+        .build();
+    stack.add_titled(&label, Some(name), name);
+}
+
 #[derive(Debug)]
 pub struct RotateVec<T> {
     data: Vec<T>,

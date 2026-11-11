@@ -7,7 +7,7 @@ description = "A process viewer GUI"
 repository = "https://github.com/GuillaumeGomez/process-viewer"
 license = "MIT"
 homepage = "https://github.com/GuillaumeGomez/process-viewer"
-rust-version = "1.86"
+rust-version = "1.95"
 
 readme = "README.md"
 
@@ -15,7 +15,7 @@ keywords = ["GUI", "process", "viewer", "gtk"]
 
 [dependencies]
 gtk = { version = "0.10", package = "gtk4" }
-sysinfo = "0.38"
+sysinfo = "0.40"
 libc = "0.2"
 serde = "1.0"
 serde_derive = "1.0"

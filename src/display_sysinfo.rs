@@ -70,7 +70,7 @@ pub struct DisplaySysInfo {
 impl DisplaySysInfo {
     pub fn new(
         sys: &Arc<Mutex<sysinfo::System>>,
-        sys_components: &sysinfo::Components,
+        sys_components: Option<&sysinfo::Components>,
         stack: &gtk::Stack,
         settings: &Settings,
     ) -> DisplaySysInfo {
@@ -154,9 +154,9 @@ impl DisplaySysInfo {
             let p: &gtk::ProgressBar = &procs[i + 1];
             let l = gtk::Label::new(Some(&format!("{i}")));
 
-            p.set_text(Some(&format!("{:.1} %", pro.cpu_usage())));
+            p.set_text(Some(&format!("{:.1} %", pro.usage())));
             p.set_show_text(true);
-            p.set_fraction(f64::from(pro.cpu_usage()));
+            p.set_fraction(f64::from(pro.usage()));
             non_graph_layout.attach(&l, 0, i as i32 - 1, 1, 1);
             non_graph_layout.attach(p, 1, i as i32 - 1, 11, 1);
             cpu_usage_history.push(
@@ -192,7 +192,7 @@ impl DisplaySysInfo {
         //
         // TEMPERATURES PART
         //
-        if !sys_components.is_empty() {
+        if let Some(sys_components) = sys_components.filter(|c| !c.is_empty()) {
             check_box3 = Some(create_header(
                 "Components' temperature",
                 &vertical_layout,
@@ -218,6 +218,13 @@ impl DisplaySysInfo {
             }
             vertical_layout.append(&non_graph_layout3);
             vertical_layout.append(&temperature_usage_history);
+        } else if sys_components.is_none() {
+            vertical_layout.append(
+                &gtk::Label::builder()
+                    .label("Components' temperature information is not available on this system")
+                    .margin_top(10)
+                    .build(),
+            );
         }
 
         //
@@ -303,7 +310,7 @@ impl DisplaySysInfo {
     pub fn update_system_info(
         &mut self,
         sys: &sysinfo::System,
-        sys_components: &sysinfo::Components,
+        sys_components: Option<&sysinfo::Components>,
         display_fahrenheit: bool,
     ) {
         let disp = |total, used| {
@@ -356,6 +363,9 @@ impl DisplaySysInfo {
         }
 
         // temperature part
+        let Some(sys_components) = sys_components else {
+            return;
+        };
         let t = self.temperature_usage_history.borrow_mut();
         #[allow(clippy::collapsible_else_if)]
         for (pos, (component, label)) in sys_components
@@ -395,13 +405,13 @@ impl DisplaySysInfo {
         v[0].set_fraction(f64::from(cpu_usage / 100.));
         for (i, pro) in sys.cpus().iter().enumerate() {
             let i = i + 1;
-            v[i].set_text(Some(&format!("{:.1} %", pro.cpu_usage())));
+            v[i].set_text(Some(&format!("{:.1} %", pro.usage())));
             v[i].set_show_text(true);
-            v[i].set_fraction(f64::from(pro.cpu_usage() / 100.));
+            v[i].set_fraction(f64::from(pro.usage() / 100.));
             h.data(i - 1, |d| {
                 d.move_start();
                 if let Some(h) = d.get_mut(0) {
-                    *h = pro.cpu_usage() / 100.;
+                    *h = pro.usage() / 100.;
                 }
             });
         }
