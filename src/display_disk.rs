@@ -83,7 +83,13 @@ pub fn create_disk_info(stack: &gtk::Stack) {
         .child(&container)
         .build();
 
-    let disks = RefCell::new(sysinfo::Disks::new_with_refreshed_list());
+    let disks = match sysinfo::Disks::new_with_refreshed_list() {
+        Ok(disks) => RefCell::new(disks),
+        Err(error) => {
+            crate::utils::add_not_available_page(stack, "Disks", &error);
+            return;
+        }
+    };
 
     refresh_disks(&container, &disks.borrow(), &mut elems.borrow_mut());
 

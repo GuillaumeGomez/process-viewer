@@ -246,7 +246,7 @@ impl Network {
                 };
                 if let Some((_, data)) = networks
                     .iter()
-                    .find(|(interface_name, _)| interface_name.as_str() == name)
+                    .find(|(interface_name, _)| **interface_name == *name.as_str())
                 {
                     self.list_store.set(
                         &iter,
@@ -274,10 +274,11 @@ impl Network {
         }
 
         for (interface_name, data) in networks.iter() {
-            if !seen.contains(interface_name.as_str()) {
+            let interface_name = interface_name.to_string_lossy();
+            if !seen.contains(&*interface_name) {
                 create_and_fill_model(
                     &self.list_store,
-                    interface_name,
+                    &interface_name,
                     data.received(),
                     data.transmitted(),
                     data.packets_received(),
@@ -349,10 +350,7 @@ fn create_network_dialog(
             return;
         }
     }
-    if let Some((_, data)) = networks
-        .iter()
-        .find(|(name, _)| name.as_str() == interface_name)
-    {
+    if let Some((_, data)) = networks.iter().find(|(name, _)| **name == *interface_name) {
         dialogs.push(network_dialog::create_network_dialog(data, interface_name));
     } else {
         eprintln!("couldn't find {interface_name}...");
