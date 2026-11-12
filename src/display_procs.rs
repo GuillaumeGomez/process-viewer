@@ -7,7 +7,7 @@ use crate::utils::format_number;
 
 use std::cell::Cell;
 use std::collections::HashMap;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::rc::Rc;
 
 #[allow(dead_code)]
@@ -72,11 +72,15 @@ impl Procs {
             glib::Type::STRING, // CPU
             glib::Type::STRING, // mem
             glib::Type::STRING, // disk I/O
+            glib::Type::STRING, // GPU
+            glib::Type::STRING, // GPU mem
             // These two will serve as keys when sorting by process name and CPU usage.
             glib::Type::STRING, // name_lowercase
             glib::Type::F32,    // CPU_f32
             glib::Type::U64,    // mem
             glib::Type::U64,    // disk I/O
+            glib::Type::F32,    // GPU_f32
+            glib::Type::U64,    // GPU mem
         ]);
 
         for pro in proc_list.values() {
@@ -85,14 +89,7 @@ impl Procs {
                 .and_then(|exe| exe.file_name())
                 .or_else(|| Some(pro.name()))
             {
-                create_and_fill_model(
-                    &list_store,
-                    pro.pid().as_u32(),
-                    pro.cmd(),
-                    exe,
-                    pro.cpu_usage(),
-                    pro.memory(),
-                );
+                create_and_fill_model(&list_store, pro, exe);
             }
         }
 
@@ -180,26 +177,31 @@ impl Procs {
         {
             append_column("I/O usage", &mut columns, &left_tree, None);
         }
+        append_column("gpu usage", &mut columns, &left_tree, None);
+        append_column("gpu memory usage", &mut columns, &left_tree, None);
 
         // When we click the "name" column the order is defined by the
         // "name_lowercase" effectively making the built-in comparator ignore case.
-        columns[1].set_sort_column_id(5);
+        columns[1].set_sort_column_id(7);
         // Likewise clicking the "CPU" column sorts by the "CPU_f32" one because
         // we want the order to be numerical not lexicographical.
-        columns[2].set_sort_column_id(6);
+        columns[2].set_sort_column_id(8);
         // The memory usage display has been improved, so to make efficient sort,
         // we have to separate the display and the actual number.
-        columns[3].set_sort_column_id(7);
+        columns[3].set_sort_column_id(9);
         // The disk I/O usage display has been improved, so to make efficient sort,
         // we have to separate the display and the actual number.
-        columns[4].set_sort_column_id(8);
+        columns[4].set_sort_column_id(10);
+        // Same for the GPU columns.
+        columns[5].set_sort_column_id(11);
+        columns[6].set_sort_column_id(12);
 
         filter_entry.connect_search_changed(move |_| {
             filter_model.refilter();
         });
 
         // Sort by CPU usage by default.
-        sort_model.set_sort_column_id(gtk::SortColumn::Index(6), gtk::SortType::Descending);
+        sort_model.set_sort_column_id(gtk::SortColumn::Index(8), gtk::SortType::Descending);
 
         stack.add_titled(&vertical_layout, Some("Processes"), "Processes");
 
@@ -251,16 +253,24 @@ fn append_column(
     v.push(column);
 }
 
-pub fn create_and_fill_model(
-    list_store: &gtk::ListStore,
-    pid: u32,
-    cmdline: &[OsString],
-    name: &OsStr,
-    cpu: f32,
-    memory: u64,
-) {
+pub fn format_gpu_usage(process: &Process) -> (String, f32) {
+    match process.gpu_usage() {
+        Some(usage) => (format!("{usage:.1}"), usage),
+        None => (String::new(), 0.),
+    }
+}
+
+pub fn format_gpu_memory(process: &Process) -> (String, u64) {
+    match process.gpu_memory() {
+        Some(memory) if memory > 0 => (format_number(memory), memory),
+        _ => (String::new(), 0),
+    }
+}
+
+pub fn create_and_fill_model(list_store: &gtk::ListStore, process: &Process, name: &OsStr) {
     let name = if name.is_empty() {
-        let Some(cmd) = cmdline
+        let Some(cmd) = process
+            .cmd()
             .iter()
             .map(|c| c.to_string_lossy().to_string())
             .next()
@@ -271,18 +281,26 @@ pub fn create_and_fill_model(
     } else {
         name.to_string_lossy().to_string()
     };
+    let cpu = process.cpu_usage();
+    let memory = process.memory();
+    let (gpu_s, gpu) = format_gpu_usage(process);
+    let (gpu_memory_s, gpu_memory) = format_gpu_memory(process);
     list_store.insert_with_values(
         None,
         &[
-            (0, &pid),
+            (0, &process.pid().as_u32()),
             (1, &name),
             (2, &format!("{cpu:.1}")),
             (3, &format_number(memory)),
             (4, &String::new()),
-            (5, &name.to_lowercase()),
-            (6, &cpu),
-            (7, &memory),
-            (8, &0),
+            (5, &gpu_s),
+            (6, &gpu_memory_s),
+            (7, &name.to_lowercase()),
+            (8, &cpu),
+            (9, &memory),
+            (10, &0u64),
+            (11, &gpu),
+            (12, &gpu_memory),
         ],
     );
 }

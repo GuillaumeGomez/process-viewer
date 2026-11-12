@@ -14,7 +14,7 @@ use gtk::prelude::*;
 use gtk::{gdk, gdk_pixbuf, gio, glib};
 use gtk::{AboutDialog, Dialog, Entry, MessageDialog};
 
-use sysinfo::{Networks, Pid, ProcessesToUpdate, RefreshKind};
+use sysinfo::{Networks, Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, UpdateKind};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -28,6 +28,7 @@ use std::time::Duration;
 
 mod color;
 mod display_disk;
+mod display_gpu;
 #[macro_use]
 mod display_sysinfo;
 mod display_network;
@@ -39,8 +40,9 @@ mod process_dialog;
 mod settings;
 mod utils;
 
+use display_gpu::DisplayGpu;
 use display_network::Network;
-use display_procs::{create_and_fill_model, Procs};
+use display_procs::{create_and_fill_model, format_gpu_memory, format_gpu_usage, Procs};
 use display_sysinfo::DisplaySysInfo;
 use settings::Settings;
 use utils::format_number;
@@ -64,6 +66,8 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
                 let disk_usage = p.disk_usage();
                 let disk_usage = disk_usage.written_bytes + disk_usage.read_bytes;
                 let memory = p.memory();
+                let (gpu_s, gpu) = format_gpu_usage(p);
+                let (gpu_memory_s, gpu_memory) = format_gpu_memory(p);
                 list.set(
                     &iter,
                     &[
@@ -77,9 +81,13 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
                                 String::new()
                             },
                         ),
-                        (6, &p.cpu_usage()),
-                        (7, &memory),
-                        (8, &disk_usage),
+                        (5, &gpu_s),
+                        (6, &gpu_memory_s),
+                        (8, &p.cpu_usage()),
+                        (9, &memory),
+                        (10, &disk_usage),
+                        (11, &gpu),
+                        (12, &gpu_memory),
                     ],
                 );
                 valid = list.iter_next(&iter);
@@ -90,16 +98,9 @@ fn update_window(list: &gtk::ListStore, entries: &HashMap<Pid, sysinfo::Process>
         }
     }
 
-    for (pid, pro) in entries.iter() {
+    for (pid, pro) in entries {
         if !seen.contains(pid) {
-            create_and_fill_model(
-                list,
-                pid.as_u32(),
-                pro.cmd(),
-                pro.name(),
-                pro.cpu_usage(),
-                pro.memory(),
-            );
+            create_and_fill_model(list, pro, pro.name());
         }
     }
 }
@@ -257,7 +258,17 @@ fn setup_timeout(rfs: &RequiredForSettings, system: &SystemData) {
                 thread::sleep(sleep_dur);
                 sys.lock()
                     .expect("failed to lock to refresh processes")
-                    .refresh_processes(ProcessesToUpdate::All, false);
+                    .refresh_processes_specifics(
+                        ProcessesToUpdate::All,
+                        false,
+                        ProcessRefreshKind::nothing()
+                            .with_memory()
+                            .with_cpu()
+                            .with_disk_usage()
+                            .with_exe(UpdateKind::OnlyIfNotSet)
+                            .with_gpu_usage()
+                            .with_gpu_memory(),
+                    );
                 sender
                     .send_blocking(())
                     .expect("failed to send data through process refresh channel");
@@ -361,6 +372,24 @@ fn setup_network_timeout(
             }
         }
     ));
+}
+
+// `sysinfo::Gpus` is not `Send`, so it is refreshed on the main thread.
+fn setup_gpu_timeout(rfs: &RequiredForSettings, gpu_tab: DisplayGpu, mut gpus: sysinfo::Gpus) {
+    let system_refresh_timeout = rfs.system_refresh_timeout.clone();
+
+    glib::spawn_future_local(async move {
+        loop {
+            let sleep_dur = Duration::from_millis(
+                *system_refresh_timeout
+                    .lock()
+                    .expect("failed to lock system refresh mutex") as _,
+            );
+            glib::timeout_future(sleep_dur).await;
+            gpus.refresh(false);
+            gpu_tab.update(&gpus);
+        }
+    });
 }
 
 fn setup_system_timeout(
@@ -594,6 +623,19 @@ fn build_ui(application: &gtk::Application) {
         }
     };
 
+    let gpu_check_box = match sysinfo::Gpus::new_with_refreshed_list() {
+        Ok(gpus) => {
+            let gpu_tab = DisplayGpu::new(&gpus, &stack, &settings.borrow());
+            let check_box = gpu_tab.check_box.clone();
+            setup_gpu_timeout(&rfs, gpu_tab, gpus);
+            check_box
+        }
+        Err(error) => {
+            utils::add_not_available_page(&stack, "GPUs", &error);
+            None
+        }
+    };
+
     match Networks::new_with_refreshed_list() {
         Ok(networks) => {
             let networks = Arc::new(Mutex::new(networks));
@@ -736,6 +778,9 @@ fn build_ui(application: &gtk::Application) {
                 is_active = g.get().expect("couldn't get bool");
                 if let Some(ref system) = rfs.system {
                     system.display_tab.borrow().set_checkboxes_state(!is_active);
+                }
+                if let Some(ref check_box) = gpu_check_box {
+                    check_box.set_active(!is_active);
                 }
             }
             // We need to change the toggle state ourselves. `gio` dark magic.
